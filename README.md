@@ -1,13 +1,13 @@
 # Moodify — AI Mood-Based Music Player
 
-Moodify detects your facial expression in real time, maps it to an emotional state, and instantly serves a Spotify-powered playlist that fits how you feel. Built with Next.js 14, Firebase, face-api.js, and the Spotify Web API.
+Moodify detects your facial expression in real time via webcam, maps it to an emotional state, and instantly serves a Spotify-powered playlist that fits how you feel. Built with Next.js 14, FastAPI (Python), Firebase, deepface, and the Spotify Web API (OAuth).
 
 ---
 
 ## Core Workflow
 
 ```
-Camera / Photo → face-api.js → Emotion → Mood Map → Spotify API → Music Player
+Browser Webcam → WebSocket → FastAPI → deepface/fer → Emotion → Mood → Spotify OAuth API → Music Player
 ```
 
 ---
@@ -16,136 +16,143 @@ Camera / Photo → face-api.js → Emotion → Mood Map → Spotify API → Musi
 
 | Layer | Technology |
 |---|---|
-| Framework | Next.js 14 (App Router) |
-| Language | TypeScript |
+| Frontend | Next.js 14 (App Router, TypeScript) |
 | Styling | Tailwind CSS |
+| Backend | Python FastAPI |
+| Face Detection | deepface + fer + OpenCV (webcam via WebSocket) |
 | Auth | Firebase Authentication (Google + Email/Password) |
 | Database | Firestore (user profiles, mood history, liked tracks) |
-| Face Detection | face-api.js (TinyFaceDetector + FaceExpressionNet) |
-| Music | Spotify Web API (Client Credentials + optional OAuth) |
-| Deployment | Vercel |
+| Music | Spotify Web API (OAuth — user connects their account) |
+| Frontend Deploy | Vercel |
+| Backend Deploy | Render / Railway |
 
 ---
 
 ## Project Roadmap
 
-### Phase 1 — Clean Slate & Project Setup
-- [ ] Remove unused dependencies (`mongodb`, `mongoose`, `next-auth`, `jsonwebtoken`, `axios`)
-- [ ] Remove dead API routes (`/api/music`, `/api/playlist`) and mock data files
-- [ ] Unify Tailwind config — replace old light-theme color tokens with the black/orange design system
-- [ ] Fix `Header.tsx` to match the dark theme used across all pages
-- [ ] Set up folder structure:
+### Phase 1 — Project Setup & Folder Structure
+- [ ] Scaffold Next.js 14 frontend (`frontend/`) with TypeScript + Tailwind + App Router
+- [ ] Scaffold FastAPI backend (`backend/`) with Python 3.11 virtual environment
+- [ ] Set up frontend folder structure:
   ```
-  app/
-    (auth)/         → login, signup pages
-    (app)/          → protected: dashboard, history, profile
-  components/
-    auth/
-    detection/
-    player/
-    ui/
-  lib/
-    firebase.ts
-    firestore.ts
-  hooks/
-  types/
-  utils/
+  frontend/
+  ├── app/
+  │   ├── (auth)/login & signup pages
+  │   ├── (app)/dashboard, history, profile
+  │   └── globals.css
+  ├── components/auth, detection, player, ui
+  ├── context/AuthContext.tsx
+  ├── hooks/
+  ├── lib/firebase.ts, firestore.ts
+  ├── types/index.ts
+  └── utils/
+  ```
+- [ ] Set up backend folder structure:
+  ```
+  backend/
+  ├── main.py
+  ├── routes/spotify.py, mood.py, auth.py
+  ├── services/face_detection.py, spotify_service.py
+  ├── requirements.txt
+  └── .env
   ```
 - [ ] Configure path aliases in `tsconfig.json`
+- [ ] Set up Tailwind black/orange design system
+- [ ] Install all frontend and backend dependencies
 
 ---
 
 ### Phase 2 — Firebase Authentication
-- [ ] Create Firebase project, enable Google Sign-In and Email/Password
-- [ ] Add Firebase config to `.env.local`
+- [ ] Enable Google Sign-In and Email/Password in Firebase console
+- [ ] Add Firebase config to `frontend/.env.local`
 - [ ] `lib/firebase.ts` — initialize Firebase app, Auth, Firestore
-- [ ] `AuthContext` — React context that exposes `user`, `loading`, `signIn`, `signOut`
+- [ ] `AuthContext` — React context exposing `user`, `loading`, `signIn`, `signOut`
 - [ ] Login page (`/login`) — Google OAuth button + email/password form
 - [ ] Signup page (`/signup`) — email/password registration + display name
-- [ ] Route protection — middleware redirects unauthenticated users away from `/dashboard`, `/history`, `/profile`
+- [ ] Route protection — middleware redirects unauthenticated users from `/dashboard`, `/history`, `/profile`
 - [ ] Persist auth state across page refreshes
+- [ ] FastAPI — verify Firebase ID tokens on protected routes
 - [ ] User profile document created in Firestore on first sign-in
 
 ---
 
-### Phase 3 — Face Detection (Rebuilt Clean)
-- [ ] Single `useFaceDetection` hook that encapsulates all face-api.js logic
-- [ ] Webcam detection mode — continuous frame analysis, debounced mood updates
-- [ ] Image upload mode — drag & drop or file picker, one-shot analysis
-- [ ] Confidence threshold (≥ 50%) before triggering a mood update
-- [ ] Graceful error states: camera denied, no face found, models failed to load
+### Phase 3 — Realtime Face Detection (WebSocket)
+- [ ] FastAPI WebSocket endpoint `/ws/detect` — receives webcam frames, returns mood
+- [ ] `deepface` / `fer` + OpenCV for emotion detection on each frame
+- [ ] Confidence threshold (≥ 50%) before triggering mood update
+- [ ] Debounce mood updates (avoid rapid switching)
+- [ ] Graceful error states: camera denied, no face found, model load failure
+- [ ] Frontend `useFaceDetection` hook — manages webcam stream + WebSocket connection
 - [ ] Emotion → Mood mapping:
 
-  | face-api Emotion | App Mood |
+  | Emotion | App Mood |
   |---|---|
   | happy | happy |
-  | surprised | upbeat |
+  | surprise | upbeat |
   | neutral | chill |
   | sad | melancholy |
-  | fearful | relaxing |
-  | disgusted | energetic |
+  | fear | relaxing |
+  | disgust | energetic |
   | angry | intense |
 
 ---
 
-### Phase 4 — Spotify Integration (Rebuilt Clean)
-- [ ] `/api/spotify/token` — server-side Client Credentials token fetch, cached with expiry
-- [ ] Token stored server-side (not passed in query strings)
-- [ ] `/api/spotify/recommendations?mood=` — returns 10 tracks with `id`, `title`, `artist`, `albumArt`, `preview_url`, `external_url`
+### Phase 4 — Spotify OAuth Integration
+- [ ] FastAPI `/api/spotify/login` — redirect user to Spotify authorization page
+- [ ] FastAPI `/api/spotify/callback` — exchange code for `access_token` + `refresh_token`
+- [ ] Store tokens securely in Firestore against `userId`
+- [ ] FastAPI `/api/spotify/recommendations?mood=` — returns 10 personalized tracks
 - [ ] Mood → Spotify audio features mapping (valence, energy, genres, seed tracks)
-- [ ] Handle `preview_url: null` gracefully — show "Open in Spotify" CTA
-- [ ] **Optional (Phase 6):** Spotify OAuth flow so users can connect their account for full playback and personalized recommendations based on their listening history
+- [ ] Token refresh logic — auto-refresh expired access tokens
+- [ ] Handle `preview_url: null` — show "Open in Spotify" CTA
+- [ ] Frontend `useSpotify` hook — manages Spotify connection state
 
 ---
 
-### Phase 5 — Music Player (Rebuilt Clean)
+### Phase 5 — Music Player
 - [ ] `MusicPlayer` component — album art, track info, seek bar, volume, prev/next
 - [ ] Auto-play first track when mood is detected
 - [ ] Track list panel — scrollable list of all recommendations
 - [ ] "Open in Spotify" button on every track
 - [ ] Smooth transition animation when mood changes and playlist refreshes
-- [ ] **Mood override** — manual mood selector so users can pick a mood themselves if detection is off
+- [ ] Mood override — manual mood selector if detection is off
 
 ---
 
 ### Phase 6 — User Features (Firestore)
-- [ ] **Mood History** — every detection session saved to Firestore: `{ userId, mood, confidence, timestamp }`
+- [ ] **Mood History** — every detection session saved: `{ userId, mood, confidence, timestamp }`
 - [ ] `/history` page — timeline of past moods with date grouping
-- [ ] **Weekly Mood Chart** — simple bar/line chart showing mood frequency over the last 7 days
-- [ ] **Liked Tracks** — heart button on each track, saved to Firestore: `{ userId, trackId, title, artist, albumArt, external_url, likedAt }`
-- [ ] `/profile` page — display name, avatar, liked tracks list, mood stats summary
+- [ ] **Weekly Mood Chart** — bar/line chart showing mood frequency over last 7 days
+- [ ] **Liked Tracks** — heart button saved to Firestore: `{ userId, trackId, title, artist, albumArt, external_url, likedAt }`
+- [ ] `/profile` page — display name, avatar, liked tracks, mood stats
 - [ ] Delete mood history entries
 
 ---
 
 ### Phase 7 — UI Polish & Responsiveness
 - [ ] Consistent dark black/orange design system across all pages
-- [ ] Mobile-first responsive layout for dashboard (stacked on mobile, side-by-side on desktop)
+- [ ] Mobile-first responsive layout (stacked on mobile, side-by-side on desktop)
 - [ ] Loading skeletons for player and detection panels
-- [ ] Toast notifications for auth events (signed in, signed out, error)
+- [ ] Toast notifications for auth events
 - [ ] Smooth page transitions
 - [ ] Favicon and Open Graph meta tags
 
 ---
 
 ### Phase 8 — Deployment
-- [ ] Environment variables configured in Vercel dashboard
+- [ ] Deploy frontend to Vercel — configure environment variables
+- [ ] Deploy backend to Render / Railway — configure environment variables
 - [ ] Firebase authorized domains updated to include production URL
 - [ ] Spotify redirect URI updated for production
-- [ ] `next.config.js` image domains updated if needed
+- [ ] CORS configured in FastAPI for production frontend URL
 - [ ] Final build check — `npm run build` passes with no errors
 
 ---
 
 ## Environment Variables
 
-Create a `.env.local` file in the project root:
-
+**`frontend/.env.local`**
 ```env
-# Spotify
-SPOTIFY_CLIENT_ID=your_spotify_client_id
-SPOTIFY_CLIENT_SECRET=your_spotify_client_secret
-
 # Firebase (client-side — safe to expose)
 NEXT_PUBLIC_FIREBASE_API_KEY=
 NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=
@@ -153,27 +160,46 @@ NEXT_PUBLIC_FIREBASE_PROJECT_ID=
 NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=
 NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=
 NEXT_PUBLIC_FIREBASE_APP_ID=
+
+# Backend URL
+NEXT_PUBLIC_BACKEND_URL=http://localhost:8000
+```
+
+**`backend/.env`**
+```env
+# Spotify
+SPOTIFY_CLIENT_ID=your_spotify_client_id
+SPOTIFY_CLIENT_SECRET=your_spotify_client_secret
+SPOTIFY_REDIRECT_URI=http://localhost:8000/api/spotify/callback
+
+# Firebase Admin SDK
+FIREBASE_SERVICE_ACCOUNT_KEY=path/to/serviceAccountKey.json
+
+# App
+FRONTEND_URL=http://localhost:3000
 ```
 
 ---
 
-## Getting Started (after setup)
+## Getting Started
 
+**Frontend:**
 ```bash
+cd frontend
 npm install
 npm run dev
 ```
-
 Open [http://localhost:3000](http://localhost:3000)
 
-### face-api.js Models
-
-Download model weights from [justadudewhohacks/face-api.js](https://github.com/justadudewhohacks/face-api.js/tree/master/weights) and place them in `/public/models/`:
-
-- `tiny_face_detector_model-shard1`
-- `tiny_face_detector_model-weights_manifest.json`
-- `face_expression_model-shard1`
-- `face_expression_model-weights_manifest.json`
+**Backend:**
+```bash
+cd backend
+python -m venv venv
+venv\Scripts\activate
+pip install -r requirements.txt
+uvicorn main:app --reload --port 8000
+```
+Open [http://localhost:8000/docs](http://localhost:8000/docs)
 
 ---
 
@@ -181,56 +207,59 @@ Download model weights from [justadudewhohacks/face-api.js](https://github.com/j
 
 ```
 MoodiFy/
-├── app/
-│   ├── (auth)/
-│   │   ├── login/page.tsx
-│   │   └── signup/page.tsx
-│   ├── (app)/
-│   │   ├── dashboard/page.tsx
-│   │   ├── history/page.tsx
-│   │   └── profile/page.tsx
-│   ├── api/
-│   │   └── spotify/
-│   │       ├── token/route.ts
-│   │       └── recommendations/route.ts
-│   ├── layout.tsx
-│   ├── page.tsx          ← landing page
-│   └── globals.css
-├── components/
-│   ├── auth/
-│   │   ├── LoginForm.tsx
-│   │   └── GoogleSignInButton.tsx
-│   ├── detection/
-│   │   ├── MoodDetector.tsx       ← webcam
-│   │   ├── ImageMoodDetector.tsx  ← photo upload
-│   │   └── DetectionMethodChoice.tsx
-│   ├── player/
-│   │   ├── MusicPlayer.tsx
-│   │   └── TrackList.tsx
-│   └── ui/
-│       ├── Header.tsx
-│       ├── Toast.tsx
-│       └── MoodBadge.tsx
-├── context/
-│   └── AuthContext.tsx
-├── hooks/
-│   ├── useFaceDetection.ts
-│   └── useSpotify.ts
-├── lib/
-│   ├── firebase.ts
-│   └── firestore.ts
-├── types/
-│   └── index.ts
-├── utils/
-│   ├── moodUtils.ts
-│   └── spotifyApi.ts
-├── public/
-│   └── models/
-├── middleware.ts           ← route protection
-├── .env.local
-├── next.config.js
-├── tailwind.config.js
-└── tsconfig.json
+├── frontend/
+│   ├── app/
+│   │   ├── (auth)/
+│   │   │   ├── login/page.tsx
+│   │   │   └── signup/page.tsx
+│   │   ├── (app)/
+│   │   │   ├── dashboard/page.tsx
+│   │   │   ├── history/page.tsx
+│   │   │   └── profile/page.tsx
+│   │   ├── layout.tsx
+│   │   ├── page.tsx          ← landing page
+│   │   └── globals.css
+│   ├── components/
+│   │   ├── auth/
+│   │   │   ├── LoginForm.tsx
+│   │   │   └── GoogleSignInButton.tsx
+│   │   ├── detection/
+│   │   │   └── MoodDetector.tsx   ← webcam + WebSocket
+│   │   ├── player/
+│   │   │   ├── MusicPlayer.tsx
+│   │   │   └── TrackList.tsx
+│   │   └── ui/
+│   │       ├── Header.tsx
+│   │       ├── Toast.tsx
+│   │       └── MoodBadge.tsx
+│   ├── context/
+│   │   └── AuthContext.tsx
+│   ├── hooks/
+│   │   ├── useFaceDetection.ts
+│   │   └── useSpotify.ts
+│   ├── lib/
+│   │   ├── firebase.ts
+│   │   └── firestore.ts
+│   ├── types/
+│   │   └── index.ts
+│   ├── utils/
+│   │   └── moodUtils.ts
+│   ├── middleware.ts           ← route protection
+│   ├── .env.local
+│   ├── next.config.js
+│   ├── tailwind.config.js
+│   └── tsconfig.json
+└── backend/
+    ├── main.py
+    ├── routes/
+    │   ├── spotify.py
+    │   ├── mood.py
+    │   └── auth.py
+    ├── services/
+    │   ├── face_detection.py
+    │   └── spotify_service.py
+    ├── requirements.txt
+    └── .env
 ```
 
 ---
