@@ -181,25 +181,85 @@ FRONTEND_URL=http://localhost:3000
 
 ---
 
-## Getting Started
+## Current Status
 
-**Frontend:**
+### ✅ Phase 1 — Complete
+- Next.js 14 scaffolded with TypeScript, Tailwind v3, ESLint, App Router
+- Full frontend folder structure created
+- All frontend dependencies installed (Framer Motion, React Three Fiber, Three.js, Firebase)
+- FastAPI backend scaffolded with full folder structure
+- All backend dependencies installed (deepface, fer, OpenCV, Firebase Admin, etc.)
+- `requirements.txt` generated
+- `.env.local` and `.env` placeholder files created
+
+### 🔲 Phase 2 — Firebase Authentication (next)
+### 🔲 Phase 3 — Realtime Face Detection (WebSocket)
+### 🔲 Phase 4 — Spotify OAuth Integration
+### 🔲 Phase 5 — Music Player
+### 🔲 Phase 6 — User Features (Firestore)
+### 🔲 Phase 7 — UI Polish & Responsiveness
+### 🔲 Phase 8 — Deployment
+
+---
+
+## Getting Started (for collaborators)
+
+> **Requirements:** Node.js v22+ and Python 3.11.x
+
+**1. Clone the repo:**
+```bash
+git clone https://github.com/<your-username>/MoodiFy.git
+cd MoodiFy
+```
+
+**2. Frontend setup:**
 ```bash
 cd frontend
 npm install
+```
+
+Create `frontend/.env.local` and fill in your Firebase config:
+```env
+NEXT_PUBLIC_FIREBASE_API_KEY=
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=
+NEXT_PUBLIC_FIREBASE_APP_ID=
+NEXT_PUBLIC_BACKEND_URL=http://localhost:8000
+```
+
+Run the frontend:
+```bash
 npm run dev
 ```
 Open [http://localhost:3000](http://localhost:3000)
 
-**Backend:**
+**3. Backend setup:**
 ```bash
 cd backend
 python -m venv venv
-venv\Scripts\activate
+venv\Scripts\activate        # Windows
+# source venv/bin/activate   # Mac/Linux
 pip install -r requirements.txt
+```
+
+Create `backend/.env` and fill in your credentials:
+```env
+SPOTIFY_CLIENT_ID=your_spotify_client_id
+SPOTIFY_CLIENT_SECRET=your_spotify_client_secret
+SPOTIFY_REDIRECT_URI=http://localhost:8000/api/spotify/callback
+FIREBASE_SERVICE_ACCOUNT_KEY=path/to/serviceAccountKey.json
+FRONTEND_URL=http://localhost:3000
+```
+
+Run the backend:
+```bash
 uvicorn main:app --reload --port 8000
 ```
 Open [http://localhost:8000/docs](http://localhost:8000/docs)
+
+> ⚠️ Never commit `.env` or `.env.local` — they are in `.gitignore`
 
 ---
 
