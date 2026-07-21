@@ -111,6 +111,7 @@ starlette==0.37.2
 sympy==1.14.0
 tensorflow==2.21.0
 termcolor==3.3.0
+tf_keras==2.21.0
 torch==2.2.2
 torchvision==0.17.2
 tqdm==4.69.0

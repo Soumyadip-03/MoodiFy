@@ -192,8 +192,18 @@ FRONTEND_URL=http://localhost:3000
 - `requirements.txt` generated
 - `.env.local` and `.env` placeholder files created
 
-### 🔲 Phase 2 — Firebase Authentication (next)
-### 🔲 Phase 3 — Realtime Face Detection (WebSocket)
+### 🔲 Phase 2 — Firebase Authentication (collaborator in progress)
+
+### ✅ Phase 3 — Realtime Face Detection (WebSocket) — Complete
+- FastAPI WebSocket endpoint `/ws/detect` — receives webcam frames, returns mood
+- deepface + OpenCV emotion detection with confidence threshold (≥ 50%)
+- Debounced mood updates (800ms) to avoid rapid switching
+- Graceful error states: camera denied, no face found, model load failure
+- `useFaceDetection` hook — manages webcam stream + WebSocket connection
+- `MoodDetector` component — built and tested, wired into dashboard after Phase 2 merge
+- Emotion → Mood mapping complete (`moodUtils.ts`)
+- deepface model pre-loaded at startup for reduced latency
+
 ### 🔲 Phase 4 — Spotify OAuth Integration
 ### 🔲 Phase 5 — Music Player
 ### 🔲 Phase 6 — User Features (Firestore)
@@ -238,7 +248,7 @@ Open [http://localhost:3000](http://localhost:3000)
 **3. Backend setup:**
 ```bash
 cd backend
-python -m venv venv
+"C:\Users\<username>\AppData\Local\Programs\Python\Python311\python.exe" -m venv venv
 venv\Scripts\activate        # Windows
 # source venv/bin/activate   # Mac/Linux
 pip install -r requirements.txt
