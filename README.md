@@ -31,9 +31,9 @@ Browser Webcam → WebSocket → FastAPI → deepface/fer → Emotion → Mood �
 ## Project Roadmap
 
 ### Phase 1 — Project Setup & Folder Structure
-- [ ] Scaffold Next.js 14 frontend (`frontend/`) with TypeScript + Tailwind + App Router
-- [ ] Scaffold FastAPI backend (`backend/`) with Python 3.11 virtual environment
-- [ ] Set up frontend folder structure:
+- [x] Scaffold Next.js 14 frontend (`frontend/`) with TypeScript + Tailwind + App Router
+- [x] Scaffold FastAPI backend (`backend/`) with Python 3.11 virtual environment
+- [x] Set up frontend folder structure:
   ```
   frontend/
   ├── app/
@@ -47,7 +47,7 @@ Browser Webcam → WebSocket → FastAPI → deepface/fer → Emotion → Mood �
   ├── types/index.ts
   └── utils/
   ```
-- [ ] Set up backend folder structure:
+- [x] Set up backend folder structure:
   ```
   backend/
   ├── main.py
@@ -56,66 +56,214 @@ Browser Webcam → WebSocket → FastAPI → deepface/fer → Emotion → Mood �
   ├── requirements.txt
   └── .env
   ```
-- [ ] Configure path aliases in `tsconfig.json`
-- [ ] Set up Tailwind black/orange design system
-- [ ] Install all frontend and backend dependencies
+- [x] Configure path aliases in `tsconfig.json`
+- [x] Set up Tailwind peach/orange design system (auth + app pages use `#FF6B35` orange, `#FFE8D6`→`#FFF5F0` peach gradient, `#7A6055` muted text)
+- [x] Install all frontend and backend dependencies
 
 ---
 
 ### Phase 2 — Firebase Authentication
-- [ ] Enable Google Sign-In and Email/Password in Firebase console
-- [ ] Add Firebase config to `frontend/.env.local`
-- [ ] `lib/firebase.ts` — initialize Firebase app, Auth, Firestore
-- [ ] `AuthContext` — React context exposing `user`, `loading`, `signIn`, `signOut`
-- [ ] Login page (`/login`) — Google OAuth button + email/password form
-- [ ] Signup page (`/signup`) — email/password registration + display name
-- [ ] Route protection — middleware redirects unauthenticated users from `/dashboard`, `/history`, `/profile`
-- [ ] Persist auth state across page refreshes
-- [ ] FastAPI — verify Firebase ID tokens on protected routes
-- [ ] User profile document created in Firestore on first sign-in
+- [x] Enable Google Sign-In and Email/Password in Firebase console
+- [x] Add Firebase config to `frontend/.env.local`
+- [x] `lib/firebase.ts` — initialize Firebase app, Auth, Firestore
+- [x] `AuthContext` — React context exposing `user`, `loading`, `signIn`, `signOut`
+- [x] Login page (`/login`) — Google OAuth button + email/password form
+- [x] Signup page (`/signup`) — email/password registration + display name
+- [x] Route protection — middleware redirects unauthenticated users from `/dashboard`, `/history`, `/profile`
+- [x] Logged-in users redirected away from `/login` and `/signup` back to `/dashboard`
+- [x] Persist auth state across page refreshes
+- [x] FastAPI — verify Firebase ID tokens on protected routes
+- [x] User profile document created in Firestore on first sign-in
+- [x] Dashboard page uses peach/orange design system (`#FFE8D6` → `#FFF5F0` gradient, `#FF6B35` orange accents)
 
 ---
 
 ### Phase 3 — Realtime Face Detection (WebSocket)
-- [ ] FastAPI WebSocket endpoint `/ws/detect` — receives webcam frames, returns mood
-- [ ] `deepface` / `fer` + OpenCV for emotion detection on each frame
-- [ ] Confidence threshold (≥ 50%) before triggering mood update
-- [ ] Debounce mood updates (avoid rapid switching)
-- [ ] Graceful error states: camera denied, no face found, model load failure
-- [ ] Frontend `useFaceDetection` hook — manages webcam stream + WebSocket connection
-- [ ] Emotion → Mood mapping:
+- [x] FastAPI WebSocket endpoint `/ws/detect` — receives webcam frames, returns mood
+- [x] `deepface` + OpenCV for emotion detection on each frame
+- [x] Confidence threshold (≥ 50%) before triggering mood update
+- [x] Debounce mood updates (800ms debounce, 1500ms frame interval)
+- [x] Graceful error states: camera denied, no face found, model load failure
+- [x] Frontend `useFaceDetection` hook — manages webcam stream + WebSocket connection
+- [x] `MoodDetector` component — wired into dashboard, uses peach/orange design system
+- [x] Emotion → Mood mapping:
 
   | Emotion | App Mood |
-  |---|---|
-  | happy | happy |
-  | surprise | upbeat |
-  | neutral | chill |
-  | sad | melancholy |
-  | fear | relaxing |
-  | disgust | energetic |
-  | angry | intense |
+  |---------|----------|
+  |  happy  |  happy   |
+  | surprise|  upbeat  |
+  | neutral |  chill   |
+  |   sad   |melancholy|
+  |  fear   | relaxing |
+  | disgust | energetic|
+  |  angry  | intense  |
 
 ---
 
 ### Phase 4 — Spotify OAuth Integration
-- [ ] FastAPI `/api/spotify/login` — redirect user to Spotify authorization page
+
+#### Backend
+- [ ] FastAPI `/api/spotify/login` — build Spotify auth URL + redirect user to Spotify authorization page
 - [ ] FastAPI `/api/spotify/callback` — exchange code for `access_token` + `refresh_token`
-- [ ] Store tokens securely in Firestore against `userId`
-- [ ] FastAPI `/api/spotify/recommendations?mood=` — returns 10 personalized tracks
-- [ ] Mood → Spotify audio features mapping (valence, energy, genres, seed tracks)
-- [ ] Token refresh logic — auto-refresh expired access tokens
+- [ ] FastAPI `/api/spotify/recommendations?mood=&uid=` — returns 10 personalized tracks based on mood
+- [ ] FastAPI `/api/spotify/refresh?uid=` — auto-refresh expired access tokens
+- [ ] `spotify_service.py`:
+  - `get_auth_url()` — builds Spotify OAuth URL with required scopes
+  - `exchange_code(code)` — POST to Spotify token endpoint
+  - `refresh_access_token(refresh_token)` — get new access token
+  - `get_recommendations(mood, access_token)` — mood → audio features → tracks
+  - `save_tokens(uid, tokens)` — store tokens in Firestore
+  - `get_tokens(uid)` — fetch tokens from Firestore
+- [ ] Register spotify router in `main.py`
+
+#### Mood → Spotify Audio Features Mapping
+| Mood | Valence | Energy | Genre Seeds |
+|------|---------|--------|-------------|
+| happy | 0.8 | 0.8 | pop, happy        |
+| upbeat | 0.7 | 0.9 | dance, pop       |
+| chill | 0.5 | 0.3 | chill, ambient    |
+| melancholy | 0.2 | 0.3 | sad, indie   |
+| relaxing | 0.5 | 0.2 | sleep, acoustic|
+| energetic | 0.6 | 0.95 | work-out,rock|
+| intense | 0.3 | 0.9 | metal, hardcore |
+
+#### Personalized Recommendations
+- [ ] Fetch user's top artists + tracks from Spotify as recommendation seeds
+- [ ] Blend user's personal taste with mood-based audio features for better results
+
+#### Hybrid Recommendation System (Cache & Serve)
+- [ ] Every Spotify recommendation fetched → simultaneously saved to Firestore `moodTracks` collection with mood tag
+- [ ] Firestore `moodTracks` document structure:
+  ```
+  moodTracks/{trackId}
+  ├── spotifyId
+  ├── title
+  ├── artist
+  ├── albumArt
+  ├── previewUrl
+  ├── spotifyUrl
+  ├── mood          ← "happy", "chill", etc.
+  ├── valence
+  ├── energy
+  ├── playCount     ← increments on every play
+  ├── likeCount     ← increments on every heart/like
+  └── savedAt
+  ```
+- [ ] Fallback layer — when Spotify API unavailable, query Firestore `moodTracks` by mood tag
+- [ ] Hardcoded seed playlist per mood — last resort fallback when Firestore has < 5 results
+- [ ] Over time `playCount` + `likeCount` build a self-improving popularity ranking per mood
+
+#### Frontend
+- [ ] `useSpotify` hook — manages Spotify connection state (`connected`, `connecting`, `error`)
+- [ ] `connectSpotify()` — redirects to `/api/spotify/login`
+- [ ] `fetchRecommendations(mood)` — calls backend, returns tracks
+- [ ] Auto-fetch recommendations when mood changes
+- [ ] `lib/firestore.ts` — `saveSpotifyTokens(uid, tokens)` + `getSpotifyTokens(uid)`
+- [ ] `types/index.ts` — `SpotifyTrack` type + `SpotifyTokens` type
+- [ ] "Connect Spotify" button on dashboard
 - [ ] Handle `preview_url: null` — show "Open in Spotify" CTA
-- [ ] Frontend `useSpotify` hook — manages Spotify connection state
+
+#### Two-Tier User System
+| Feature | Free User | Premium User |
+|---|---|---|
+| Face scan + mood detection | ✅ | ✅ |
+| See recommendations | ✅ | ✅ |
+| 30-sec preview playback | ✅ | ✅ |
+| Full song playback in MoodiFy | ❌ | ✅ |
+| "Open in Spotify" button | ✅ | ✅ |
+| Like songs | ✅ | ✅ |
+| Create playlist | ✅ | ✅ |
+| Premium badge on profile | ❌ | ✅ |
+| Artist browsing | ✅ | ✅ |
+| Mood Room (Listen Together) | ✅ | ✅ |
+
+#### Premium Detection Flow
+- [ ] After Spotify OAuth login call `GET /v1/me` — check `product` field (`"premium"` or `"free"`)
+- [ ] Save premium status to Firestore user profile
+- [ ] Frontend checks premium status → unlocks full playback via Web Playback SDK
+- [ ] Premium badge displayed on profile page
+- [ ] Free users get 30-sec preview + "Open in Spotify" button
+- [ ] Premium users get full song streaming inside MoodiFy via Web Playback SDK
+- [ ] Premium is determined by **user's own Spotify subscription** — no extra cost to developer
+
+#### Sharing
+- [ ] WhatsApp share button per track — `https://wa.me/?text=Check out this song on MoodiFy: {spotify_track_url}`
+- [ ] Web Share API fallback for native mobile share sheet (WhatsApp, Instagram, copy link, etc.)
 
 ---
 
 ### Phase 5 — Music Player
-- [ ] `MusicPlayer` component — album art, track info, seek bar, volume, prev/next
+
+> ⚠️ **Depends on Phase 4** — requires `SpotifyTrack` type, `useSpotify` hook, and `fetchRecommendations(mood)` to be available before wiring up the player.
+
+#### Components
+- [ ] `components/player/MusicPlayer.tsx` — main player UI:
+  - Album art (large)
+  - Track name + artist name
+  - Seek bar + current time / duration
+  - Volume control
+  - Prev / Play / Pause / Next controls
+  - Free users — 30-sec `preview_url` playback via HTML `<audio>` tag
+  - Premium users — full song playback via Spotify Web Playback SDK
+  - "Open in Spotify" button on every track
+  - WhatsApp share button per track
+  - Heart/like button per track (saves to Firestore)
+- [ ] `components/player/TrackList.tsx` — scrollable recommendations panel:
+  - List of 10 tracks returned by mood
+  - Album art thumbnail + track name + artist
+  - Active track highlighted
+  - Click to play
+  - Like + Share buttons per row
+
+#### Sharing
+- [ ] WhatsApp share — `https://wa.me/?text=Check out this song on MoodiFy: {spotifyUrl}`
+- [ ] Web Share API — native mobile share sheet fallback (WhatsApp, Instagram, copy link)
+
+#### Playback Logic
 - [ ] Auto-play first track when mood is detected
-- [ ] Track list panel — scrollable list of all recommendations
-- [ ] "Open in Spotify" button on every track
+- [ ] Free users — HTML `<audio>` plays `preview_url` (30 seconds), stops automatically
+- [ ] Premium users — Spotify Web Playback SDK streams full song
+- [ ] Show "Open in Spotify" CTA when `preview_url` is null
 - [ ] Smooth transition animation when mood changes and playlist refreshes
-- [ ] Mood override — manual mood selector if detection is off
+- [ ] Mood override — manual mood selector dropdown if detection is off
+
+#### Artist & Album Browsing
+- [ ] Click any artist name → opens Artist page inside MoodiFy
+- [ ] Artist page — artist image, name, genres, follower count
+- [ ] Artist top tracks list
+- [ ] Album grid — album art, name, release year
+- [ ] Click album → track list with play + share buttons
+- [ ] Spotify endpoints used:
+  - `GET /v1/artists/{id}` — artist info
+  - `GET /v1/artists/{id}/albums` — discography
+  - `GET /v1/artists/{id}/top-tracks` — top tracks
+  - `GET /v1/albums/{id}/tracks` — album track list
+
+#### Mood Room — Listen Together
+- [ ] User A creates a Mood Room → gets a unique 6-digit room code
+- [ ] User B enters the room code → joins the same room
+- [ ] Both users see the same playlist synced in real time via Firestore `onSnapshot`
+- [ ] Playback state (current track, position, play/pause) synced across both users
+- [ ] Both hear 30-sec previews in sync (free) or full songs (premium)
+- [ ] Firestore `moodRooms` collection:
+  ```
+  moodRooms/{roomCode}
+  ├── hostUid
+  ├── guestUid
+  ├── mood
+  ├── currentTrackIndex
+  ├── isPlaying
+  ├── tracks[]
+  └── createdAt
+  ```
+
+#### Design Notes for Collaborator
+- Dark mode default — bg `#0a0a0a`, cards `#111111`, borders `#2a2a2a`
+- Light mode — bg gradient `#FFE8D6` → `#FFF5F0`, cards `white`, borders `#FFDDD2`
+- Orange accent — `#FF6B35` for all interactive elements
+- Muted text — `#7A6055` (light) / `#aaa` (dark)
+- Font — `font-pacifico` for brand name only, `font-comfortaa` for everything else
+- Use `useTheme()` from `context/ThemeContext.tsx` for all theme-aware styling
 
 ---
 
@@ -192,8 +340,23 @@ FRONTEND_URL=http://localhost:3000
 - `requirements.txt` generated
 - `.env.local` and `.env` placeholder files created
 
-### 🔲 Phase 2 — Firebase Authentication (next)
-### 🔲 Phase 3 — Realtime Face Detection (WebSocket)
+### ✅ Phase 2 — Firebase Authentication — Complete
+- `lib/firebase.ts` — Firebase app initialized with env vars
+- `AuthContext.tsx` — Google + Email/Password sign-in, token refresh every 55 mins
+- Login/Signup pages built with Framer Motion animations
+- Route protection middleware — redirects unauthenticated users to `/login`, logged-in users away from auth routes to `/dashboard`
+- `backend/main.py` — FastAPI app with CORS middleware + auth + mood routers registered
+- `backend/serviceAccountKey.json` — valid service account key from Firebase console
+- Dashboard uses peach/orange design system consistent with auth pages
+
+### ✅ Phase 3 — Realtime Face Detection (WebSocket) — Complete
+- FastAPI WebSocket endpoint `/ws/detect` — receives webcam frames, returns mood
+- `useFaceDetection` hook — manages webcam stream + WebSocket connection
+- `MoodDetector` component — wired into dashboard, design system aligned with Phase 2 (peach/orange)
+- Emotion → Mood mapping complete (`moodUtils.ts`)
+- deepface model pre-loaded at startup for reduced latency
+- Debounce (800ms) + frame interval (1500ms) to avoid rapid mood switching
+
 ### 🔲 Phase 4 — Spotify OAuth Integration
 ### 🔲 Phase 5 — Music Player
 ### 🔲 Phase 6 — User Features (Firestore)
@@ -238,7 +401,7 @@ Open [http://localhost:3000](http://localhost:3000)
 **3. Backend setup:**
 ```bash
 cd backend
-python -m venv venv
+"C:\Users\<username>\AppData\Local\Programs\Python\Python311\python.exe" -m venv venv
 venv\Scripts\activate        # Windows
 # source venv/bin/activate   # Mac/Linux
 pip install -r requirements.txt
@@ -326,4 +489,4 @@ MoodiFy/
 
 ## License
 
-MIT
+Proprietary — © 2025 Soumyadip. All Rights Reserved.
