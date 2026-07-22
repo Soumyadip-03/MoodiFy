@@ -2,6 +2,7 @@
 
 import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
+import MoodDetector from "@/components/detection/MoodDetector";
 
 export default function DashboardPage() {
   const { user, signOut } = useAuth();
@@ -13,16 +14,22 @@ export default function DashboardPage() {
   };
 
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-[#FFE8D6] to-[#FFF5F0] gap-4">
-      <h1 className="text-3xl font-bold text-[#FF6B35]">Moodify</h1>
-      <p className="text-[#7A6055]">Welcome, {user?.displayName || user?.email}</p>
-      <p className="text-[#C4A99A] text-sm">Dashboard coming soon...</p>
-      <button
-        onClick={handleSignOut}
-        className="mt-4 bg-[#FF6B35] hover:bg-[#e85d2a] text-white font-semibold py-2 px-6 rounded-xl transition-colors"
-      >
-        Sign Out
-      </button>
+    <main className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-[#FFE8D6] to-[#FFF5F0] gap-6 px-4 py-10">
+      <div className="w-full max-w-md flex items-center justify-between">
+        <h1 className="text-3xl font-bold text-[#FF6B35]">Moodify</h1>
+        <button
+          onClick={handleSignOut}
+          className="text-sm text-[#7A6055] hover:text-[#FF6B35] transition-colors"
+        >
+          Sign Out
+        </button>
+      </div>
+
+      <p className="text-[#7A6055] text-sm w-full max-w-md">
+        Welcome, {user?.displayName || user?.email}
+      </p>
+
+      <MoodDetector />
     </main>
   );
 }

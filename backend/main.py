@@ -6,6 +6,7 @@ import os
 load_dotenv()
 
 from routes.auth import router as auth_router
+from routes.mood import router as mood_router
 
 app = FastAPI(title="Moodify API")
 
@@ -18,6 +19,7 @@ app.add_middleware(
 )
 
 app.include_router(auth_router)
+app.include_router(mood_router)
 
 
 @app.get("/")

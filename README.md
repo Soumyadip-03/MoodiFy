@@ -57,7 +57,7 @@ Browser Webcam → WebSocket → FastAPI → deepface/fer → Emotion → Mood �
   └── .env
   ```
 - [x] Configure path aliases in `tsconfig.json`
-- [x] Set up Tailwind black/orange design system
+- [x] Set up Tailwind peach/orange design system (auth + app pages use `#FF6B35` orange, `#FFE8D6`→`#FFF5F0` peach gradient, `#7A6055` muted text)
 - [x] Install all frontend and backend dependencies
 
 ---
@@ -70,30 +70,33 @@ Browser Webcam → WebSocket → FastAPI → deepface/fer → Emotion → Mood �
 - [x] Login page (`/login`) — Google OAuth button + email/password form
 - [x] Signup page (`/signup`) — email/password registration + display name
 - [x] Route protection — middleware redirects unauthenticated users from `/dashboard`, `/history`, `/profile`
+- [x] Logged-in users redirected away from `/login` and `/signup` back to `/dashboard`
 - [x] Persist auth state across page refreshes
 - [x] FastAPI — verify Firebase ID tokens on protected routes
 - [x] User profile document created in Firestore on first sign-in
+- [x] Dashboard page uses peach/orange design system (`#FFE8D6` → `#FFF5F0` gradient, `#FF6B35` orange accents)
 
 ---
 
 ### Phase 3 — Realtime Face Detection (WebSocket)
-- [ ] FastAPI WebSocket endpoint `/ws/detect` — receives webcam frames, returns mood
-- [ ] `deepface` / `fer` + OpenCV for emotion detection on each frame
-- [ ] Confidence threshold (≥ 50%) before triggering mood update
-- [ ] Debounce mood updates (avoid rapid switching)
-- [ ] Graceful error states: camera denied, no face found, model load failure
-- [ ] Frontend `useFaceDetection` hook — manages webcam stream + WebSocket connection
-- [ ] Emotion → Mood mapping:
+- [x] FastAPI WebSocket endpoint `/ws/detect` — receives webcam frames, returns mood
+- [x] `deepface` + OpenCV for emotion detection on each frame
+- [x] Confidence threshold (≥ 50%) before triggering mood update
+- [x] Debounce mood updates (800ms debounce, 1500ms frame interval)
+- [x] Graceful error states: camera denied, no face found, model load failure
+- [x] Frontend `useFaceDetection` hook — manages webcam stream + WebSocket connection
+- [x] `MoodDetector` component — wired into dashboard, uses peach/orange design system
+- [x] Emotion → Mood mapping:
 
   | Emotion | App Mood |
-  |---|---|
-  | happy | happy |
-  | surprise | upbeat |
-  | neutral | chill |
-  | sad | melancholy |
-  | fear | relaxing |
-  | disgust | energetic |
-  | angry | intense |
+  |---------|----------|
+  |  happy  |  happy   |
+  | surprise|  upbeat  |
+  | neutral |  chill   |
+  |   sad   |melancholy|
+  |  fear   | relaxing |
+  | disgust | energetic|
+  |  angry  | intense  |
 
 ---
 
@@ -193,24 +196,22 @@ FRONTEND_URL=http://localhost:3000
 - `.env.local` and `.env` placeholder files created
 
 ### ✅ Phase 2 — Firebase Authentication — Complete
-- Firebase console: Google Sign-In + Email/Password providers enabled
-- Firestore database created (Standard, test mode)
-- `frontend/.env.local` filled with correct Firebase config (project: moodify-s2403)
-- `lib/firebase.ts` — Firebase app, Auth, Firestore initialized (singleton pattern)
-- `lib/firestore.ts` — creates user profile doc in Firestore on signup/Google sign-in only
-- `context/AuthContext.tsx` — exposes `user`, `loading`, `signInWithGoogle`, `signInWithEmail`, `signUpWithEmail`, `signOut`; sets/clears `firebaseToken` cookie for middleware; auto-refreshes token every 55 mins
-- `app/layout.tsx` — wrapped with `AuthProvider`
-- `components/auth/GoogleSignInButton.tsx` — Google OAuth button (Peach & Cream theme) with visible error state
-- `components/auth/LoginForm.tsx` — email/password login form with password show/hide toggle
-- `app/(auth)/login/page.tsx` — login page with Framer Motion fade-in
-- `app/(auth)/signup/page.tsx` — signup page with display name field + password show/hide toggle
-- `middleware.ts` — redirects unauthenticated users from `/dashboard`, `/history`, `/profile` → `/login`
-- `backend/routes/auth.py` — Firebase Admin SDK token verification, `/api/auth/me` endpoint
-- `backend/main.py` — FastAPI app with CORS middleware + auth router registered
-- `backend/serviceAccountKey.json` — valid service account key from moodify-s2403
-- Auth design: Peach & Cream pastel palette (`#FFE8D6` → `#FFF5F0` gradient, `#FF6B35` accent)
-- `app/(app)/dashboard/page.tsx` — temporary placeholder with user info + Sign Out button
-### 🔲 Phase 3 — Realtime Face Detection (WebSocket)
+- `lib/firebase.ts` — Firebase app initialized with env vars
+- `AuthContext.tsx` — Google + Email/Password sign-in, token refresh every 55 mins
+- Login/Signup pages built with Framer Motion animations
+- Route protection middleware — redirects unauthenticated users to `/login`, logged-in users away from auth routes to `/dashboard`
+- `backend/main.py` — FastAPI app with CORS middleware + auth + mood routers registered
+- `backend/serviceAccountKey.json` — valid service account key from Firebase console
+- Dashboard uses peach/orange design system consistent with auth pages
+
+### ✅ Phase 3 — Realtime Face Detection (WebSocket) — Complete
+- FastAPI WebSocket endpoint `/ws/detect` — receives webcam frames, returns mood
+- `useFaceDetection` hook — manages webcam stream + WebSocket connection
+- `MoodDetector` component — wired into dashboard, design system aligned with Phase 2 (peach/orange)
+- Emotion → Mood mapping complete (`moodUtils.ts`)
+- deepface model pre-loaded at startup for reduced latency
+- Debounce (800ms) + frame interval (1500ms) to avoid rapid mood switching
+
 ### 🔲 Phase 4 — Spotify OAuth Integration
 ### 🔲 Phase 5 — Music Player
 ### 🔲 Phase 6 — User Features (Firestore)
@@ -255,7 +256,7 @@ Open [http://localhost:3000](http://localhost:3000)
 **3. Backend setup:**
 ```bash
 cd backend
-python -m venv venv
+"C:\Users\<username>\AppData\Local\Programs\Python\Python311\python.exe" -m venv venv
 venv\Scripts\activate        # Windows
 # source venv/bin/activate   # Mac/Linux
 pip install -r requirements.txt
