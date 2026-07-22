@@ -31,9 +31,9 @@ Browser Webcam → WebSocket → FastAPI → deepface/fer → Emotion → Mood �
 ## Project Roadmap
 
 ### Phase 1 — Project Setup & Folder Structure
-- [ ] Scaffold Next.js 14 frontend (`frontend/`) with TypeScript + Tailwind + App Router
-- [ ] Scaffold FastAPI backend (`backend/`) with Python 3.11 virtual environment
-- [ ] Set up frontend folder structure:
+- [x] Scaffold Next.js 14 frontend (`frontend/`) with TypeScript + Tailwind + App Router
+- [x] Scaffold FastAPI backend (`backend/`) with Python 3.11 virtual environment
+- [x] Set up frontend folder structure:
   ```
   frontend/
   ├── app/
@@ -47,7 +47,7 @@ Browser Webcam → WebSocket → FastAPI → deepface/fer → Emotion → Mood �
   ├── types/index.ts
   └── utils/
   ```
-- [ ] Set up backend folder structure:
+- [x] Set up backend folder structure:
   ```
   backend/
   ├── main.py
@@ -56,9 +56,9 @@ Browser Webcam → WebSocket → FastAPI → deepface/fer → Emotion → Mood �
   ├── requirements.txt
   └── .env
   ```
-- [ ] Configure path aliases in `tsconfig.json`
-- [ ] Set up Tailwind black/orange design system
-- [ ] Install all frontend and backend dependencies
+- [x] Configure path aliases in `tsconfig.json`
+- [x] Set up Tailwind black/orange design system
+- [x] Install all frontend and backend dependencies
 
 ---
 
