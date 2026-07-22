@@ -1,0 +1,214 @@
+# Moodify — Project Context & Work Log
+# This file tracks every step done, file by file, for continuity across sessions.
+# Before touching any file, the intent is logged here first.
+
+================================================================================
+PHASE 1 — COMPLETE (done before this log was started)
+================================================================================
+- Next.js 14 frontend scaffolded (TypeScript, Tailwind v3, App Router, ESLint)
+- Full frontend folder structure created
+- Dependencies installed: Firebase, Framer Motion, React Three Fiber, Three.js
+- FastAPI backend scaffolded with full folder structure
+- Backend dependencies installed: deepface, fer, OpenCV, Firebase Admin, etc.
+- requirements.txt generated
+- .env.local and .env placeholder files created
+
+================================================================================
+PHASE 2 — FIREBASE AUTHENTICATION — COMPLETE
+Branch: feature/auth
+================================================================================
+
+STEP 1 — Firebase Console Setup (manual)
+  - Enabled Email/Password provider in Firebase Authentication
+  - Enabled Google provider in Firebase Authentication
+  - Created Firestore database (Standard edition, test mode, native mode)
+
+STEP 2 — frontend/.env.local
+  - Intent: Fill Firebase project config values from Firebase console
+  - Action: Created file with all NEXT_PUBLIC_FIREBASE_* keys + NEXT_PUBLIC_BACKEND_URL
+  - Status: DONE
+
+STEP 3 — frontend/lib/firebase.ts
+  - Intent: Initialize Firebase app (singleton), export auth and db instances
+  - Action: Used getApps() check to prevent duplicate initialization
+  - Exports: auth (getAuth), db (getFirestore)
+  - Status: DONE
+
+STEP 4 — frontend/lib/firestore.ts
+  - Intent: Create user profile document in Firestore on first sign-in
+  - Action: createUserProfile(user) — checks if doc exists before writing
+  - Fields saved: uid, email, displayName, photoURL, createdAt (serverTimestamp)
+  - Status: DONE
+
+STEP 5 — frontend/context/AuthContext.tsx
+  - Intent: React context exposing auth state and methods to entire app
+  - Action: 
+    - onAuthStateChanged listener sets user + loading state
+    - Sets firebaseToken cookie on login (for middleware), clears on logout
+    - Exposes: user, loading, signInWithGoogle, signInWithEmail, signUpWithEmail, signOut
+    - signInWithGoogle and signUpWithEmail both call createUserProfile
+  - Status: DONE
+
+STEP 6 — frontend/app/layout.tsx
+  - Intent: Wrap entire app with AuthProvider so all pages can access auth state
+  - Action: Added AuthProvider import and wrapped {children} with it
+  - Also updated metadata title to "Moodify" and description
+  - Status: DONE
+
+STEP 7 — frontend/components/auth/GoogleSignInButton.tsx
+  - Intent: Reusable Google OAuth button used on both login and signup pages
+  - Action: Calls signInWithGoogle(), redirects to /dashboard on success
+  - Design: Peach & Cream palette — white bg, #FFDDD2 border, hover #FFF5F0
+  - Status: DONE
+
+STEP 8 — frontend/components/auth/LoginForm.tsx
+  - Intent: Email/password login form used on the login page
+  - Action: Calls signInWithEmail(), redirects to /dashboard on success
+  - Shows error message on failure
+  - Design: Peach & Cream palette — #FFF5F0 inputs, #FF6B35 focus ring + button
+  - Status: DONE
+
+STEP 9 — frontend/app/(auth)/login/page.tsx
+  - Intent: Full login page combining GoogleSignInButton + LoginForm
+  - Action: Framer Motion fade-in card, gradient bg from-[#FFE8D6] to-[#FFF5F0]
+  - Includes link to /signup
+  - Design: Peach & Cream — Option 1 from color palette discussion
+  - Status: DONE
+
+STEP 10 — frontend/app/(auth)/signup/page.tsx
+  - Intent: Full signup page with display name + email + password
+  - Action: Calls signUpWithEmail(), redirects to /dashboard on success
+  - Includes GoogleSignInButton + link back to /login
+  - Design: Same Peach & Cream palette as login page
+  - Status: DONE
+
+STEP 11 — frontend/middleware.ts
+  - Intent: Protect /dashboard, /history, /profile from unauthenticated access
+  - Action: Reads firebaseToken cookie set by AuthContext
+    - No token + protected route → redirect to /login
+    - Has token + auth route (/login, /signup) → redirect to /dashboard
+  - Status: DONE
+
+STEP 12 — backend/routes/auth.py
+  - Intent: FastAPI route to verify Firebase ID tokens for protected backend endpoints
+  - Action:
+    - Initializes Firebase Admin SDK once using FIREBASE_SERVICE_ACCOUNT_KEY env var
+    - verify_token() dependency extracts + verifies Bearer token
+    - GET /api/auth/me returns uid + email of verified user
+  - Status: DONE
+
+STEP 13 — backend/main.py
+  - Intent: FastAPI app entry point — register routers and configure CORS
+  - Action:
+    - load_dotenv() for env vars
+    - CORS middleware allows FRONTEND_URL (default: http://localhost:3000)
+    - Includes auth_router
+    - GET / health check endpoint
+  - Status: DONE
+
+================================================================================
+PHASE 2 — POST-COMPLETION FIXES & DEBUGGING LOG
+================================================================================
+
+ISSUE 1 — Wrong Firebase Project in .env.local
+  - Root cause: .env.local was pointing to old project moodify-4dba9, Firebase
+    console was set up on new project moodify-s2403
+  - Symptom: auth/api-key-not-valid error on every Firebase call (signup + Google)
+  - Fix: Updated frontend/.env.local with correct config from moodify-s2403
+  - Status: FIXED
+
+ISSUE 2 — serviceAccountKey.json from wrong project
+  - Root cause: Key was generated from moodify-4dba9, backend pointed to wrong project
+  - Blocker: Organization policy (iam.disableServiceAccountKeyCreation) prevented
+    generating a new key from moodify-s2403
+  - Resolution: Policy was eventually resolved, new key generated from moodify-s2403
+  - Fix: Replaced backend/serviceAccountKey.json with new key (project_id: moodify-s2403)
+  - Status: FIXED
+
+ISSUE 3 — Dashboard was blank after login
+  - Root cause: dashboard/page.tsx was a placeholder returning null
+  - Fix: Added temporary dashboard with user display name/email + Sign Out button
+  - Note: Will be replaced with full dashboard UI in Phase 5
+  - Status: FIXED (temporary)
+
+ISSUE 4 — Password field had no show/hide toggle
+  - Fix: Added eye toggle button (lucide-react Eye/EyeOff icons) to password
+    input in both LoginForm.tsx and signup/page.tsx
+  - Package added: lucide-react
+  - Status: FIXED
+
+ISSUE 5 — Token expiry kicking users out after 1 hour
+  - Root cause: Cookie set with max-age=3600, token never refreshed
+  - Fix: AuthContext now runs setInterval every 55 minutes to force-refresh
+    the Firebase token (getIdToken(true)) and update the cookie
+  - On auth state change: getIdToken() — no force, reads existing token instantly
+  - On interval tick: getIdToken(true) — force refresh only when actually needed
+  - Interval is cleared on auth state change and on unmount
+  - Status: FIXED
+
+ISSUE 7 — Slow redirect after sign-in
+  - Root cause: getIdToken(true) was being called on every auth state change
+    (including fresh logins), making an unnecessary network call to Google
+  - Fix: Separated initial token read (getIdToken()) from interval refresh
+    (getIdToken(true)) — initial read is now instant, no network call
+  - Status: FIXED
+
+ISSUE 6 — Google Sign-In errors were silent
+  - Root cause: GoogleSignInButton only did console.error, no UI feedback
+  - Fix: Added error state + visible red error message below the button
+  - Status: FIXED
+
+DECISION — signInWithEmail does NOT call createUserProfile
+  - Firestore profile is only created on signUpWithEmail and signInWithGoogle
+  - Login via email assumes profile already exists (created at signup)
+  - Rationale: Mandatory signup flow — user must register before they can login
+
+CLEANUP — Removed unnecessary files post Phase 2 review
+  - frontend/README.md — deleted (default create-next-app boilerplate, irrelevant)
+  - frontend/.gitignore — deleted (merged into root .gitignore, no unique entries needed)
+  - frontend/app/page.module.css — deleted (unused boilerplate CSS, not imported anywhere)
+  - package.json (root) — deleted (accidental lucide-react install from wrong directory)
+  - package-lock.json (root) — deleted (generated alongside accidental root package.json)
+  - Root .gitignore updated to include all unique entries from frontend .gitignore
+  - lucide-react confirmed installed correctly in frontend/package.json
+
+================================================================================
+PHASE 2 DESIGN NOTES
+================================================================================
+- Auth pages use "Peach & Cream" color palette (Option 1 from discussion)
+  - Page background gradient: #FFE8D6 → #FFF5F0
+  - Card: white (#FFFFFF)
+  - Primary accent / buttons: #FF6B35 (warm orange — ties to main app theme)
+  - Input background: #FFF5F0
+  - Input border: #FFDDD2
+  - Placeholder text: #C4A99A
+  - Body text: #7A6055
+  - Error text: red-500
+- Framer Motion fade-in (opacity 0→1, y 24→0, 0.4s) on auth card
+- User chose this palette to contrast with the dark black/orange dashboard theme
+
+================================================================================
+CURRENT STATUS
+================================================================================
+- Phase 1: COMPLETE
+- Phase 2: COMPLETE
+- Phase 3: NOT STARTED (Realtime Face Detection — WebSocket)
+- Phase 4: NOT STARTED (Spotify OAuth Integration)
+- Phase 5: NOT STARTED (Music Player)
+- Phase 6: NOT STARTED (User Features — Firestore)
+- Phase 7: NOT STARTED (UI Polish & Responsiveness)
+- Phase 8: NOT STARTED (Deployment)
+
+================================================================================
+NEXT UP — PHASE 3: Realtime Face Detection (WebSocket)
+================================================================================
+Files to create:
+  - backend/services/face_detection.py — deepface/fer emotion detection logic
+  - backend/routes/mood.py — WebSocket endpoint /ws/detect
+  - frontend/hooks/useFaceDetection.ts — webcam stream + WebSocket hook
+  - frontend/components/detection/MoodDetector.tsx — webcam UI component
+
+Key decisions to make before starting:
+  - Confirm deepface vs fer as primary detection library
+  - Confirm confidence threshold (README says ≥ 50%)
+  - Confirm debounce duration for mood updates
