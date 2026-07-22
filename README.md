@@ -344,4 +344,4 @@ MoodiFy/
 
 ## License
 
-MIT
+Proprietary — © 2025 Soumyadip. All Rights Reserved.
