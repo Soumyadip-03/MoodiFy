@@ -112,9 +112,14 @@ Browser Webcam → WebSocket → FastAPI → deepface/fer → Emotion → Mood �
   - `exchange_code(code)` — POST to Spotify token endpoint
   - `refresh_access_token(refresh_token)` — get new access token
   - `get_recommendations(mood, access_token)` — mood → audio features → tracks
+  - `get_user_top_seeds(access_token)` — fetch user's top artists + tracks as recommendation seeds
+  - `check_premium(access_token)` — call `GET /v1/me`, return `"premium"` or `"free"`
+  - `save_tracks_to_firestore(tracks, mood)` — cache fetched tracks to Firestore `moodTracks` with mood tag
+  - `get_recommendations_from_firestore(mood)` — fallback query Firestore `moodTracks` by mood
   - `save_tokens(uid, tokens)` — store tokens in Firestore
   - `get_tokens(uid)` — fetch tokens from Firestore
 - [ ] Register spotify router in `main.py`
+- [ ] `GET /api/spotify/premium` — check and return user's Spotify premium status
 
 #### Mood → Spotify Audio Features Mapping
 | Mood | Valence | Energy | Genre Seeds |
