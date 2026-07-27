@@ -197,35 +197,59 @@ Browser Webcam → WebSocket → FastAPI → deepface/fer → Emotion → Mood �
 > ⚠️ **Depends on Phase 4** — requires `SpotifyTrack` type, `useSpotify` hook, and `fetchRecommendations(mood)` to be available before wiring up the player.
 
 #### Components
-- [ ] `components/player/MusicPlayer.tsx` — main player UI:
+- [x] `components/player/MusicPlayer.tsx` — main player UI:
   - Album art (large)
   - Track name + artist name
   - Seek bar + current time / duration
   - Volume control
   - Prev / Play / Pause / Next controls
-  - Free users — 30-sec `preview_url` playback via HTML `<audio>` tag
-  - Premium users — full song playback via Spotify Web Playback SDK
+  - Free users — 30-sec `preview_url` playback via HTML `<audio>` tag (TODO Phase 4: wire real previewUrl)
   - "Open in Spotify" button on every track
-  - WhatsApp share button per track
-  - Heart/like button per track (saves to Firestore)
-- [ ] `components/player/TrackList.tsx` — scrollable recommendations panel:
-  - List of 10 tracks returned by mood
-  - Album art thumbnail + track name + artist
+  - Premium users — Spotify Web Playback SDK (TODO Phase 4)
+  - Heart/like button per track (TODO Phase 4: save to Firestore)
+- [x] `components/player/TrackList.tsx` — scrollable recommendations panel:
+  - List of tracks with album art thumbnail + track name + artist
   - Active track highlighted
   - Click to play
-  - Like + Share buttons per row
+  - Context menu with Like, Go to Artist, Go to Album, Share per row
+- [x] `components/ui/ContextMenu.tsx` — portal-based context menu used by TrackList
 
 #### Sharing
-- [ ] WhatsApp share — `https://wa.me/?text=Check out this song on MoodiFy: {spotifyUrl}`
-- [ ] Web Share API — native mobile share sheet fallback (WhatsApp, Instagram, copy link)
+- [x] Web Share API — native share sheet with WhatsApp fallback (`https://wa.me/?text=...`)
+- [x] "Open in Spotify" anchor tag on every track
 
 #### Playback Logic
-- [ ] Auto-play first track when mood is detected
-- [ ] Free users — HTML `<audio>` plays `preview_url` (30 seconds), stops automatically
-- [ ] Premium users — Spotify Web Playback SDK streams full song
-- [ ] Show "Open in Spotify" CTA when `preview_url` is null
+- [x] Auto-play first track when mood is detected (switches queue from recommended → mood tracks)
+- [x] HTML `<audio>` player wired to `previewUrl` — shows "Open in Spotify" CTA when `previewUrl` is null
+- [x] Prev / Next track navigation through current queue
+- [x] Recommended songs grid shown before mood is detected (4-col grid)
+- [x] TrackList shown after mood is detected
 - [ ] Smooth transition animation when mood changes and playlist refreshes
-- [ ] Mood override — manual mood selector dropdown if detection is off
+- [ ] Mood override — manual mood selector dropdown (TODO)
+- [ ] Premium users — Spotify Web Playback SDK full song streaming (TODO Phase 4)
+
+#### Playlist Page (`/playlist`)
+- [x] Sidebar with all user playlists — Liked Songs, custom playlists, Moods Playlist folder
+- [x] Moods Playlist folder — expands to show all 7 mood sub-playlists (happy, chill, etc.) by mood name only
+- [x] Clicking a mood sub-item loads that mood's tracks in the playlist view
+- [x] Albums tab — 3-col grid of saved albums
+- [x] Artists tab — 3-col grid of followed artists
+- [x] Spotify-style hero banner — large cover art, playlist label, name, song count + total duration, play + shuffle
+- [x] Track table — #, title + album art, album, date added, duration, context menu
+- [x] Create playlist button — prompts for name, adds to sidebar
+- [x] Active playlist highlight clears when switching to Albums/Artists tabs
+- [x] All data using `mockData.ts` — TODO Phase 4: replace with real Spotify data
+
+#### History Page (`/history`)
+- [x] Today's date heading + mood summary pills (mood × count)
+- [x] "View Date" calendar dropdown — month/year selectors + full calendar grid, today highlighted
+- [x] Per-detection entry cards with orange-tinted header row:
+  - Mood emoji + name + confidence % on the left
+  - Center: "X Songs played" (clickable) or "No songs played after detection" (non-clickable)
+  - Timestamp on the right
+- [x] Clicking an entry with songs toggles a dropdown showing SONGS PLAYED list
+- [x] Each song row: music icon, title, artist, played-at time, duration
+- [x] All data using `mockData.ts` — TODO Phase 6: replace with real Firestore mood history
 
 #### Artist & Album Browsing
 - [ ] Click any artist name → opens Artist page inside MoodiFy
@@ -358,7 +382,17 @@ FRONTEND_URL=http://localhost:3000
 - Debounce (800ms) + frame interval (1500ms) to avoid rapid mood switching
 
 ### 🔲 Phase 4 — Spotify OAuth Integration
-### 🔲 Phase 5 — Music Player
+
+### 🟡 Phase 5 — Music Player — UI Complete (mock data), pending Phase 4 wiring
+- `MusicPlayer.tsx` — album art, seek bar, volume, prev/play/next, Open in Spotify, audio playback
+- `TrackList.tsx` — scrollable track list, active highlight, context menu (like, artist, album, share)
+- `ContextMenu.tsx` — portal-based context menu
+- `/home` page — detection + recommended grid + mood-triggered tracklist + player wired together
+- `/playlist` page — sidebar with playlists + Moods folder, Spotify-style hero, track table, albums/artists grids
+- `/history` page — mood summary pills, calendar dropdown, collapsible detection entries with songs played
+- `types/index.ts` — `SpotifyTrack`, `SpotifyTokens`, `Playlist`, `Artist`, `Album`, `MoodRoom`, `MoodHistoryEntry`
+- `utils/mockData.ts` — full mock data for all Phase 5 UI (replaced by Phase 4 hooks after merge)
+
 ### 🔲 Phase 6 — User Features (Firestore)
 ### 🔲 Phase 7 — UI Polish & Responsiveness
 ### 🔲 Phase 8 — Deployment
