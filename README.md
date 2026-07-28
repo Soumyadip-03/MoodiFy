@@ -118,7 +118,7 @@ Browser Webcam → WebSocket → FastAPI → deepface/fer → Emotion → Mood �
   - `get_recommendations_from_firestore(mood)` — fallback query Firestore `moodTracks` by mood
   - `save_tokens(uid, tokens)` — store tokens in Firestore
   - `get_tokens(uid)` — fetch tokens from Firestore
-- [ ] Register spotify router in `main.py`
+- [x] Register spotify router in `main.py`
 - [ ] `GET /api/spotify/premium` — check and return user's Spotify premium status
 
 #### Mood → Spotify Audio Features Mapping
@@ -159,13 +159,13 @@ Browser Webcam → WebSocket → FastAPI → deepface/fer → Emotion → Mood �
 - [ ] Over time `playCount` + `likeCount` build a self-improving popularity ranking per mood
 
 #### Frontend
-- [ ] `useSpotify` hook — manages Spotify connection state (`connected`, `connecting`, `error`)
-- [ ] `connectSpotify()` — redirects to `/api/spotify/login`
-- [ ] `fetchRecommendations(mood)` — calls backend, returns tracks
+- [x] `useSpotify` hook — shell created, exports `connected`, `connecting`, `isPremium`, `error`, `connectSpotify()`, `fetchRecommendations()` (TODO: wire to real API)
+- [x] `connectSpotify()` — redirects to `/api/spotify/login`
+- [ ] `fetchRecommendations(mood)` — calls backend, returns tracks (TODO: implement)
 - [ ] Auto-fetch recommendations when mood changes
-- [ ] `lib/firestore.ts` — `saveSpotifyTokens(uid, tokens)` + `getSpotifyTokens(uid)`
-- [ ] `types/index.ts` — `SpotifyTrack` type + `SpotifyTokens` type
-- [ ] "Connect Spotify" button on dashboard
+- [x] `lib/firestore.ts` — `saveSpotifyTokens(uid, tokens)` + `getSpotifyTokens(uid)` stubs added
+- [x] `types/index.ts` — `SpotifyTrack` type + `SpotifyTokens` type
+- [ ] "Connect Spotify" button on home page
 - [ ] Handle `preview_url: null` — show "Open in Spotify" CTA
 
 #### Two-Tier User System
@@ -362,7 +362,12 @@ FRONTEND_URL=http://localhost:3000
 - deepface model pre-loaded at startup for reduced latency
 - Debounce (800ms) + frame interval (1500ms) to avoid rapid mood switching
 
-### 🔲 Phase 4 — Spotify OAuth Integration
+### 🟡 Phase 4 — Spotify OAuth Integration — In Progress
+- `useSpotify.ts` shell created — shape ready, real API wiring pending
+- `firestore.ts` — `saveSpotifyTokens` + `getSpotifyTokens` stubs added
+- Spotify router registered in `main.py`
+- Backend routes + service functions — all stubs, implementation pending
+
 ### 🔲 Phase 5 — Music Player
 ### 🔲 Phase 6 — User Features (Firestore)
 ### 🔲 Phase 7 — UI Polish & Responsiveness
