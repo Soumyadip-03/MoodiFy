@@ -38,7 +38,7 @@ Browser Webcam → WebSocket → FastAPI → deepface/fer → Emotion → Mood �
   frontend/
   ├── app/
   │   ├── (auth)/login & signup pages
-  │   ├── (app)/dashboard, history, profile
+  │   ├── (app)/home, history, profile
   │   └── globals.css
   ├── components/auth, detection, player, ui
   ├── context/AuthContext.tsx
@@ -69,12 +69,12 @@ Browser Webcam → WebSocket → FastAPI → deepface/fer → Emotion → Mood �
 - [x] `AuthContext` — React context exposing `user`, `loading`, `signIn`, `signOut`
 - [x] Login page (`/login`) — Google OAuth button + email/password form
 - [x] Signup page (`/signup`) — email/password registration + display name
-- [x] Route protection — middleware redirects unauthenticated users from `/dashboard`, `/history`, `/profile`
-- [x] Logged-in users redirected away from `/login` and `/signup` back to `/dashboard`
+- [x] Route protection — middleware redirects unauthenticated users from `/home`, `/history`, `/profile`
+- [x] Logged-in users redirected away from `/login` and `/signup` back to `/home`
 - [x] Persist auth state across page refreshes
 - [x] FastAPI — verify Firebase ID tokens on protected routes
 - [x] User profile document created in Firestore on first sign-in
-- [x] Dashboard page uses peach/orange design system (`#FFE8D6` → `#FFF5F0` gradient, `#FF6B35` orange accents)
+- [x] Home page uses peach/orange design system (`#FFE8D6` → `#FFF5F0` gradient, `#FF6B35` orange accents)
 
 ---
 
@@ -85,7 +85,7 @@ Browser Webcam → WebSocket → FastAPI → deepface/fer → Emotion → Mood �
 - [x] Debounce mood updates (800ms debounce, 1500ms frame interval)
 - [x] Graceful error states: camera denied, no face found, model load failure
 - [x] Frontend `useFaceDetection` hook — manages webcam stream + WebSocket connection
-- [x] `MoodDetector` component — wired into dashboard, uses peach/orange design system
+- [x] `MoodDetector` component — wired into home page, uses peach/orange design system
 - [x] Emotion → Mood mapping:
 
   | Emotion | App Mood |
@@ -160,7 +160,7 @@ Browser Webcam → WebSocket → FastAPI → deepface/fer → Emotion → Mood �
 - [ ] Auto-fetch recommendations when mood changes
 - [ ] `lib/firestore.ts` — `saveSpotifyTokens(uid, tokens)` + `getSpotifyTokens(uid)`
 - [ ] `types/index.ts` — `SpotifyTrack` type + `SpotifyTokens` type
-- [ ] "Connect Spotify" button on dashboard
+- [ ] "Connect Spotify" button on home page
 - [ ] Handle `preview_url: null` — show "Open in Spotify" CTA
 
 #### Two-Tier User System
@@ -368,15 +368,15 @@ FRONTEND_URL=http://localhost:3000
 - `lib/firebase.ts` — Firebase app initialized with env vars
 - `AuthContext.tsx` — Google + Email/Password sign-in, token refresh every 55 mins
 - Login/Signup pages built with Framer Motion animations
-- Route protection middleware — redirects unauthenticated users to `/login`, logged-in users away from auth routes to `/dashboard`
+- Route protection middleware — redirects unauthenticated users to `/login`, logged-in users away from auth routes to `/home`
 - `backend/main.py` — FastAPI app with CORS middleware + auth + mood routers registered
 - `backend/serviceAccountKey.json` — valid service account key from Firebase console
-- Dashboard uses peach/orange design system consistent with auth pages
+- Home page uses peach/orange design system consistent with auth pages
 
 ### ✅ Phase 3 — Realtime Face Detection (WebSocket) — Complete
 - FastAPI WebSocket endpoint `/ws/detect` — receives webcam frames, returns mood
 - `useFaceDetection` hook — manages webcam stream + WebSocket connection
-- `MoodDetector` component — wired into dashboard, design system aligned with Phase 2 (peach/orange)
+- `MoodDetector` component — wired into home page, design system aligned with Phase 2 (peach/orange)
 - Emotion → Mood mapping complete (`moodUtils.ts`)
 - deepface model pre-loaded at startup for reduced latency
 - Debounce (800ms) + frame interval (1500ms) to avoid rapid mood switching
@@ -470,7 +470,7 @@ MoodiFy/
 │   │   │   ├── login/page.tsx
 │   │   │   └── signup/page.tsx
 │   │   ├── (app)/
-│   │   │   ├── dashboard/page.tsx
+│   │   │   ├── home/page.tsx
 │   │   │   ├── history/page.tsx
 │   │   │   └── profile/page.tsx
 │   │   ├── layout.tsx

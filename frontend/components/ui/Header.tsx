@@ -3,7 +3,8 @@
 import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
 import { useRouter, usePathname } from "next/navigation";
-import { Sun, Moon, ChevronDown, User, LogOut } from "lucide-react";
+import { ChevronDown, User, LogOut } from "lucide-react";
+import ThemeToggle from "@/components/ui/ThemeToggle";
 import Link from "next/link";
 import Image from "next/image";
 import { useState, useRef, useEffect } from "react";
@@ -16,7 +17,7 @@ const NAV_LINKS = [
 
 export default function Header() {
   const { user, signOut } = useAuth();
-  const { theme, toggleTheme } = useTheme();
+  const { theme } = useTheme();
   const router = useRouter();
   const pathname = usePathname();
   const isDark = theme === "dark";
@@ -87,15 +88,7 @@ export default function Header() {
       {/* Right controls */}
       <div className="flex items-center gap-3">
         {/* Theme toggle */}
-        <button
-          onClick={toggleTheme}
-          className={`p-2 rounded-full transition-colors ${
-            isDark ? "bg-[#1A1A1A] hover:bg-[#2a2a2a] text-[#FF6B35]" : "bg-[#FFDDD2] hover:bg-[#ffcfc0] text-[#FF6B35]"
-          }`}
-          aria-label="Toggle theme"
-        >
-          {isDark ? <Sun size={16} /> : <Moon size={16} />}
-        </button>
+        <ThemeToggle />
 
         {/* Avatar dropdown */}
         <div className="relative" ref={dropdownRef}>
