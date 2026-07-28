@@ -6,6 +6,7 @@ import { Play, Shuffle, MoreHorizontal, CheckCircle2, Clock } from "lucide-react
 import { useTheme } from "@/context/ThemeContext";
 import Header from "@/components/ui/Header";
 import type { SpotifyTrack, Playlist } from "@/types/index";
+import MusicPlayer from "@/components/player/MusicPlayer";
 import { mockPlaylists, mockSavedAlbums, mockFollowedArtists } from "@/utils/mockData";
 
 type SidebarTab = "Tracks" | "Albums" | "Artists";
@@ -101,10 +102,13 @@ export default function PlaylistPage() {
       <Header />
 
       {/* Same px-6 py-6 gap as home page */}
-      <main className="flex gap-5 px-6 pt-6 pb-6 flex-1 min-h-0">
+      <main className="flex gap-5 px-6 py-6 flex-1 min-h-0">
 
-        {/* ── Card 1 — Playlist Sidebar ── */}
-        <div className={`w-[400px] flex-shrink-0 rounded-2xl border flex flex-col transition-colors duration-300 ${card}`}>
+        {/* ── Left Column — Sidebar + Player ── */}
+        <div className="w-[400px] flex-shrink-0 flex flex-col gap-4 h-full">
+
+          {/* Card 1 — Playlist Sidebar — shrinks when player is visible */}
+          <div className={`rounded-2xl border flex flex-col transition-colors duration-300 flex-1 min-h-0 ${card}`}>
 
           {/* Header row */}
           <div className="flex items-center justify-between px-5 py-4 flex-shrink-0">
@@ -205,7 +209,24 @@ export default function PlaylistPage() {
               );
             })}
           </div>
+          {/* end scrollable playlist list */}
+
+          </div>
+          {/* end sidebar card */}
+
+          {/* MusicPlayer — slides in below sidebar when track is active */}
+          {activeTrack && (
+            <div className="flex-shrink-0 h-[28vh] min-h-[220px] max-h-[280px]">
+              <MusicPlayer
+                track={activeTrack}
+                tracks={queue}
+                onTrackChange={setActiveTrack}
+              />
+            </div>
+          )}
+
         </div>
+        {/* end left column */}
 
         {/* ── Card 2 — Playlist View ── */}
         <div className={`flex-1 min-w-0 rounded-2xl border flex flex-col transition-colors duration-300 ${card}`}>

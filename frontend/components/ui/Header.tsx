@@ -45,10 +45,11 @@ export default function Header() {
 
   return (
     <header
-      className={`w-full px-6 py-4 flex items-center justify-between border-b transition-colors duration-300 ${
-        isDark ? "bg-[#0a0a0a] border-[#2a2a2a]" : "bg-white/60 border-[#FFDDD2] backdrop-blur-sm"
+      className={`w-full transition-colors duration-300 ${
+        isDark ? "bg-[#0a0a0a]" : "bg-white/60 backdrop-blur-sm"
       }`}
     >
+      <div className="mx-auto px-6 pt-4 pb-0 flex items-center justify-between">
       {/* Logo */}
       <div className="flex items-center gap-2">
         <Image src="/logo.png" alt="MoodiFy logo" width={40} height={40} className="rounded-full" />
@@ -57,7 +58,7 @@ export default function Header() {
 
       {/* Nav Pill */}
       <nav
-        className={`flex items-center rounded-full border px-2 py-1.5 ${
+        className={`flex items-center rounded-full border px-1 py-1 ${
           isDark ? "bg-[#1A1A1A] border-[#3a3a3a]" : "bg-[#FFE8D6] border-[#FFDDD2]"
         }`}
       >
@@ -70,7 +71,7 @@ export default function Header() {
               )}
               <Link
                 href={href}
-                className={`px-6 py-2 rounded-full text-sm font-medium transition-colors duration-200 ${
+                className={`px-14 py-2 rounded-full text-sm font-medium transition-colors duration-200 ${
                   active
                     ? "bg-[#FF6B35] text-white"
                     : isDark
@@ -154,6 +155,7 @@ export default function Header() {
             </div>
           )}
         </div>
+      </div>
       </div>
     </header>
   );

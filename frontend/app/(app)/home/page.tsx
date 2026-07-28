@@ -112,7 +112,7 @@ export default function HomePage() {
     <div className={`h-dvh overflow-hidden flex flex-col transition-colors duration-300 ${bg}`}>
       <Header />
 
-      <main className="flex gap-5 px-6 pt-6 pb-6 flex-1 min-h-0">
+      <main className="flex gap-5 px-6 py-6 flex-1 min-h-0">
 
         {/* ── Left Panel ── */}
         <div className="flex flex-col gap-4 w-[400px] flex-shrink-0 h-full">
@@ -153,44 +153,47 @@ export default function HomePage() {
               )}
             </div>
 
-            {/* Status text */}
+            {/* Status text — hidden after detection or while detecting */}
+            {!lockedResult && !isDetecting && (
             <p className={`text-xs text-center ${muted}`}>
               {isCameraError
                 ? "Please allow camera access and try again"
-                : isDetecting
-                ? `Detecting your mood... ${countdown}s`
-                : lockedResult
-                ? `${lockedResult.mood.charAt(0).toUpperCase() + lockedResult.mood.slice(1)} · ${Math.round(lockedResult.confidence * 100)}% confidence`
                 : "Click Start to detect mood"}
             </p>
+            )}
 
-            {/* Mood result pill — shown after detection */}
+            {/* Mood result pill + Re-detect button — side by side after first detection */}
             {lockedResult && (
-              <div className={`flex items-center justify-between px-4 py-2.5 rounded-xl border ${
-                isDark ? "bg-[#1a1a1a] border-[#2a2a2a]" : "bg-[#FFF5F0] border-[#FFDDD2]"
-              }`}>
-                <div className="flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-[#FF6B35]" />
-                  <span className="text-sm font-bold text-[#FF6B35] uppercase tracking-wide">{lockedResult.mood}</span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleStart}
+                  disabled={isDetecting || status === "connecting"}
+                  className="flex-shrink-0 py-2.5 px-4 rounded-xl bg-[#FF6B35] hover:bg-[#e85d2a] disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors flex items-center justify-center gap-2"
+                >
+                  🎥 {status === "connecting" ? "Connecting..." : isDetecting ? `${countdown}s` : "Re-detect"}
+                </button>
+                <div className={`flex items-center justify-between px-4 py-2.5 rounded-xl border flex-1 ${
+                  isDark ? "bg-[#1a1a1a] border-[#2a2a2a]" : "bg-[#FFF5F0] border-[#FFDDD2]"
+                }`}>
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-[#FF6B35]" />
+                    <span className="text-sm font-bold text-[#FF6B35] uppercase tracking-wide">{lockedResult.mood}</span>
+                  </div>
+                  <span className={`text-sm font-medium ${muted}`}>{Math.round(lockedResult.confidence * 100)}%</span>
                 </div>
-                <span className={`text-sm font-medium ${muted}`}>{Math.round(lockedResult.confidence * 100)}%</span>
               </div>
             )}
 
-            {/* Start / Re-detect button */}
-            <button
-              onClick={handleStart}
-              disabled={isDetecting || status === "connecting"}
-              className="w-full py-2.5 rounded-xl bg-[#FF6B35] hover:bg-[#e85d2a] disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors flex items-center justify-center gap-2"
-            >
-              🎥 {status === "connecting"
-                ? "Connecting..."
-                : isDetecting
-                ? `Detecting... ${countdown}s`
-                : hasDetected
-                ? "Re-detect"
-                : "Start"}
-            </button>
+            {/* Start button — only shown before first detection */}
+            {!lockedResult && (
+              <button
+                onClick={handleStart}
+                disabled={isDetecting || status === "connecting"}
+                className="w-full py-2.5 rounded-xl bg-[#FF6B35] hover:bg-[#e85d2a] disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors flex items-center justify-center gap-2"
+              >
+                🎥 {status === "connecting" ? "Connecting..." : isDetecting ? `Detecting... ${countdown}s` : "Start"}
+              </button>
+            )}
 
             {/* Language multi-select */}
             <div className="relative" ref={langRef}>
@@ -243,7 +246,7 @@ export default function HomePage() {
           </div>
 
           {/* Card 2 — Music Player (always visible, fixed height) */}
-          <div className="flex flex-col flex-shrink-0 h-[22vh] min-h-[180px] max-h-[240px]">
+          <div className="flex flex-col flex-shrink-0 h-[28vh] min-h-[220px] max-h-[280px]">
             {activeTrack ? (
               <MusicPlayer
                 track={activeTrack}
