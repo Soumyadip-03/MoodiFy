@@ -46,6 +46,8 @@ export function useFaceDetection() {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
+    if (video.videoWidth === 0 || video.videoHeight === 0) return;
+
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
     ctx.drawImage(video, 0, 0);

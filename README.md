@@ -38,7 +38,7 @@ Browser Webcam → WebSocket → FastAPI → deepface/fer → Emotion → Mood �
   frontend/
   ├── app/
   │   ├── (auth)/login & signup pages
-  │   ├── (app)/dashboard, history, profile
+  │   ├── (app)/home, history, profile
   │   └── globals.css
   ├── components/auth, detection, player, ui
   ├── context/AuthContext.tsx
@@ -69,12 +69,12 @@ Browser Webcam → WebSocket → FastAPI → deepface/fer → Emotion → Mood �
 - [x] `AuthContext` — React context exposing `user`, `loading`, `signIn`, `signOut`
 - [x] Login page (`/login`) — Google OAuth button + email/password form
 - [x] Signup page (`/signup`) — email/password registration + display name
-- [x] Route protection — middleware redirects unauthenticated users from `/dashboard`, `/history`, `/profile`
-- [x] Logged-in users redirected away from `/login` and `/signup` back to `/dashboard`
+- [x] Route protection — middleware redirects unauthenticated users from `/home`, `/history`, `/profile`
+- [x] Logged-in users redirected away from `/login` and `/signup` back to `/home`
 - [x] Persist auth state across page refreshes
 - [x] FastAPI — verify Firebase ID tokens on protected routes
 - [x] User profile document created in Firestore on first sign-in
-- [x] Dashboard page uses peach/orange design system (`#FFE8D6` → `#FFF5F0` gradient, `#FF6B35` orange accents)
+- [x] Home page uses peach/orange design system (`#FFE8D6` → `#FFF5F0` gradient, `#FF6B35` orange accents)
 
 ---
 
@@ -85,7 +85,7 @@ Browser Webcam → WebSocket → FastAPI → deepface/fer → Emotion → Mood �
 - [x] Debounce mood updates (800ms debounce, 1500ms frame interval)
 - [x] Graceful error states: camera denied, no face found, model load failure
 - [x] Frontend `useFaceDetection` hook — manages webcam stream + WebSocket connection
-- [x] `MoodDetector` component — wired into dashboard, uses peach/orange design system
+- [x] `MoodDetector` component — wired into home page, uses peach/orange design system
 - [x] Emotion → Mood mapping:
 
   | Emotion | App Mood |
@@ -112,14 +112,9 @@ Browser Webcam → WebSocket → FastAPI → deepface/fer → Emotion → Mood �
   - `exchange_code(code)` — POST to Spotify token endpoint
   - `refresh_access_token(refresh_token)` — get new access token
   - `get_recommendations(mood, access_token)` — mood → audio features → tracks
-  - `get_user_top_seeds(access_token)` — fetch user's top artists + tracks as recommendation seeds
-  - `check_premium(access_token)` — call `GET /v1/me`, return `"premium"` or `"free"`
-  - `save_tracks_to_firestore(tracks, mood)` — cache fetched tracks to Firestore `moodTracks` with mood tag
-  - `get_recommendations_from_firestore(mood)` — fallback query Firestore `moodTracks` by mood
   - `save_tokens(uid, tokens)` — store tokens in Firestore
   - `get_tokens(uid)` — fetch tokens from Firestore
-- [x] Register spotify router in `main.py`
-- [ ] `GET /api/spotify/premium` — check and return user's Spotify premium status
+- [ ] Register spotify router in `main.py`
 
 #### Mood → Spotify Audio Features Mapping
 | Mood | Valence | Energy | Genre Seeds |
@@ -159,12 +154,12 @@ Browser Webcam → WebSocket → FastAPI → deepface/fer → Emotion → Mood �
 - [ ] Over time `playCount` + `likeCount` build a self-improving popularity ranking per mood
 
 #### Frontend
-- [x] `useSpotify` hook — shell created, exports `connected`, `connecting`, `isPremium`, `error`, `connectSpotify()`, `fetchRecommendations()` (TODO: wire to real API)
-- [x] `connectSpotify()` — redirects to `/api/spotify/login`
-- [ ] `fetchRecommendations(mood)` — calls backend, returns tracks (TODO: implement)
+- [ ] `useSpotify` hook — manages Spotify connection state (`connected`, `connecting`, `error`)
+- [ ] `connectSpotify()` — redirects to `/api/spotify/login`
+- [ ] `fetchRecommendations(mood)` — calls backend, returns tracks
 - [ ] Auto-fetch recommendations when mood changes
-- [x] `lib/firestore.ts` — `saveSpotifyTokens(uid, tokens)` + `getSpotifyTokens(uid)` stubs added
-- [x] `types/index.ts` — `SpotifyTrack` type + `SpotifyTokens` type
+- [ ] `lib/firestore.ts` — `saveSpotifyTokens(uid, tokens)` + `getSpotifyTokens(uid)`
+- [ ] `types/index.ts` — `SpotifyTrack` type + `SpotifyTokens` type
 - [ ] "Connect Spotify" button on home page
 - [ ] Handle `preview_url: null` — show "Open in Spotify" CTA
 
@@ -202,35 +197,59 @@ Browser Webcam → WebSocket → FastAPI → deepface/fer → Emotion → Mood �
 > ⚠️ **Depends on Phase 4** — requires `SpotifyTrack` type, `useSpotify` hook, and `fetchRecommendations(mood)` to be available before wiring up the player.
 
 #### Components
-- [ ] `components/player/MusicPlayer.tsx` — main player UI:
+- [x] `components/player/MusicPlayer.tsx` — main player UI:
   - Album art (large)
   - Track name + artist name
   - Seek bar + current time / duration
   - Volume control
   - Prev / Play / Pause / Next controls
-  - Free users — 30-sec `preview_url` playback via HTML `<audio>` tag
-  - Premium users — full song playback via Spotify Web Playback SDK
+  - Free users — 30-sec `preview_url` playback via HTML `<audio>` tag (TODO Phase 4: wire real previewUrl)
   - "Open in Spotify" button on every track
-  - WhatsApp share button per track
-  - Heart/like button per track (saves to Firestore)
-- [ ] `components/player/TrackList.tsx` — scrollable recommendations panel:
-  - List of 10 tracks returned by mood
-  - Album art thumbnail + track name + artist
+  - Premium users — Spotify Web Playback SDK (TODO Phase 4)
+  - Heart/like button per track (TODO Phase 4: save to Firestore)
+- [x] `components/player/TrackList.tsx` — scrollable recommendations panel:
+  - List of tracks with album art thumbnail + track name + artist
   - Active track highlighted
   - Click to play
-  - Like + Share buttons per row
+  - Context menu with Like, Go to Artist, Go to Album, Share per row
+- [x] `components/ui/ContextMenu.tsx` — portal-based context menu used by TrackList
 
 #### Sharing
-- [ ] WhatsApp share — `https://wa.me/?text=Check out this song on MoodiFy: {spotifyUrl}`
-- [ ] Web Share API — native mobile share sheet fallback (WhatsApp, Instagram, copy link)
+- [x] Web Share API — native share sheet with WhatsApp fallback (`https://wa.me/?text=...`)
+- [x] "Open in Spotify" anchor tag on every track
 
 #### Playback Logic
-- [ ] Auto-play first track when mood is detected
-- [ ] Free users — HTML `<audio>` plays `preview_url` (30 seconds), stops automatically
-- [ ] Premium users — Spotify Web Playback SDK streams full song
-- [ ] Show "Open in Spotify" CTA when `preview_url` is null
+- [x] Auto-play first track when mood is detected (switches queue from recommended → mood tracks)
+- [x] HTML `<audio>` player wired to `previewUrl` — shows "Open in Spotify" CTA when `previewUrl` is null
+- [x] Prev / Next track navigation through current queue
+- [x] Recommended songs grid shown before mood is detected (4-col grid)
+- [x] TrackList shown after mood is detected
 - [ ] Smooth transition animation when mood changes and playlist refreshes
-- [ ] Mood override — manual mood selector dropdown if detection is off
+- [ ] Mood override — manual mood selector dropdown (TODO)
+- [ ] Premium users — Spotify Web Playback SDK full song streaming (TODO Phase 4)
+
+#### Playlist Page (`/playlist`)
+- [x] Sidebar with all user playlists — Liked Songs, custom playlists, Moods Playlist folder
+- [x] Moods Playlist folder — expands to show all 7 mood sub-playlists (happy, chill, etc.) by mood name only
+- [x] Clicking a mood sub-item loads that mood's tracks in the playlist view
+- [x] Albums tab — 3-col grid of saved albums
+- [x] Artists tab — 3-col grid of followed artists
+- [x] Spotify-style hero banner — large cover art, playlist label, name, song count + total duration, play + shuffle
+- [x] Track table — #, title + album art, album, date added, duration, context menu
+- [x] Create playlist button — prompts for name, adds to sidebar
+- [x] Active playlist highlight clears when switching to Albums/Artists tabs
+- [x] All data using `mockData.ts` — TODO Phase 4: replace with real Spotify data
+
+#### History Page (`/history`)
+- [x] Today's date heading + mood summary pills (mood × count)
+- [x] "View Date" calendar dropdown — month/year selectors + full calendar grid, today highlighted
+- [x] Per-detection entry cards with orange-tinted header row:
+  - Mood emoji + name + confidence % on the left
+  - Center: "X Songs played" (clickable) or "No songs played after detection" (non-clickable)
+  - Timestamp on the right
+- [x] Clicking an entry with songs toggles a dropdown showing SONGS PLAYED list
+- [x] Each song row: music icon, title, artist, played-at time, duration
+- [x] All data using `mockData.ts` — TODO Phase 6: replace with real Firestore mood history
 
 #### Artist & Album Browsing
 - [ ] Click any artist name → opens Artist page inside MoodiFy
@@ -349,26 +368,31 @@ FRONTEND_URL=http://localhost:3000
 - `lib/firebase.ts` — Firebase app initialized with env vars
 - `AuthContext.tsx` — Google + Email/Password sign-in, token refresh every 55 mins
 - Login/Signup pages built with Framer Motion animations
-- Route protection middleware — redirects unauthenticated users to `/login`, logged-in users away from auth routes to `/dashboard`
+- Route protection middleware — redirects unauthenticated users to `/login`, logged-in users away from auth routes to `/home`
 - `backend/main.py` — FastAPI app with CORS middleware + auth + mood routers registered
 - `backend/serviceAccountKey.json` — valid service account key from Firebase console
-- Dashboard uses peach/orange design system consistent with auth pages
+- Home page uses peach/orange design system consistent with auth pages
 
 ### ✅ Phase 3 — Realtime Face Detection (WebSocket) — Complete
 - FastAPI WebSocket endpoint `/ws/detect` — receives webcam frames, returns mood
 - `useFaceDetection` hook — manages webcam stream + WebSocket connection
-- `MoodDetector` component — wired into dashboard, design system aligned with Phase 2 (peach/orange)
+- `MoodDetector` component — wired into home page, design system aligned with Phase 2 (peach/orange)
 - Emotion → Mood mapping complete (`moodUtils.ts`)
 - deepface model pre-loaded at startup for reduced latency
 - Debounce (800ms) + frame interval (1500ms) to avoid rapid mood switching
 
-### 🟡 Phase 4 — Spotify OAuth Integration — In Progress
-- `useSpotify.ts` shell created — shape ready, real API wiring pending
-- `firestore.ts` — `saveSpotifyTokens` + `getSpotifyTokens` stubs added
-- Spotify router registered in `main.py`
-- Backend routes + service functions — all stubs, implementation pending
+### 🔲 Phase 4 — Spotify OAuth Integration
 
-### 🔲 Phase 5 — Music Player
+### 🟡 Phase 5 — Music Player — UI Complete (mock data), pending Phase 4 wiring
+- `MusicPlayer.tsx` — album art, seek bar, volume, prev/play/next, Open in Spotify, audio playback
+- `TrackList.tsx` — scrollable track list, active highlight, context menu (like, artist, album, share)
+- `ContextMenu.tsx` — portal-based context menu
+- `/home` page — detection + recommended grid + mood-triggered tracklist + player wired together
+- `/playlist` page — sidebar with playlists + Moods folder, Spotify-style hero, track table, albums/artists grids
+- `/history` page — mood summary pills, calendar dropdown, collapsible detection entries with songs played
+- `types/index.ts` — `SpotifyTrack`, `SpotifyTokens`, `Playlist`, `Artist`, `Album`, `MoodRoom`, `MoodHistoryEntry`
+- `utils/mockData.ts` — full mock data for all Phase 5 UI (replaced by Phase 4 hooks after merge)
+
 ### 🔲 Phase 6 — User Features (Firestore)
 ### 🔲 Phase 7 — UI Polish & Responsiveness
 ### 🔲 Phase 8 — Deployment
@@ -446,7 +470,7 @@ MoodiFy/
 │   │   │   ├── login/page.tsx
 │   │   │   └── signup/page.tsx
 │   │   ├── (app)/
-│   │   │   ├── dashboard/page.tsx
+│   │   │   ├── home/page.tsx
 │   │   │   ├── history/page.tsx
 │   │   │   └── profile/page.tsx
 │   │   ├── layout.tsx

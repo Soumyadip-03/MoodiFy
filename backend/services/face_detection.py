@@ -10,9 +10,13 @@ try:
 except Exception:
     pass
 
-def decode_frame(data: bytes) -> np.ndarray:
+def decode_frame(data: bytes):
+    if not data:
+        return None
     arr = np.frombuffer(data, np.uint8)
     frame = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+    if frame is None or frame.size == 0:
+        return None
     return frame
 
 def detect_emotion(frame: np.ndarray) -> dict | None:

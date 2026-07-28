@@ -17,8 +17,12 @@ const comfortaa = Comfortaa({
 });
 
 export const metadata: Metadata = {
-  title: "Moodify",
+  title: "MoodiFy",
   description: "AI Mood-Based Music Player",
+  icons: {
+    icon: "/logo.png",
+    apple: "/logo.png",
+  },
 };
 
 export default function RootLayout({

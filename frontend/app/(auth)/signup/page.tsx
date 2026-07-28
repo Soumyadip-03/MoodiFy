@@ -29,7 +29,7 @@ export default function SignupPage() {
     setLoading(true);
     try {
       await signUpWithEmail(email, password, displayName);
-      router.push("/dashboard");
+      router.push("/home");
     } catch {
       setError("Could not create account. Try a stronger password or different email.");
     } finally {
