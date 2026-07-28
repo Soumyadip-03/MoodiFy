@@ -109,10 +109,10 @@ export default function HomePage() {
   const isDetecting = countdown !== null && !isCameraError;
 
   return (
-    <div className={`h-screen overflow-hidden flex flex-col transition-colors duration-300 ${bg}`}>
+    <div className={`h-dvh overflow-hidden flex flex-col transition-colors duration-300 ${bg}`}>
       <Header />
 
-      <main className="flex gap-5 px-6 py-6" style={{ height: "calc(100vh - 65px)" }}>
+      <main className="flex gap-5 px-6 pt-6 pb-6 flex-1 min-h-0">
 
         {/* ── Left Panel ── */}
         <div className="flex flex-col gap-4 w-[400px] flex-shrink-0 h-full">
@@ -243,7 +243,7 @@ export default function HomePage() {
           </div>
 
           {/* Card 2 — Music Player (always visible, fixed height) */}
-          <div className="flex flex-col flex-shrink-0" style={{ height: "220px" }}>
+          <div className="flex flex-col flex-shrink-0 h-[22vh] min-h-[180px] max-h-[240px]">
             {activeTrack ? (
               <MusicPlayer
                 track={activeTrack}
@@ -268,7 +268,7 @@ export default function HomePage() {
               <p className={`text-xl font-bold mb-4 flex-shrink-0 ${isDark ? "text-white" : "text-[#3a2a20]"}`}>
                 Recommended Songs
               </p>
-              <div className="grid grid-cols-4 gap-3 app-scroll overflow-y-auto flex-1">
+              <div className="grid grid-cols-4 gap-3 app-scroll overflow-y-auto flex-1 content-start">
                 {mockRecommendedTracks.map(track => (
                   <div
                     key={track.id}
@@ -277,7 +277,7 @@ export default function HomePage() {
                     }`}
                     onClick={() => handleRecommendedPlay(track)}
                   >
-                    <div className="relative aspect-square rounded-xl overflow-hidden">
+                    <div className="relative aspect-square rounded-xl overflow-hidden bg-[#1a1a1a]">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img src={track.albumArt} alt={track.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                       <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">

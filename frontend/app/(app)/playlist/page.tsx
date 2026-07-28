@@ -97,14 +97,14 @@ export default function PlaylistPage() {
   };
 
   return (
-    <div className={`h-screen flex flex-col overflow-hidden transition-colors duration-300 ${bg}`}>
+    <div className={`h-dvh flex flex-col overflow-hidden transition-colors duration-300 ${bg}`}>
       <Header />
 
       {/* Same px-6 py-6 gap as home page */}
-      <main className="flex gap-5 px-6 py-6" style={{ height: "calc(100vh - 65px)", overflow: "hidden" }}>
+      <main className="flex gap-5 px-6 pt-6 pb-6 flex-1 min-h-0">
 
         {/* ── Card 1 — Playlist Sidebar ── */}
-        <div className={`w-[400px] flex-shrink-0 rounded-2xl border flex flex-col transition-colors duration-300 ${card}`} style={{ height: "100%", overflow: "hidden" }}>
+        <div className={`w-[400px] flex-shrink-0 rounded-2xl border flex flex-col transition-colors duration-300 ${card}`}>
 
           {/* Header row */}
           <div className="flex items-center justify-between px-5 py-4 flex-shrink-0">
@@ -208,7 +208,7 @@ export default function PlaylistPage() {
         </div>
 
         {/* ── Card 2 — Playlist View ── */}
-        <div className={`flex-1 min-w-0 rounded-2xl border flex flex-col transition-colors duration-300 ${card}`} style={{ height: "100%", overflow: "hidden" }}>
+        <div className={`flex-1 min-w-0 rounded-2xl border flex flex-col transition-colors duration-300 ${card}`}>
 
           {/* Hero banner */}
           <div className={`flex-shrink-0 rounded-t-2xl overflow-hidden ${heroBg}`}>

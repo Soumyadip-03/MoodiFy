@@ -3,7 +3,7 @@
 
 import os
 import httpx
-from google.cloud import firestore
+import firebase_admin.firestore as firestore
 
 SPOTIFY_CLIENT_ID = os.getenv("SPOTIFY_CLIENT_ID")
 SPOTIFY_CLIENT_SECRET = os.getenv("SPOTIFY_CLIENT_SECRET")
