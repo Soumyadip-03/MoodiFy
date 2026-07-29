@@ -3,6 +3,9 @@ import { Pacifico, Comfortaa } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
 import { ThemeProvider } from "@/context/ThemeContext";
+import { ArtistAlbumProvider } from "@/context/ArtistAlbumContext";
+import { PlayerProvider } from "@/context/PlayerContext";
+import ModalRenderer from "@/components/ui/ModalRenderer";
 
 const pacifico = Pacifico({
   weight: "400",
@@ -34,7 +37,14 @@ export default function RootLayout({
     <html lang="en">
       <body className={`${pacifico.variable} ${comfortaa.variable} font-comfortaa`}>
         <ThemeProvider>
-          <AuthProvider>{children}</AuthProvider>
+          <AuthProvider>
+            <ArtistAlbumProvider>
+              <PlayerProvider>
+                {children}
+                <ModalRenderer />
+              </PlayerProvider>
+            </ArtistAlbumProvider>
+          </AuthProvider>
         </ThemeProvider>
       </body>
     </html>

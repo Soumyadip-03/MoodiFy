@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { MoreHorizontal, CheckCircle2 } from "lucide-react";
+import { MoreHorizontal, CheckCircle2, Play, Pause } from "lucide-react";
 import { useTheme } from "@/context/ThemeContext";
 import ContextMenu from "@/components/ui/ContextMenu";
 import type { SpotifyTrack, Playlist } from "@/types/index";
@@ -10,14 +10,17 @@ import type { SpotifyTrack, Playlist } from "@/types/index";
 interface TrackListProps {
   tracks: SpotifyTrack[];
   activeTrack: SpotifyTrack;
+  isPlaying: boolean;
   likedTrackIds: Set<string>;
   playlists: Playlist[];
   onTrackSelect: (track: SpotifyTrack) => void;
+  onTogglePlay: () => void;
   onLike: (track: SpotifyTrack) => void;
   onAddToPlaylist: (track: SpotifyTrack, playlistId: string) => void;
   onCreatePlaylist: (track: SpotifyTrack) => void;
   onGoToArtist: (artistId: string) => void;
   onGoToAlbum: (albumId: string) => void;
+  queueSource?: { type: "artist" | "album"; name: string; art: string };
 }
 
 function formatDuration(s: number) {
@@ -27,9 +30,9 @@ function formatDuration(s: number) {
 }
 
 export default function TrackList({
-  tracks, activeTrack, likedTrackIds, playlists,
-  onTrackSelect, onLike, onAddToPlaylist,
-  onCreatePlaylist, onGoToArtist, onGoToAlbum,
+  tracks, activeTrack, isPlaying, likedTrackIds, playlists,
+  onTrackSelect, onTogglePlay, onLike, onAddToPlaylist,
+  onCreatePlaylist, onGoToArtist, onGoToAlbum, queueSource,
 }: TrackListProps) {
   const { theme } = useTheme();
   const isDark = theme === "dark";
@@ -57,7 +60,6 @@ export default function TrackList({
   const openMenu = (e: React.MouseEvent, track: SpotifyTrack) => {
     e.stopPropagation();
     e.preventDefault();
-    // Clamp so menu doesn't go off-screen (menu width ~200, height ~220)
     const x = Math.min(e.clientX, window.innerWidth - 210);
     const y = Math.min(e.clientY, window.innerHeight - 230);
     setContextMenu({ x, y, track });
@@ -71,11 +73,21 @@ export default function TrackList({
       <div className={`rounded-2xl border flex flex-col h-full overflow-hidden transition-colors duration-300 ${card}`}>
         {/* Header */}
         <div className="px-5 pt-5 pb-3 flex-shrink-0">
-          <p className={`text-xl font-bold ${isDark ? "text-white" : "text-[#3a2a20]"}`}>Up Next</p>
+          <div className="flex items-center gap-2 min-w-0">
+            <p className={`text-xl font-bold flex-shrink-0 ${isDark ? "text-white" : "text-[#3a2a20]"}`}>Up Next</p>
+            {queueSource && (
+              <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
+                <span className={`text-xl font-bold flex-shrink-0 ${muted}`}>·</span>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={queueSource.art} alt={queueSource.name} className={`w-5 h-5 object-cover flex-shrink-0 ${queueSource.type === "artist" ? "rounded-full" : "rounded"}`} />
+                <p className={`text-sm font-medium truncate ${muted}`}>{queueSource.name}</p>
+              </div>
+            )}
+          </div>
           <p className={`text-xs ${muted}`}>{tracks.length} Tracks</p>
         </div>
 
-        {/* Track rows — fill height evenly, scroll when needed */}
+        {/* Track rows */}
         <div className="flex-1 min-h-0 px-2 pb-3 overflow-y-auto app-scroll">
           <div className="flex flex-col min-h-full justify-between">
             {tracks.map((track, i) => {
@@ -84,26 +96,38 @@ export default function TrackList({
               return (
                 <div
                   key={track.id}
-                  onClick={() => onTrackSelect(track)}
-                  className={`flex items-center gap-3 px-3 py-1 rounded-xl cursor-pointer group transition-colors flex-1 ${
+                  onClick={() => {
+                    if (isActive) {
+                      onTogglePlay();
+                    } else {
+                      onTrackSelect(track);
+                    }
+                  }}
+                  className={`flex items-center gap-3 px-3 py-2 rounded-xl cursor-pointer group transition-colors flex-1 ${
                     isActive
                       ? isDark ? "bg-[#1a1a1a]" : "bg-[#FFF5F0]"
                       : isDark ? "hover:bg-[#1a1a1a]" : "hover:bg-[#FFF5F0]"
                   }`}
                 >
-                  {/* Index / play indicator */}
+                  {/* Index / play-pause indicator */}
                   <span className={`w-5 text-xs text-center flex-shrink-0 ${muted}`}>
-                    {isActive ? <span className="text-[#FF6B35]">▶</span> : i + 1}
+                    {isActive ? (
+                      <span className="text-[#FF6B35]">
+                        {isPlaying ? <Pause size={12} fill="#FF6B35" /> : <Play size={12} fill="#FF6B35" />}
+                      </span>
+                    ) : (
+                      i + 1
+                    )}
                   </span>
 
                   {/* Album art */}
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={track.albumArt} alt={track.title} className="w-9 h-9 rounded-lg object-cover flex-shrink-0" />
+                  <img src={track.albumArt} alt={track.title} className="w-12 h-12 rounded-lg object-cover flex-shrink-0" />
 
                   {/* Title + artist */}
                   <div className="flex-1 min-w-0">
-                    <p className={`text-sm font-medium truncate ${isDark ? "text-white" : "text-[#3a2a20]"}`}>{track.title}</p>
-                    <p className={`text-xs truncate ${muted}`}>{track.artist}</p>
+                    <p className={`text-base font-medium truncate ${isDark ? "text-white" : "text-[#3a2a20]"}`}>{track.title}</p>
+                    <p className={`text-sm truncate ${muted}`}>{track.artist}</p>
                   </div>
 
                   {/* Liked tick + duration + menu */}
@@ -132,8 +156,6 @@ export default function TrackList({
       {contextMenu && typeof document !== "undefined" && createPortal(
         <div ref={menuRef} style={{ position: "fixed", top: contextMenu.y, left: contextMenu.x, zIndex: 9999 }}>
           <ContextMenu
-            x={0}
-            y={0}
             track={contextMenu.track}
             playlists={playlists}
             onClose={() => setContextMenu(null)}

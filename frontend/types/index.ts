@@ -9,8 +9,9 @@ export interface SpotifyTrack {
   duration: number; // seconds
   mood: string;
   album?: string;
-  artistId?: string;
   albumId?: string;
+  artistId?: string;
+  releaseDate?: string;
   addedAt?: string;
 }
 

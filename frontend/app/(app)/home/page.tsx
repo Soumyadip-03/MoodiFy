@@ -1,18 +1,20 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useRouter } from "next/navigation";
-import { Play, ChevronDown, Info, AlertCircle } from "lucide-react";
+import { Play, ChevronDown, AlertCircle, MoreHorizontal } from "lucide-react";
+import { createPortal } from "react-dom";
 import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
 import { useFaceDetection } from "@/hooks/useFaceDetection";
-import Header from "@/components/ui/Header";
-import MusicPlayer from "@/components/player/MusicPlayer";
 import TrackList from "@/components/player/TrackList";
+import ContextMenu from "@/components/ui/ContextMenu";
+import { motion, AnimatePresence } from "framer-motion";
 import type { SpotifyTrack } from "@/types/index";
-import { mockTracks, mockRecommendedTracks, mockPlaylists } from "@/utils/mockData";
+import { mockPlaylists } from "@/utils/mockData";
+import { useSpotify } from "@/hooks/useSpotify";
+import { useArtistAlbum } from "@/context/ArtistAlbumContext";
+import { usePlayer } from "@/context/PlayerContext";
 
-const isPremium = false; // TODO (Phase 4)
 const LANGUAGES = ["ENGLISH", "HINDI", "SPANISH", "FRENCH", "JAPANESE", "KOREAN"];
 const DETECT_SECONDS = 5;
 
@@ -20,38 +22,95 @@ export default function HomePage() {
   const { user } = useAuth();
   const { theme } = useTheme();
   const isDark = theme === "dark";
-  const router = useRouter();
 
-  const { videoRef, canvasRef, status, result, error, startDetection, stopDetection } =
-    useFaceDetection();
+  const { videoRef, canvasRef, status, result, error, startDetection, stopDetection } = useFaceDetection();
+  const { connected, fetchRecommendations, fetchTopTracks } = useSpotify();
+  const { openArtist, openAlbum, registerPlayHandler } = useArtistAlbum();
+  const { activeTrack, currentQueue, isPlaying, likedTrackIds, queueSource, togglePlayRef, setQueue, setActiveTrack, toggleLike } = usePlayer();
 
   const [selectedLangs, setSelectedLangs] = useState<string[]>([]);
   const [langOpen, setLangOpen] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
   const [lockedResult, setLockedResult] = useState<typeof result>(null);
-  const [hasDetected, setHasDetected] = useState(false); // true after first successful detection
   const countdownRef = useRef<NodeJS.Timeout | null>(null);
   const langRef = useRef<HTMLDivElement>(null);
   const latestResultRef = useRef<typeof result>(null);
+  const [recommendedTracks, setRecommendedTracks] = useState<SpotifyTrack[]>([]);
+  const [loadingTracks, setLoadingTracks] = useState(false);
+  const recMenuRef = useRef<HTMLDivElement>(null);
+  const [recContextMenu, setRecContextMenu] = useState<{ x: number; y: number; track: SpotifyTrack } | null>(null);
 
   const moodDetected = lockedResult !== null;
-  const moodTracks = mockTracks; // TODO (Phase 4)
+  const safeActiveTrack = activeTrack ?? currentQueue[0] ?? null;
 
-  // activeTrack is null by default — MusicPlayer shows "no mood detected" until a song is selected
-  const [activeTrack, setActiveTrack] = useState<SpotifyTrack | null>(null);
-  const [currentQueue, setCurrentQueue] = useState<SpotifyTrack[]>(mockRecommendedTracks);
-  const [likedTrackIds, setLikedTrackIds] = useState<Set<string>>(new Set());
+  // Context menu outside-click
+  useEffect(() => {
+    if (!recContextMenu) return;
+    const handler = (e: MouseEvent) => {
+      if (recMenuRef.current && !recMenuRef.current.contains(e.target as Node)) setRecContextMenu(null);
+    };
+    const t = setTimeout(() => document.addEventListener("click", handler), 0);
+    return () => { clearTimeout(t); document.removeEventListener("click", handler); };
+  }, [recContextMenu]);
 
-  // Keep latest result in ref so countdown closure can read it
+  const openRecMenu = (e: React.MouseEvent, track: SpotifyTrack) => {
+    e.stopPropagation();
+    e.preventDefault();
+    const x = Math.min(e.clientX, window.innerWidth - 210);
+    const y = Math.min(e.clientY, window.innerHeight - 230);
+    setRecContextMenu({ x, y, track });
+  };
+
+  // Register play handler for artist/album modals
+  useEffect(() => {
+    registerPlayHandler((track, queue) => {
+      const isAlbumQueue = queue.length > 1 && queue.every(t => t.albumId === queue[0].albumId);
+      const source = isAlbumQueue
+        ? { type: "album" as const, name: queue[0].album ?? "Album", art: queue[0].albumArt ?? "" }
+        : { type: "artist" as const, name: track.artist.split(", ")[0], art: track.albumArt ?? "" };
+      setQueue(queue, track, source);
+    });
+  }, [registerPlayHandler, setQueue]);
+
+  // Fetch recommended tracks once per session
+  useEffect(() => {
+    if (!user?.uid) return;
+    const cached = sessionStorage.getItem("moodify-recommended");
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached) as SpotifyTrack[];
+        if (parsed.length) { setRecommendedTracks(parsed); return; }
+      } catch { /* fall through */ }
+    }
+    fetchTopTracks().then(tracks => {
+      if (tracks.length) {
+        setRecommendedTracks(tracks);
+        sessionStorage.setItem("moodify-recommended", JSON.stringify(tracks));
+      }
+    });
+  }, [user?.uid]); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => { latestResultRef.current = result; }, [result]);
 
-  // Switch queue when mood detected
+  // Fetch mood-based tracks when mood is detected
   useEffect(() => {
-    if (moodDetected) {
-      setCurrentQueue(moodTracks);
-      setActiveTrack(moodTracks[0]);
-    }
-  }, [moodDetected]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (!lockedResult) return;
+    setLoadingTracks(true);
+    fetchRecommendations(lockedResult.mood, selectedLangs).then(tracks => {
+      setQueue(tracks, tracks[0]);
+      setLoadingTracks(false);
+    });
+  }, [lockedResult]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Re-fetch when language changes after mood detected
+  useEffect(() => {
+    if (!lockedResult) return;
+    setLoadingTracks(true);
+    fetchRecommendations(lockedResult.mood, selectedLangs).then(tracks => {
+      setQueue(tracks, tracks[0]);
+      setLoadingTracks(false);
+    });
+  }, [selectedLangs]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Close lang dropdown on outside click
   useEffect(() => {
@@ -62,7 +121,10 @@ export default function HomePage() {
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  // Start detection + 5s countdown
+  useEffect(() => {
+    return () => { if (countdownRef.current) clearInterval(countdownRef.current); };
+  }, []);
+
   const handleStart = useCallback(async () => {
     if (countdownRef.current) clearInterval(countdownRef.current);
     setCountdown(null);
@@ -74,210 +136,161 @@ export default function HomePage() {
       setCountdown(remaining);
       if (remaining <= 0) {
         clearInterval(countdownRef.current!);
+        countdownRef.current = null;
         setCountdown(null);
-        // Wait for debounce (800ms) to flush before reading result
         setTimeout(() => {
           const final = latestResultRef.current;
-          if (final) {
-            setLockedResult(final);
-            setHasDetected(true);
-          }
+          if (final) setLockedResult(final);
           stopDetection();
         }, 900);
       }
     }, 1000);
   }, [startDetection, stopDetection]);
 
-  const handleGoToArtist = (artistId: string) => router.push(`/artist/${artistId}`);
-  const handleGoToAlbum = (albumId: string) => router.push(`/album/${albumId}`);
-  const handleLike = (_track: SpotifyTrack) => { /* TODO (Phase 4) */ };
-  const handleAddToPlaylist = (track: SpotifyTrack, _playlistId: string) => {
-    setLikedTrackIds(prev => new Set(prev).add(track.id));
-  };
-  const handleCreatePlaylist = (_track: SpotifyTrack) => { /* TODO (Phase 4) */ };
+  const handleTogglePlay = useCallback(() => { togglePlayRef.current?.(); }, [togglePlayRef]);
+  const handleGoToArtist = (artistId: string) => openArtist(artistId);
+  const handleGoToAlbum = (albumId: string) => openAlbum(albumId);
+  const handleLike = (track: SpotifyTrack) => toggleLike(track);
+  const handleAddToPlaylist = (track: SpotifyTrack, _playlistId: string) => toggleLike(track);
+  const handleCreatePlaylist = (_track: SpotifyTrack) => { /* TODO Phase 6 */ };
+  const handleTrackSelect = (track: SpotifyTrack) => setActiveTrack(track);
+  const handleRecommendedPlay = (track: SpotifyTrack) => setQueue(recommendedTracks, track);
 
-  const handleRecommendedPlay = (track: SpotifyTrack) => {
-    setCurrentQueue(mockRecommendedTracks);
-    setActiveTrack(track);
-  };
-
-  const bg = isDark ? "bg-[#0a0a0a]" : "bg-gradient-to-br from-[#FFE8D6] to-[#FFF5F0]";
   const card = isDark ? "bg-[#111111] border-[#2a2a2a]" : "bg-white border-[#FFDDD2]";
   const muted = isDark ? "text-[#aaa]" : "text-[#7A6055]";
-
-  const isCameraError = error === "camera_denied";
+  const isCameraError = error === "camera_denied" || error === "camera_not_supported";
+  const cameraErrorMsg = error === "camera_not_supported" ? "Camera not supported in this browser" : "Please allow camera access and try again";
   const isDetecting = countdown !== null && !isCameraError;
 
   return (
-    <div className={`h-dvh overflow-hidden flex flex-col transition-colors duration-300 ${bg}`}>
-      <Header />
+    <main className="flex gap-3 px-3 py-3 h-full min-h-0">
 
-      <main className="flex gap-5 px-6 py-6 flex-1 min-h-0">
+      {/* ── Left Panel ── */}
+      <div className="flex flex-col gap-4 w-[400px] flex-shrink-0 h-full">
+        <div className={`rounded-2xl border p-5 flex flex-col gap-3 transition-colors duration-300 flex-1 min-h-0 ${card}`}>
+          <p className={`text-sm text-center font-medium ${isDark ? "text-white" : "text-[#3a2a20]"}`}>
+            Welcome, {user?.displayName || user?.email}
+          </p>
 
-        {/* ── Left Panel ── */}
-        <div className="flex flex-col gap-4 w-[400px] flex-shrink-0 h-full">
-
-          {/* Card 1 — Detection */}
-          <div className={`rounded-2xl border p-5 flex flex-col gap-3 transition-colors duration-300 flex-1 min-h-0 ${card}`}>
-            {/* Welcome */}
-            <p className={`text-sm text-center font-medium ${isDark ? "text-white" : "text-[#3a2a20]"}`}>
-              Welcome, {user?.displayName || user?.email}
-            </p>
-
-            {/* Webcam — grows to fill available space */}
-            <div className={`relative w-full rounded-xl overflow-hidden flex-1 min-h-0 ${isDark ? "bg-[#1a1a1a]" : "bg-[#e0e0e0]"}`}>
-              <video ref={videoRef} className="w-full h-full object-cover" muted playsInline />
-              <canvas ref={canvasRef} className="hidden" />
-
-              {/* Camera off */}
-              {status === "idle" && !isCameraError && (
-                <div className={`absolute inset-0 flex items-center justify-center text-sm ${isDark ? "text-[#555]" : "text-[#999]"}`}>
-                  Camera Off
-                </div>
-              )}
-
-              {/* Camera denied error */}
-              {isCameraError && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
-                  <AlertCircle size={32} className="text-red-500" />
-                  <p className="text-xs text-red-400 text-center px-4">Camera access denied</p>
-                </div>
-              )}
-
-              {/* Live countdown badge — only when detecting and no error */}
-              {isDetecting && (
-                <div className="absolute top-2 right-2 flex items-center gap-1.5 bg-black/50 px-2.5 py-1 rounded-full">
-                  <span className="w-2 h-2 rounded-full bg-[#FF6B35] animate-pulse" />
-                  <span className="text-xs text-white">{countdown}s</span>
-                </div>
-              )}
-            </div>
-
-            {/* Status text — hidden after detection or while detecting */}
-            {!lockedResult && !isDetecting && (
-            <p className={`text-xs text-center ${muted}`}>
-              {isCameraError
-                ? "Please allow camera access and try again"
-                : "Click Start to detect mood"}
-            </p>
+          {/* Webcam */}
+          <div className={`relative w-full rounded-xl overflow-hidden flex-1 min-h-0 ${isDark ? "bg-[#1a1a1a]" : "bg-[#e0e0e0]"}`}>
+            <video ref={videoRef} className="w-full h-full object-cover" muted playsInline />
+            <canvas ref={canvasRef} className="hidden" />
+            {status === "idle" && !isCameraError && (
+              <div className={`absolute inset-0 flex items-center justify-center text-sm ${isDark ? "text-[#555]" : "text-[#999]"}`}>Camera Off</div>
             )}
-
-            {/* Mood result pill + Re-detect button — side by side after first detection */}
-            {lockedResult && (
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={handleStart}
-                  disabled={isDetecting || status === "connecting"}
-                  className="flex-shrink-0 py-2.5 px-4 rounded-xl bg-[#FF6B35] hover:bg-[#e85d2a] disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors flex items-center justify-center gap-2"
-                >
-                  🎥 {status === "connecting" ? "Connecting..." : isDetecting ? `${countdown}s` : "Re-detect"}
-                </button>
-                <div className={`flex items-center justify-between px-4 py-2.5 rounded-xl border flex-1 ${
-                  isDark ? "bg-[#1a1a1a] border-[#2a2a2a]" : "bg-[#FFF5F0] border-[#FFDDD2]"
-                }`}>
-                  <div className="flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-[#FF6B35]" />
-                    <span className="text-sm font-bold text-[#FF6B35] uppercase tracking-wide">{lockedResult.mood}</span>
-                  </div>
-                  <span className={`text-sm font-medium ${muted}`}>{Math.round(lockedResult.confidence * 100)}%</span>
-                </div>
+            {isCameraError && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
+                <AlertCircle size={32} className="text-red-500" />
+                <p className="text-xs text-red-400 text-center px-4">Camera access denied</p>
               </div>
             )}
+            {isDetecting && (
+              <div className="absolute top-2 right-2 flex items-center gap-1.5 bg-black/50 px-2.5 py-1 rounded-full">
+                <span className="w-2 h-2 rounded-full bg-[#FF6B35] animate-pulse" />
+                <span className="text-xs text-white">{countdown}s</span>
+              </div>
+            )}
+          </div>
 
-            {/* Start button — only shown before first detection */}
-            {!lockedResult && (
+          {!lockedResult && !isDetecting && (
+            <p className={`text-xs text-center ${muted}`}>{isCameraError ? cameraErrorMsg : "Click Start to detect mood"}</p>
+          )}
+
+          {lockedResult && (
+            <div className="flex items-center gap-2">
               <button
                 onClick={handleStart}
                 disabled={isDetecting || status === "connecting"}
-                className="w-full py-2.5 rounded-xl bg-[#FF6B35] hover:bg-[#e85d2a] disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors flex items-center justify-center gap-2"
+                className="flex-shrink-0 py-2.5 px-4 rounded-xl bg-[#FF6B35] hover:bg-[#e85d2a] disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors flex items-center justify-center gap-2"
               >
-                🎥 {status === "connecting" ? "Connecting..." : isDetecting ? `Detecting... ${countdown}s` : "Start"}
+                🎥 {status === "connecting" ? "Connecting..." : isDetecting ? `${countdown}s` : "Re-detect"}
               </button>
-            )}
-
-            {/* Language multi-select */}
-            <div className="relative" ref={langRef}>
-              <button
-                onClick={() => setLangOpen(o => !o)}
-                className={`w-full py-2.5 px-4 rounded-xl flex items-center justify-between text-sm font-medium transition-colors ${
-                  isDark ? "bg-[#1a1a1a] hover:bg-[#222] text-white border border-[#2a2a2a]" : "bg-[#FFDDD2] hover:bg-[#ffcfc0] text-[#3a2a20] border border-[#FFDDD2]"
-                }`}
-              >
-                <div className="flex items-center gap-2 min-w-0">
-                  {selectedLangs.length > 0 && <span className="w-2 h-2 rounded-full bg-[#FF6B35] flex-shrink-0" />}
-                  <span className="truncate text-sm">
-                    {selectedLangs.length === 0
-                      ? "Language Preference"
-                      : selectedLangs.length === 1
-                      ? selectedLangs[0]
-                      : `${selectedLangs[0]} +${selectedLangs.length - 1}`}
-                  </span>
-                </div>
-                <ChevronDown size={14} className={`flex-shrink-0 transition-transform ${langOpen ? "rotate-180" : ""}`} />
-              </button>
-              {langOpen && (
-                <div className={`absolute top-full left-0 right-0 mt-1 rounded-xl border shadow-lg z-20 overflow-hidden ${
-                  isDark ? "bg-[#111] border-[#2a2a2a]" : "bg-white border-[#FFDDD2]"
-                }`}>
-                  {LANGUAGES.map(lang => {
-                    const checked = selectedLangs.includes(lang);
-                    return (
-                      <button
-                        key={lang}
-                        onClick={() => setSelectedLangs(prev =>
-                          checked ? prev.filter(l => l !== lang) : [...prev, lang]
-                        )}
-                        className={`w-full px-4 py-2.5 text-sm text-left flex items-center gap-3 transition-colors ${
-                          checked ? "text-[#FF6B35]" : isDark ? "text-[#ccc] hover:bg-[#1a1a1a]" : "text-[#7A6055] hover:bg-[#FFF5F0]"
-                        }`}
-                      >
-                        <span className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${
-                          checked ? "bg-[#FF6B35] border-[#FF6B35]" : isDark ? "border-[#555]" : "border-[#ccc]"
-                        }`}>
-                          {checked && <span className="text-white text-[10px] leading-none">✓</span>}
-                        </span>
-                        {lang}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={lockedResult.mood}
+                  initial={{ opacity: 0, scale: 0.85, y: 6 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.85, y: -6 }}
+                  transition={{ duration: 0.3, ease: "easeOut" }}
+                  className={`flex items-center justify-between px-4 py-2.5 rounded-xl border flex-1 ${isDark ? "bg-[#1a1a1a] border-[#2a2a2a]" : "bg-[#FFF5F0] border-[#FFDDD2]"}`}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-[#FF6B35] animate-pulse" />
+                    <span className="text-sm font-bold text-[#FF6B35] uppercase tracking-wide">{lockedResult.mood}</span>
+                  </div>
+                  <span className={`text-sm font-medium ${muted}`}>{Math.round(lockedResult.confidence * 100)}%</span>
+                </motion.div>
+              </AnimatePresence>
             </div>
-          </div>
+          )}
 
-          {/* Card 2 — Music Player (always visible, fixed height) */}
-          <div className="flex flex-col flex-shrink-0 h-[28vh] min-h-[220px] max-h-[280px]">
-            {activeTrack ? (
-              <MusicPlayer
-                track={activeTrack}
-                tracks={currentQueue}
-                onTrackChange={setActiveTrack}
-              />
-            ) : (
-              <div className={`rounded-2xl border flex flex-col items-center justify-center gap-3 h-full transition-colors duration-300 ${card}`}>
-                <div className="w-10 h-10 rounded-full border-2 border-[#FF6B35] flex items-center justify-center">
-                  <Info size={18} className="text-[#FF6B35]" />
-                </div>
-                <p className={`text-sm text-center ${muted}`}>Mood has not been detected yet !</p>
+          {!lockedResult && (
+            <button
+              onClick={handleStart}
+              disabled={isDetecting || status === "connecting"}
+              className="w-full py-2.5 rounded-xl bg-[#FF6B35] hover:bg-[#e85d2a] disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors flex items-center justify-center gap-2"
+            >
+              🎥 {status === "connecting" ? "Connecting..." : isDetecting ? `Detecting... ${countdown}s` : "Start"}
+            </button>
+          )}
+
+          {/* Language multi-select */}
+          <div className="relative" ref={langRef}>
+            <button
+              onClick={() => setLangOpen(o => !o)}
+              className={`w-full py-2.5 px-4 rounded-xl flex items-center justify-between text-sm font-medium transition-colors ${isDark ? "bg-[#1a1a1a] hover:bg-[#222] text-white border border-[#2a2a2a]" : "bg-[#FFDDD2] hover:bg-[#ffcfc0] text-[#3a2a20] border border-[#FFDDD2]"}`}
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                {selectedLangs.length > 0 && <span className="w-2 h-2 rounded-full bg-[#FF6B35] flex-shrink-0" />}
+                <span className="truncate text-sm">
+                  {selectedLangs.length === 0 ? "Language Preference" : selectedLangs.length === 1 ? selectedLangs[0] : `${selectedLangs[0]} +${selectedLangs.length - 1}`}
+                </span>
+              </div>
+              <ChevronDown size={14} className={`flex-shrink-0 transition-transform ${langOpen ? "rotate-180" : ""}`} />
+            </button>
+            {langOpen && (
+              <div className={`absolute top-full left-0 right-0 mt-1 rounded-xl border shadow-lg z-20 overflow-hidden ${isDark ? "bg-[#111] border-[#2a2a2a]" : "bg-white border-[#FFDDD2]"}`}>
+                {LANGUAGES.map(lang => {
+                  const checked = selectedLangs.includes(lang);
+                  return (
+                    <button
+                      key={lang}
+                      onClick={() => setSelectedLangs(prev => checked ? prev.filter(l => l !== lang) : [...prev, lang])}
+                      className={`w-full px-4 py-2.5 text-sm text-left flex items-center gap-3 transition-colors ${checked ? "text-[#FF6B35]" : isDark ? "text-[#ccc] hover:bg-[#1a1a1a]" : "text-[#7A6055] hover:bg-[#FFF5F0]"}`}
+                    >
+                      <span className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${checked ? "bg-[#FF6B35] border-[#FF6B35]" : isDark ? "border-[#555]" : "border-[#ccc]"}`}>
+                        {checked && <span className="text-white text-[10px] leading-none">✓</span>}
+                      </span>
+                      {lang}
+                    </button>
+                  );
+                })}
               </div>
             )}
           </div>
         </div>
+      </div>
 
-        {/* ── Right Panel ── */}
-        <div className="flex-1 min-w-0 h-full">
-          {!moodDetected ? (
-            <div className={`rounded-2xl border p-5 h-full flex flex-col transition-colors duration-300 ${card} animate-fadeIn`}>
-              <p className={`text-xl font-bold mb-4 flex-shrink-0 ${isDark ? "text-white" : "text-[#3a2a20]"}`}>
-                Recommended Songs
-              </p>
-              <div className="grid grid-cols-4 gap-3 app-scroll overflow-y-auto flex-1 content-start">
-                {mockRecommendedTracks.map(track => (
+      {/* ── Right Panel ── */}
+      <div className="flex-1 min-w-0 h-full">
+        {!moodDetected ? (
+          <AnimatePresence mode="wait">
+            <motion.div
+              key="recommended"
+              initial={{ opacity: 0, x: 30 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -30 }}
+              transition={{ duration: 0.35, ease: "easeOut" }}
+              className={`rounded-2xl border p-5 h-full flex flex-col transition-colors duration-300 ${card}`}
+            >
+              <p className={`text-xl font-bold mb-4 flex-shrink-0 ${isDark ? "text-white" : "text-[#3a2a20]"}`}>Recommended Songs</p>
+              {!connected && (
+                <p className={`text-xs mb-2 flex-shrink-0 ${muted}`}>✨ Connect Spotify in your profile for personalized recommendations</p>
+              )}
+              <div className="grid grid-cols-5 gap-3 app-scroll overflow-y-auto flex-1 content-start">
+                {recommendedTracks.map(track => (
                   <div
                     key={track.id}
-                    className={`flex flex-col gap-2 cursor-pointer group rounded-xl p-2 transition-colors ${
-                      activeTrack?.id === track.id ? isDark ? "bg-[#1a1a1a]" : "bg-[#FFF5F0]" : ""
-                    }`}
+                    className={`relative flex flex-col gap-2 cursor-pointer group rounded-xl p-2 transition-colors ${activeTrack?.id === track.id ? isDark ? "bg-[#1a1a1a]" : "bg-[#FFF5F0]" : isDark ? "hover:bg-[#1a1a1a]" : "hover:bg-[#FFF5F0]"}`}
                     onClick={() => handleRecommendedPlay(track)}
                   >
                     <div className="relative aspect-square rounded-xl overflow-hidden bg-[#1a1a1a]">
@@ -289,28 +302,55 @@ export default function HomePage() {
                     </div>
                     <p className={`text-sm font-semibold truncate ${isDark ? "text-white" : "text-[#3a2a20]"}`}>{track.title}</p>
                     <p className={`text-xs truncate ${muted}`}>{track.artist}</p>
+                    <button
+                      onClick={(e) => openRecMenu(e, track)}
+                      className={`absolute top-3 right-3 p-1 rounded-md opacity-0 group-hover:opacity-100 transition-all z-10 ${isDark ? "bg-black/50 hover:bg-black/70 text-white" : "bg-white/70 hover:bg-white text-[#7A6055]"}`}
+                    >
+                      <MoreHorizontal size={14} />
+                    </button>
                   </div>
                 ))}
               </div>
-            </div>
-          ) : (
-            <div className="h-full animate-fadeIn">
-              <TrackList
-                tracks={moodTracks}
-                activeTrack={activeTrack ?? moodTracks[0]}
-                likedTrackIds={likedTrackIds}
-                playlists={mockPlaylists}
-                onTrackSelect={setActiveTrack}
-                onLike={handleLike}
-                onAddToPlaylist={handleAddToPlaylist}
-                onCreatePlaylist={handleCreatePlaylist}
-                onGoToArtist={handleGoToArtist}
-                onGoToAlbum={handleGoToAlbum}
-              />
-            </div>
-          )}
-        </div>
-      </main>
-    </div>
+              {recContextMenu && typeof document !== "undefined" && createPortal(
+                <div ref={recMenuRef} style={{ position: "fixed", top: recContextMenu.y, left: recContextMenu.x, zIndex: 9999 }}>
+                  <ContextMenu
+                    track={recContextMenu.track} playlists={mockPlaylists}
+                    onClose={() => setRecContextMenu(null)} onLike={handleLike}
+                    onAddToPlaylist={handleAddToPlaylist} onCreatePlaylist={handleCreatePlaylist}
+                    onGoToArtist={handleGoToArtist} onGoToAlbum={handleGoToAlbum} onShare={() => {}}
+                  />
+                </div>,
+                document.body
+              )}
+            </motion.div>
+          </AnimatePresence>
+        ) : (
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={lockedResult?.mood ?? "tracklist"}
+              initial={{ opacity: 0, x: 30 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -30 }}
+              transition={{ duration: 0.35, ease: "easeOut" }}
+              className="h-full"
+            >
+              {loadingTracks && (
+                <div className={`rounded-2xl border p-5 h-full flex items-center justify-center ${card}`}>
+                  <p className={`text-sm ${muted}`}>Loading tracks...</p>
+                </div>
+              )}
+              {!loadingTracks && safeActiveTrack && (
+                <TrackList
+                  tracks={currentQueue} activeTrack={safeActiveTrack} isPlaying={isPlaying}
+                  likedTrackIds={likedTrackIds} playlists={mockPlaylists}
+                  onTrackSelect={handleTrackSelect} onTogglePlay={handleTogglePlay}
+                  onLike={handleLike} onAddToPlaylist={handleAddToPlaylist}
+                  onCreatePlaylist={handleCreatePlaylist} onGoToArtist={handleGoToArtist}
+                  onGoToAlbum={handleGoToAlbum} queueSource={queueSource}
+                />
+              )}
+            </motion.div>
+          </AnimatePresence>
+        )}
+      </div>
+    </main>
   );
 }

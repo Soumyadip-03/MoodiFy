@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { getMoodFromEmotion, Mood } from "@/utils/moodUtils";
+import type { Mood } from "@/utils/moodUtils";
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
 const WS_URL = BACKEND_URL.replace("http", "ws");
@@ -61,13 +61,20 @@ export function useFaceDetection() {
     setError(null);
     setStatus("connecting");
 
+    // Feature-detect mediaDevices before calling getUserMedia
+    if (!navigator?.mediaDevices?.getUserMedia) {
+      setError("camera_not_supported");
+      setStatus("error");
+      return;
+    }
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true });
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         await videoRef.current.play();
       }
-    } catch (err) {
+    } catch {
       setError("camera_denied");
       setStatus("error");
       return;
@@ -82,16 +89,20 @@ export function useFaceDetection() {
     };
 
     ws.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      if (data.error) return;
+      try {
+        const data = JSON.parse(event.data as string);
+        if (!data || data.error) return;
 
-      const mood = data.mood as Mood;
-      if (!mood) return;
+        const mood = data.mood as Mood;
+        if (!mood) return;
 
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-      debounceRef.current = setTimeout(() => {
-        setResult({ emotion: data.emotion, mood, confidence: data.confidence });
-      }, DEBOUNCE_MS);
+        if (debounceRef.current) clearTimeout(debounceRef.current);
+        debounceRef.current = setTimeout(() => {
+          setResult({ emotion: data.emotion, mood, confidence: data.confidence });
+        }, DEBOUNCE_MS);
+      } catch {
+        // malformed JSON from backend — ignore frame
+      }
     };
 
     ws.onerror = () => {

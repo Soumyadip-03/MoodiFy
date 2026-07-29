@@ -14,10 +14,10 @@ export const emotionToMood: Record<Emotion, Mood> = {
 export const moodLabels: Record<Mood, string> = {
   happy: "😊 Happy",
   upbeat: "⚡ Upbeat",
-  chill: "😌 Chill",
+  chill: "😎 Chill",
   melancholy: "😢 Melancholy",
   relaxing: "😌 Relaxing",
-  energetic: "🤢 Energetic",
+  energetic: "💪 Energetic",
   intense: "😠 Intense",
 };
 

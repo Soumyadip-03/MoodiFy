@@ -1,24 +1,71 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { useAuth } from "@/context/AuthContext";
 import type { SpotifyTrack } from "@/types/index";
 
-// TODO (Phase 4): Replace shell with real Spotify OAuth + API implementation
+const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
+
 export function useSpotify() {
-  const [connected] = useState(false);
-  const [connecting] = useState(false);
-  const [isPremium] = useState(false);
-  const [error] = useState<string | null>(null);
+  const { user } = useAuth();
+  const [connected, setConnected] = useState(false);
+  const [isPremium, setIsPremium] = useState(false);
+  const [connecting, setConnecting] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const connectSpotify = () => {
-    // TODO (Phase 4): Redirect to /api/spotify/login
-    window.location.href = `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/spotify/login`;
-  };
+  // Check Spotify connection status on mount
+  useEffect(() => {
+    if (!user) { setConnecting(false); return; }
+    fetch(`${BACKEND}/api/spotify/status?uid=${encodeURIComponent(user.uid)}`)
+      .then(r => r.json())
+      .then(data => {
+        setConnected(Boolean(data.connected));
+        setIsPremium(Boolean(data.isPremium));
+      })
+      .catch(() => setError("Failed to check Spotify status"))
+      .finally(() => setConnecting(false));
+  }, [user]);
 
-  const fetchRecommendations = async (_mood: string): Promise<SpotifyTrack[]> => {
-    // TODO (Phase 4): Call GET /api/spotify/recommendations?mood=&uid=
-    return [];
-  };
+  const connectSpotify = useCallback(() => {
+    if (!user) return;
+    // Pass uid as state so callback can save tokens to correct user
+    window.location.href = `${BACKEND}/api/spotify/login?state=${encodeURIComponent(user.uid)}`;
+  }, [user]);
 
-  return { connected, connecting, isPremium, error, connectSpotify, fetchRecommendations };
+  const fetchTopTracks = useCallback(async (): Promise<SpotifyTrack[]> => {
+    try {
+      const uid = user?.uid ?? "";
+      const res = await fetch(`${BACKEND}/api/spotify/top-tracks${uid ? `?uid=${uid}` : ""}`);
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      return Array.isArray(data.tracks) ? (data.tracks as SpotifyTrack[]) : [];
+    } catch {
+      return [];
+    }
+  }, [user]);
+
+  const fetchRecommendations = useCallback(async (mood: string, languages: string[] = []): Promise<SpotifyTrack[]> => {
+    if (!mood) return [];
+    try {
+      const uid = user?.uid ?? "";
+      const params = new URLSearchParams({ mood, uid });
+      if (languages.length) params.set("languages", languages.join(","));
+      const res = await fetch(`${BACKEND}/api/spotify/recommendations?${params}`);
+      if (!res.ok) throw new Error("Failed to fetch recommendations");
+      const data = await res.json();
+      return Array.isArray(data.tracks) ? (data.tracks as SpotifyTrack[]) : [];
+    } catch {
+      setError("Could not load recommendations");
+      return [];
+    }
+  }, [user]);
+
+  const disconnectSpotify = useCallback(async () => {
+    if (!user) return;
+    await fetch(`${BACKEND}/api/spotify/disconnect?uid=${encodeURIComponent(user.uid)}`, { method: "DELETE" });
+    setConnected(false);
+    setIsPremium(false);
+  }, [user]);
+
+  return { connected, connecting, isPremium, error, connectSpotify, disconnectSpotify, fetchRecommendations, fetchTopTracks };
 }

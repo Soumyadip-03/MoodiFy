@@ -1,13 +1,155 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, useRef, MouseEvent } from "react";
 import { Play, Shuffle, MoreHorizontal, CheckCircle2, Clock } from "lucide-react";
 import { useTheme } from "@/context/ThemeContext";
-import Header from "@/components/ui/Header";
 import type { SpotifyTrack, Playlist } from "@/types/index";
-import MusicPlayer from "@/components/player/MusicPlayer";
-import { mockPlaylists, mockSavedAlbums, mockFollowedArtists } from "@/utils/mockData";
+import { defaultPlaylists, defaultMoodPlaylists } from "@/utils/mockData";
+import { motion } from "framer-motion";
+import { useArtistAlbum } from "@/context/ArtistAlbumContext";
+import { usePlayer } from "@/context/PlayerContext";
+
+// ── Animated emoji — triggered by parent hovered state ──
+function AnimatedEmoji({ emoji, hovered, anim, className = "" }: { emoji: string; hovered: boolean; anim: object; className?: string }) {
+  return (
+    <motion.span
+      className={`select-none ${className}`}
+      animate={hovered ? (anim as { animate: object }).animate : { scale: 1, rotate: 0, x: 0, y: 0 }}
+      transition={hovered ? (anim as { transition: object }).transition : { duration: 0.2 }}
+    >
+      {emoji}
+    </motion.span>
+  );
+}
+
+// ── Per-mood emoji animation variants ──
+const MOOD_ANIMATIONS: Record<string, object> = {
+  happy:      { animate: { y: [0, -12, 0, -8, 0], rotate: [0, 8, -8, 4, 0], scale: [1, 1.2, 1, 1.1, 1] }, transition: { duration: 0.7, ease: "easeInOut" } },
+  upbeat:     { animate: { rotate: [0, -15, 15, -10, 10, 0], scale: [1, 1.25, 1, 1.15, 1] },              transition: { duration: 0.6, ease: "easeInOut" } },
+  chill:      { animate: { y: [0, -6, 0, -4, 0], scale: [1, 1.08, 1, 1.05, 1], rotate: [0, 3, -3, 0] },  transition: { duration: 1.1, ease: "easeInOut" } },
+  melancholy: { animate: { y: [0, 6, 0, 4, 0], scale: [1, 0.92, 1, 0.95, 1], rotate: [0, -4, 4, 0] },    transition: { duration: 1.0, ease: "easeInOut" } },
+  relaxing:   { animate: { scale: [1, 1.12, 1, 1.06, 1], rotate: [0, 5, -5, 2, 0], y: [0, -4, 0] },      transition: { duration: 1.2, ease: "easeInOut" } },
+  energetic:  { animate: { x: [0, -8, 8, -6, 6, 0], scale: [1, 1.2, 1, 1.15, 1], rotate: [0, -10, 10, 0] }, transition: { duration: 0.5, ease: "easeInOut" } },
+  intense:    { animate: { scale: [1, 1.3, 0.9, 1.2, 1], rotate: [0, -12, 12, -6, 0] },                  transition: { duration: 0.55, ease: "easeInOut" } },
+};
+
+// ── Sidebar row item with hover-triggered emoji animation ──
+function SidebarRow({ emoji, label, isActive, isDark, muted, rowHover, moodId, indent = false, onClick }: {
+  emoji: string; label: string; isActive: boolean; isDark: boolean;
+  muted: string; rowHover: string; moodId?: string;
+  indent?: boolean; onClick: () => void;
+}) {
+  const [hovered, setHovered] = useState(false);
+  const anim = moodId ? (MOOD_ANIMATIONS[moodId] ?? MOOD_ANIMATIONS.chill) : MOOD_ANIMATIONS.chill;
+  return (
+    <div
+      onClick={onClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      className={`flex items-center gap-3 ${indent ? "pl-8 pr-3" : "px-3"} py-2.5 rounded-xl cursor-pointer transition-colors ${
+        isActive ? isDark ? "bg-[#1e1e2e]" : "bg-[#FFF0E8]" : rowHover
+      }`}
+    >
+      <AnimatedEmoji emoji={emoji} hovered={hovered} anim={anim} className={indent ? "text-lg flex-shrink-0" : "text-xl flex-shrink-0"} />
+      <p className={`text-sm font-medium truncate capitalize ${isActive ? "text-[#FF6B35]" : muted}`}>{label}</p>
+    </div>
+  );
+}
+
+// ── Sidebar playlist row (with cover box) ──
+function PlaylistRow({ p, isActive, isDark, muted, text, rowHover, onClick, children }: {
+  p: Playlist; isActive: boolean; isDark: boolean; muted: string; text: string;
+  rowHover: string; onClick: () => void; children?: React.ReactNode;
+}) {
+  const [hovered, setHovered] = useState(false);
+  const anim = MOOD_ANIMATIONS[p.id] ?? MOOD_ANIMATIONS.chill;
+  return (
+    <div
+      onClick={onClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      className={`group flex items-center gap-3 px-3 py-3 rounded-xl cursor-pointer transition-colors ${
+        isActive ? isDark ? "bg-[#2a2a2a]" : "bg-[#FFF5F0]" : rowHover
+      }`}
+    >
+      {p.coverImage ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={p.coverImage} alt={p.name} className="w-10 h-10 rounded-lg object-cover flex-shrink-0" />
+      ) : (
+        <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
+          isDark ? "bg-[#1a1a1a]" : "bg-[#FFDDD2]"
+        }`}>
+          <AnimatedEmoji emoji={p.emoji ?? "🎵"} hovered={hovered} anim={anim} className="text-xl" />
+        </div>
+      )}
+      <p className={`text-sm font-medium truncate ${isActive ? text : muted}`}>{p.name}</p>
+      {children}
+    </div>
+  );
+}
+function MoodCard({ p, onClick, className }: { p: { id: string; emoji: string; tracks: SpotifyTrack[] }; onClick: () => void; className?: string }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [hovered, setHovered] = useState(false);
+  const anim = MOOD_ANIMATIONS[p.id] ?? MOOD_ANIMATIONS.chill;
+
+  function onMouseMove(e: MouseEvent<HTMLDivElement>) {
+    const el = ref.current;
+    if (!el) return;
+    const { left, top, width, height } = el.getBoundingClientRect();
+    const x = (e.clientX - left) / width - 0.5;
+    const y = (e.clientY - top) / height - 0.5;
+    el.style.transform = `perspective(500px) rotateY(${x * 18}deg) rotateX(${-y * 18}deg) scale3d(1.06,1.06,1.06)`;
+    el.style.boxShadow = `${-x * 20}px ${y * 20}px 40px rgba(255,107,53,0.22)`;
+  }
+
+  function onMouseLeave() {
+    const el = ref.current;
+    if (!el) return;
+    el.style.transform = "perspective(500px) rotateY(0deg) rotateX(0deg) scale3d(1,1,1)";
+    el.style.boxShadow = "";
+    setHovered(false);
+  }
+
+  return (
+    <div
+      ref={ref}
+      onClick={onClick}
+      onMouseMove={onMouseMove}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={onMouseLeave}
+      className={className}
+      style={{ transition: "transform 0.15s ease, box-shadow 0.15s ease", willChange: "transform" }}
+    >
+      <AnimatedEmoji emoji={p.emoji} hovered={hovered} anim={anim} className="text-4xl" />
+      <p className="text-sm font-semibold capitalize mt-2">{p.id}</p>
+      <p className="text-xs mt-0.5 opacity-60">{p.tracks.length} songs</p>
+    </div>
+  );
+}
+
+// ── Moods folder row (needs its own useState for hover) ──
+function MoodsFolderRow({ isDark, moodView, muted, text, rowHover, onClick }: {
+  isDark: boolean; moodView: string | null; muted: string; text: string; rowHover: string; onClick: () => void;
+}) {
+  const [hovered, setHovered] = useState(false);
+  return (
+    <div
+      onClick={onClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      className={`flex items-center gap-3 px-3 py-3 rounded-xl cursor-pointer transition-colors ${
+        moodView !== null ? isDark ? "bg-[#2a2a2a]" : "bg-[#FFF5F0]" : rowHover
+      }`}
+    >
+      <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
+        isDark ? "bg-[#1a1a1a]" : "bg-[#FFDDD2]"
+      }`}>
+        <AnimatedEmoji emoji="🎭" hovered={hovered} anim={MOOD_ANIMATIONS.intense} className="text-xl" />
+      </div>
+      <p className={`text-sm font-medium truncate ${moodView !== null ? text : muted}`}>Moods Playlist</p>
+    </div>
+  );
+}
 
 type SidebarTab = "Tracks" | "Albums" | "Artists";
 
@@ -20,20 +162,43 @@ function formatDuration(s: number) {
 export default function PlaylistPage() {
   const { theme } = useTheme();
   const isDark = theme === "dark";
-  const router = useRouter();
+  const { openArtist, openAlbum, registerPlayHandler } = useArtistAlbum();
+  const { activeTrack, likedTrackIds, setQueue, toggleLike } = usePlayer();
 
   const MOOD_IDS = ["happy", "upbeat", "chill", "melancholy", "relaxing", "energetic", "intense"];
-  const moodPlaylists = mockPlaylists.filter((p) => MOOD_IDS.includes(p.id));
-  const nonMoodPlaylists = mockPlaylists.filter((p) => !MOOD_IDS.includes(p.id));
+  const moodPlaylists = defaultMoodPlaylists;
+  const nonMoodPlaylists = defaultPlaylists.filter((p) => !MOOD_IDS.includes(p.id));
+
+  // Albums + Artists empty until Phase 6 wires real Spotify data
+  const savedAlbums: never[] = [];
+  const followedArtists: never[] = [];
 
   const [playlists, setPlaylists] = useState<Playlist[]>(nonMoodPlaylists);
   const [selectedId, setSelectedId] = useState<string>(nonMoodPlaylists[0]?.id ?? "");
-  const [activeTrack, setActiveTrack] = useState<SpotifyTrack | null>(null);
-  const [likedTrackIds, setLikedTrackIds] = useState<Set<string>>(new Set());
   const [viewTab, setViewTab] = useState<SidebarTab>("Tracks");
   const [menuTrackId, setMenuTrackId] = useState<string | null>(null);
   // "moods" = showing mood picker grid; a mood id = showing that mood's tracks
   const [moodView, setMoodView] = useState<"moods" | string | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [activeQueue, setActiveQueue] = useState<SpotifyTrack[]>([]);
+  const [isShuffled, setIsShuffled] = useState(false);
+  const [playlistMenuId, setPlaylistMenuId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!playlistMenuId) return;
+    const close = () => setPlaylistMenuId(null);
+    window.addEventListener("click", close);
+    return () => window.removeEventListener("click", close);
+  }, [playlistMenuId]);
+
+  // Register play handler for artist/album modals
+  useEffect(() => {
+    registerPlayHandler((track, queue) => {
+      setQueue(queue, track);
+      setActiveQueue(queue);
+    });
+  }, [registerPlayHandler, setQueue]);
 
   const activeMoodPlaylist = moodView && moodView !== "moods"
     ? moodPlaylists.find((p) => p.id === moodView) ?? null
@@ -41,7 +206,6 @@ export default function PlaylistPage() {
 
   // What's shown in the right panel
   const selected = activeMoodPlaylist ?? playlists.find((p) => p.id === selectedId) ?? playlists[0];
-  const isPlaylistView = viewTab === "Tracks";
   const queue = selected?.tracks ?? [];
 
   const totalDuration = queue.reduce((acc, t) => acc + t.duration, 0);
@@ -49,7 +213,6 @@ export default function PlaylistPage() {
   const totalMins = Math.floor((totalDuration % 3600) / 60);
   const durationLabel = totalHours > 0 ? `${totalHours} hr ${totalMins} min` : `${totalMins} min`;
 
-  const bg = isDark ? "bg-[#0a0a0a]" : "bg-gradient-to-br from-[#FFE8D6] to-[#FFF5F0]";
   const card = isDark ? "bg-[#111111] border-[#2a2a2a]" : "bg-white border-[#FFDDD2]";
   const heroBg = isDark ? "bg-[#0f0f1a]" : "bg-gradient-to-r from-[#1a1a2e] to-[#16213e]";
   const muted = isDark ? "text-[#aaa]" : "text-[#7A6055]";
@@ -61,31 +224,51 @@ export default function PlaylistPage() {
 
   const handleSelectPlaylist = (id: string) => {
     setSelectedId(id);
-    setActiveTrack(null);
+    setActiveQueue([]);
+    setIsShuffled(false);
     setViewTab("Tracks");
     setMoodView(null);
   };
 
   const handleCreatePlaylist = () => {
-    const name = prompt("Playlist name:");
-    if (!name?.trim()) return;
+    if (!newName.trim()) return;
     const newPlaylist: Playlist = {
       id: `custom-${Date.now()}`,
-      name: name.trim(),
+      name: newName.trim(),
       emoji: "🎵",
       tracks: [],
       createdAt: new Date().toISOString(),
     };
     setPlaylists((prev) => [...prev, newPlaylist]);
     setSelectedId(newPlaylist.id);
+    setNewName("");
+    setCreateOpen(false);
   };
 
-  const handleLike = (track: SpotifyTrack) => {
-    setLikedTrackIds((prev) => {
-      const next = new Set(prev);
-      next.has(track.id) ? next.delete(track.id) : next.add(track.id);
-      return next;
-    });
+  const handleShuffle = () => {
+    if (queue.length === 0) return;
+    const shuffled = [...queue].sort(() => Math.random() - 0.5);
+    setActiveQueue(shuffled);
+    setQueue(shuffled, shuffled[0]);
+    setIsShuffled(true);
+  };
+
+  const handleLike = (track: SpotifyTrack) => toggleLike(track);
+
+  const handleDeletePlaylist = (id: string) => {
+    setPlaylists((prev) => prev.filter((p) => p.id !== id));
+    if (selectedId === id) setSelectedId(playlists.find((p) => p.id !== id)?.id ?? "");
+    setPlaylistMenuId(null);
+  };
+
+  const handleSharePlaylist = (p: Playlist) => {
+    const msg = `Check out my "${p.name}" playlist on MoodiFy!`;
+    if (navigator.share) {
+      navigator.share({ title: p.name, text: msg }).catch(() => {});
+    } else {
+      window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank");
+    }
+    setPlaylistMenuId(null);
   };
 
   const handleShare = (track: SpotifyTrack) => {
@@ -98,11 +281,8 @@ export default function PlaylistPage() {
   };
 
   return (
-    <div className={`h-dvh flex flex-col overflow-hidden transition-colors duration-300 ${bg}`}>
-      <Header />
-
-      {/* Same px-6 py-6 gap as home page */}
-      <main className="flex gap-5 px-6 py-6 flex-1 min-h-0">
+    <>
+      <main className="flex gap-3 px-3 py-3 h-full min-h-0">
 
         {/* ── Left Column — Sidebar + Player ── */}
         <div className="w-[400px] flex-shrink-0 flex flex-col gap-4 h-full">
@@ -114,7 +294,7 @@ export default function PlaylistPage() {
           <div className="flex items-center justify-between px-5 py-4 flex-shrink-0">
             <p className={`text-xl font-bold ${text}`}>Your PlayLists</p>
             <button
-              onClick={handleCreatePlaylist}
+              onClick={() => { setCreateOpen(true); setNewName(""); }}
               className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-[#FF6B35] hover:bg-[#e85d2a] text-white text-xs font-semibold transition-colors"
             >
               + Create
@@ -126,16 +306,13 @@ export default function PlaylistPage() {
             {(["Albums", "Artists"] as SidebarTab[]).map((tab) => (
               <button
                 key={tab}
-                onClick={() => { setViewTab(tab); setSelectedId(""); }}
-                className={`flex-1 flex items-center justify-center gap-2 px-3 py-3 rounded-xl text-sm font-medium transition-colors ${
+                onClick={() => { setViewTab(tab); setSelectedId(""); setMoodView(null); }}
+                className={`flex-1 px-3 py-3 rounded-xl text-sm font-medium transition-colors ${
                   viewTab === tab
                     ? isDark ? "bg-[#2a2a2a] text-white" : "bg-[#FFF5F0] text-[#3a2a20]"
                     : isDark ? "text-[#aaa] hover:bg-[#1a1a1a] hover:text-white" : "text-[#7A6055] hover:bg-[#FFF5F0] hover:text-[#3a2a20]"
                 }`}
               >
-                <span className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                  viewTab === tab ? "bg-[#FF6B35]" : "bg-transparent"
-                }`} />
                 {tab}
               </button>
             ))}
@@ -144,86 +321,84 @@ export default function PlaylistPage() {
           {/* Scrollable playlist list */}
           <div className="app-scroll flex-1 px-3 pb-3" style={{ overflowY: "auto" }}>
             {/* Regular playlists */}
-            {playlists.map((p) => {
-              const isActive = p.id === selectedId && moodView === null;
-              return (
-                <div
-                  key={p.id}
-                  onClick={() => handleSelectPlaylist(p.id)}
-                  className={`flex items-center gap-3 px-3 py-3 rounded-xl cursor-pointer transition-colors ${
-                    isActive
-                      ? isDark ? "bg-[#2a2a2a]" : "bg-[#FFF5F0]"
-                      : rowHover
-                  }`}
-                >
-                  {p.coverImage ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={p.coverImage} alt={p.name} className="w-10 h-10 rounded-lg object-cover flex-shrink-0" />
-                  ) : (
-                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-xl flex-shrink-0 ${
-                      isDark ? "bg-[#1a1a1a]" : "bg-[#FFDDD2]"
-                    }`}>
-                      {p.emoji}
-                    </div>
-                  )}
-                  <p className={`text-sm font-medium truncate ${isActive ? text : muted}`}>{p.name}</p>
-                </div>
-              );
-            })}
+            {playlists.map((p) => (
+              <PlaylistRow
+                key={p.id}
+                p={p}
+                isActive={p.id === selectedId && moodView === null}
+                isDark={isDark}
+                muted={muted}
+                text={text}
+                rowHover={rowHover}
+                onClick={() => handleSelectPlaylist(p.id)}
+              >
+                {p.id.startsWith("custom-") && (
+                  <div className="relative ml-auto flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                    <button
+                      onClick={() => setPlaylistMenuId(playlistMenuId === p.id ? null : p.id)}
+                      className={`p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity ${muted} hover:text-[#FF6B35]`}
+                    >
+                      <MoreHorizontal size={15} />
+                    </button>
+                    {playlistMenuId === p.id && (
+                      <div
+                        className={`absolute right-0 top-full mt-1 rounded-xl border shadow-xl z-50 overflow-hidden w-36 ${
+                          isDark ? "bg-[#111] border-[#2a2a2a]" : "bg-white border-[#FFDDD2]"
+                        }`}
+                      >
+                        <button
+                          onClick={() => handleSharePlaylist(p)}
+                          className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${
+                            isDark ? "text-[#ccc] hover:bg-[#1a1a1a]" : "text-[#7A6055] hover:bg-[#FFF5F0]"
+                          }`}
+                        >
+                          🔗 Share
+                        </button>
+                        <button
+                          onClick={() => handleDeletePlaylist(p.id)}
+                          className="w-full text-left px-4 py-2.5 text-sm text-red-400 hover:bg-red-500/10 transition-colors"
+                        >
+                          🗑️ Delete
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </PlaylistRow>
+            ))}
 
             {/* Moods Playlist folder */}
-            <div
+            <MoodsFolderRow
+              isDark={isDark}
+              moodView={moodView}
+              muted={muted}
+              text={text}
+              rowHover={rowHover}
               onClick={() => { setMoodView("moods"); setSelectedId(""); setViewTab("Tracks"); }}
-              className={`flex items-center gap-3 px-3 py-3 rounded-xl cursor-pointer transition-colors ${
-                moodView !== null
-                  ? isDark ? "bg-[#2a2a2a]" : "bg-[#FFF5F0]"
-                  : rowHover
-              }`}
-            >
-              <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-xl flex-shrink-0 ${
-                isDark ? "bg-[#1a1a1a]" : "bg-[#FFDDD2]"
-              }`}>
-                🎭
-              </div>
-              <p className={`text-sm font-medium truncate ${moodView !== null ? text : muted}`}>Moods Playlist</p>
-            </div>
+            />
 
             {/* Mood sub-items — shown when Moods Playlist is active */}
-            {moodView !== null && moodPlaylists.map((p) => {
-              const isActive = moodView === p.id;
-              return (
-                <div
-                  key={p.id}
-                  onClick={(e) => { e.stopPropagation(); setMoodView(p.id); setActiveTrack(null); }}
-                  className={`flex items-center gap-3 pl-8 pr-3 py-2.5 rounded-xl cursor-pointer transition-colors ${
-                    isActive
-                      ? isDark ? "bg-[#1e1e2e]" : "bg-[#FFF0E8]"
-                      : rowHover
-                  }`}
-                >
-                  <span className="text-lg flex-shrink-0">{p.emoji}</span>
-                  <p className={`text-sm font-medium truncate capitalize ${isActive ? "text-[#FF6B35]" : muted}`}>
-                    {p.id}
-                  </p>
-                </div>
-              );
-            })}
+            {moodView !== null && moodPlaylists.map((p) => (
+              <SidebarRow
+                key={p.id}
+                emoji={p.emoji}
+                label={p.id}
+                isActive={moodView === p.id}
+                isDark={isDark}
+                muted={muted}
+                rowHover={rowHover}
+                moodId={p.id}
+                indent
+                onClick={() => { setMoodView(p.id); setActiveQueue([]); setIsShuffled(false); }}
+              />
+            ))}
           </div>
           {/* end scrollable playlist list */}
 
           </div>
           {/* end sidebar card */}
 
-          {/* MusicPlayer — slides in below sidebar when track is active */}
-          {activeTrack && (
-            <div className="flex-shrink-0 h-[28vh] min-h-[220px] max-h-[280px]">
-              <MusicPlayer
-                track={activeTrack}
-                tracks={queue}
-                onTrackChange={setActiveTrack}
-              />
-            </div>
-          )}
+
 
         </div>
         {/* end left column */}
@@ -246,7 +421,7 @@ export default function PlaylistPage() {
               </div>
             )}
 
-            {isPlaylistView && selected && moodView !== "moods" ? (
+            {viewTab === "Tracks" && selected && moodView !== "moods" ? (
               /* ── Playlist hero — Spotify-style ── */
               <div className="flex items-end gap-6 px-8 pt-8 pb-6">
                 {/* Large cover art */}
@@ -273,13 +448,20 @@ export default function PlaylistPage() {
                   {/* Play + Shuffle */}
                   <div className="flex items-center gap-4 mt-2">
                     <button
-                      onClick={() => queue.length > 0 && setActiveTrack(queue[0])}
+                      onClick={() => { setQueue(queue, queue[0]); setActiveQueue([]); setIsShuffled(false); }}
                       className="w-12 h-12 rounded-full bg-[#FF6B35] hover:bg-[#e85d2a] flex items-center justify-center shadow-lg transition-all hover:scale-105"
                     >
                       <Play size={20} fill="white" className="text-white ml-0.5" />
                     </button>
-                    <button className="text-[#aaa] hover:text-white transition-colors">
-                      <Shuffle size={22} />
+                    <button
+                      onClick={handleShuffle}
+                      className={`transition-all ${
+                        isShuffled
+                          ? "text-white scale-110"
+                          : "text-[#aaa] hover:text-white"
+                      }`}
+                    >
+                      <Shuffle size={isShuffled ? 24 : 22} />
                     </button>
                   </div>
                 </div>
@@ -292,7 +474,7 @@ export default function PlaylistPage() {
                 </div>
                 <div className="flex flex-col gap-2 pb-1">
                   <p className="text-5xl font-bold text-white leading-tight">Saved Albums</p>
-                  <p className="text-sm text-[#aaa]">{mockSavedAlbums.length} albums</p>
+                  <p className="text-sm text-[#aaa]">{savedAlbums.length} albums</p>
                 </div>
               </div>
             ) : viewTab === "Artists" ? (
@@ -303,7 +485,7 @@ export default function PlaylistPage() {
                 </div>
                 <div className="flex flex-col gap-2 pb-1">
                   <p className="text-5xl font-bold text-white leading-tight">Followed Artists</p>
-                  <p className="text-sm text-[#aaa]">{mockFollowedArtists.length} artists</p>
+                  <p className="text-sm text-[#aaa]">{followedArtists.length} artists</p>
                 </div>
               </div>
             ) : null}
@@ -316,17 +498,14 @@ export default function PlaylistPage() {
             {moodView === "moods" && (
               <div className="p-6 grid grid-cols-4 gap-4">
                 {moodPlaylists.map((p) => (
-                  <div
+                  <MoodCard
                     key={p.id}
-                    onClick={() => { setMoodView(p.id); setActiveTrack(null); }}
-                    className={`flex flex-col items-center gap-2 p-4 rounded-2xl cursor-pointer border transition-colors ${
-                      isDark ? "bg-[#1a1a1a] border-[#2a2a2a] hover:bg-[#222] hover:border-[#FF6B35]" : "bg-[#FFF5F0] border-[#FFDDD2] hover:border-[#FF6B35]"
+                    p={p}
+                    onClick={() => { setMoodView(p.id); }}
+                    className={`flex flex-col items-center p-5 rounded-2xl cursor-pointer border transition-colors text-center ${
+                      isDark ? "bg-[#1a1a1a] border-[#2a2a2a] hover:border-[#FF6B35] text-white" : "bg-[#FFF5F0] border-[#FFDDD2] hover:border-[#FF6B35] text-[#3a2a20]"
                     }`}
-                  >
-                    <span className="text-4xl">{p.emoji}</span>
-                    <p className={`text-sm font-semibold capitalize ${text}`}>{p.id}</p>
-                    <p className={`text-xs ${muted}`}>{p.tracks.length} songs</p>
-                  </div>
+                  />
                 ))}
               </div>
             )}
@@ -351,7 +530,7 @@ export default function PlaylistPage() {
                       return (
                         <tr
                           key={track.id}
-                          onClick={() => setActiveTrack(track)}
+                          onClick={() => setQueue(activeQueue.length ? activeQueue : queue, track)}
                           className={`group cursor-pointer transition-colors border-b ${border} ${
                             isActive ? activeRow : rowHover
                           }`}
@@ -399,8 +578,8 @@ export default function PlaylistPage() {
                                   >
                                     {[
                                       { label: "❤️ Like", action: () => handleLike(track) },
-                                      { label: "🎵 Go to Artist", action: () => router.push(`/artist/${track.artistId}`) },
-                                      { label: "💿 Go to Album", action: () => router.push(`/album/${track.albumId}`) },
+                                      { label: "🎵 Go to Artist", action: () => openArtist(track.artistId ?? "") },
+                                      { label: "💿 Go to Album", action: () => openAlbum(track.albumId ?? "") },
                                       { label: "🔗 Share", action: () => handleShare(track) },
                                     ].map(({ label, action }) => (
                                       <button
@@ -433,44 +612,22 @@ export default function PlaylistPage() {
             {/* ── Albums tab ── */}
             {viewTab === "Albums" && (
               <div className="p-5 grid grid-cols-3 gap-4">
-                {mockSavedAlbums.map((album) => (
-                  <div
-                    key={album.id}
-                    className={`rounded-xl overflow-hidden border cursor-pointer transition-colors ${border} ${
-                      isDark ? "bg-[#1a1a1a] hover:bg-[#222]" : "bg-[#FFF5F0] hover:bg-[#FFDDD2]"
-                    }`}
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={album.albumArt} alt={album.name} className="w-full aspect-square object-cover" />
-                    <div className="px-3 py-2.5">
-                      <p className={`text-sm font-semibold truncate ${text}`}>{album.name}</p>
-                      <p className={`text-xs truncate ${muted}`}>{album.artistName} · {album.releaseYear}</p>
-                      <p className={`text-xs mt-0.5 ${muted}`}>{album.totalTracks} tracks</p>
-                    </div>
+                {savedAlbums.length === 0 && (
+                  <div className="col-span-3 flex items-center justify-center py-16">
+                    <p className={`text-sm ${muted}`}>No saved albums yet</p>
                   </div>
-                ))}
+                )}
               </div>
             )}
 
             {/* ── Artists tab ── */}
             {viewTab === "Artists" && (
               <div className="p-5 grid grid-cols-3 gap-4">
-                {mockFollowedArtists.map((artist) => (
-                  <div
-                    key={artist.id}
-                    className={`rounded-xl overflow-hidden border cursor-pointer transition-colors text-center ${border} ${
-                      isDark ? "bg-[#1a1a1a] hover:bg-[#222]" : "bg-[#FFF5F0] hover:bg-[#FFDDD2]"
-                    }`}
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={artist.image} alt={artist.name} className="w-full aspect-square object-cover" />
-                    <div className="px-3 py-2.5">
-                      <p className={`text-sm font-semibold truncate ${text}`}>{artist.name}</p>
-                      <p className={`text-xs truncate ${muted}`}>{artist.genres.slice(0, 2).join(", ")}</p>
-                      <p className={`text-xs mt-0.5 ${muted}`}>{(artist.followers / 1_000_000).toFixed(1)}M followers</p>
-                    </div>
+                {followedArtists.length === 0 && (
+                  <div className="col-span-3 flex items-center justify-center py-16">
+                    <p className={`text-sm ${muted}`}>No followed artists yet</p>
                   </div>
-                ))}
+                )}
               </div>
             )}
 
@@ -478,6 +635,63 @@ export default function PlaylistPage() {
         </div>
 
       </main>
-    </div>
+
+      {/* ── Create Playlist Modal ── */}
+      {createOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+          onClick={() => { setCreateOpen(false); setNewName(""); }}
+        >
+          <div
+            className={`w-[360px] rounded-2xl border p-6 flex flex-col gap-5 shadow-2xl transition-colors ${
+              isDark ? "bg-[#111111] border-[#2a2a2a]" : "bg-white border-[#FFDDD2]"
+            }`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Title */}
+            <div className="flex flex-col gap-1">
+              <p className={`text-lg font-bold ${isDark ? "text-white" : "text-[#3a2a20]"}`}>New Playlist</p>
+              <p className={`text-xs ${isDark ? "text-[#aaa]" : "text-[#7A6055]"}`}>Give your playlist a name</p>
+            </div>
+
+            {/* Input */}
+            <input
+              autoFocus
+              type="text"
+              placeholder="My Playlist..."
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") handleCreatePlaylist(); if (e.key === "Escape") { setCreateOpen(false); setNewName(""); } }}
+              className={`w-full px-4 py-3 rounded-xl border text-sm outline-none transition-colors ${
+                isDark
+                  ? "bg-[#1a1a1a] border-[#2a2a2a] text-white placeholder-[#555] focus:border-[#FF6B35]"
+                  : "bg-[#FFF5F0] border-[#FFDDD2] text-[#3a2a20] placeholder-[#bbb] focus:border-[#FF6B35]"
+              }`}
+            />
+
+            {/* Buttons */}
+            <div className="flex gap-3">
+              <button
+                onClick={() => { setCreateOpen(false); setNewName(""); }}
+                className={`flex-1 py-2.5 rounded-xl border text-sm font-medium transition-colors ${
+                  isDark
+                    ? "border-[#2a2a2a] text-[#aaa] hover:bg-[#1a1a1a] hover:text-white"
+                    : "border-[#FFDDD2] text-[#7A6055] hover:bg-[#FFF5F0]"
+                }`}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreatePlaylist}
+                disabled={!newName.trim()}
+                className="flex-1 py-2.5 rounded-xl bg-[#FF6B35] hover:bg-[#e85d2a] disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors"
+              >
+                Create
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }

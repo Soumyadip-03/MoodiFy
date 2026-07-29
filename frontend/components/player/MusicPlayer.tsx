@@ -1,14 +1,22 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
-import { SkipBack, SkipForward, Play, Pause, Volume2 } from "lucide-react";
+import { useState, useRef, useEffect, useCallback } from "react";
+import { SkipBack, SkipForward, Play, Pause, Volume2, VolumeX, Shuffle, Repeat, Disc3, Mic2 } from "lucide-react";
 import { useTheme } from "@/context/ThemeContext";
+import { useSpotifyPlayer } from "@/hooks/useSpotifyPlayer";
 import type { SpotifyTrack } from "@/types/index";
+import { motion, AnimatePresence } from "framer-motion";
 
 interface MusicPlayerProps {
   track: SpotifyTrack;
   tracks: SpotifyTrack[];
-  onTrackChange: (track: SpotifyTrack) => void;
+  isPremium: boolean;
+  autoPlay?: boolean;
+  onTrackChange: (track: SpotifyTrack, queue: SpotifyTrack[]) => void;
+  onPlayingChange?: (isPlaying: boolean) => void;
+  togglePlayRef?: React.MutableRefObject<(() => void) | null>;
+  onGoToArtist?: (artistId: string) => void;
+  onGoToAlbum?: (albumId: string) => void;
 }
 
 function formatTime(s: number) {
@@ -17,137 +25,265 @@ function formatTime(s: number) {
   return `${m}:${sec.toString().padStart(2, "0")}`;
 }
 
-export default function MusicPlayer({ track, tracks, onTrackChange }: MusicPlayerProps) {
+export default function MusicPlayer({
+  track, tracks, isPremium, autoPlay = false,
+  onTrackChange, onPlayingChange, togglePlayRef,
+  onGoToArtist, onGoToAlbum,
+}: MusicPlayerProps) {
   const { theme } = useTheme();
   const isDark = theme === "dark";
 
-  const audioRef = useRef<HTMLAudioElement>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(track.duration);
-  const [volume, setVolume] = useState(100);
+  const sdk = useSpotifyPlayer(isPremium);
 
-  // TODO (Phase 4): Replace with Spotify Web Playback SDK for premium users
-  // For now: use previewUrl if available, else mock progress bar only
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const audioPlayingRef = useRef(false);
+  const handleNextRef = useRef<() => void>(() => {});
+  const shouldAutoPlayRef = useRef(false);
+  const currentTrackIdRef = useRef(track.id);
+  const [audioPlaying, setAudioPlaying] = useState(false);
+  const [audioTime, setAudioTime] = useState(0);
+  const [audioDuration, setAudioDuration] = useState(track.duration);
+  const [volume, setVolumeState] = useState(80);
+  const [prevVolume, setPrevVolume] = useState(80);
+  const isMuted = volume === 0;
+
+  const [showConnecting, setShowConnecting] = useState(false);
   useEffect(() => {
-    setIsPlaying(false);
-    setCurrentTime(0);
-    setDuration(track.duration);
-  }, [track]);
+    if (!isPremium || sdk.isReady) { setShowConnecting(false); return; }
+    const t = setTimeout(() => setShowConnecting(true), 2000);
+    return () => clearTimeout(t);
+  }, [isPremium, sdk.isReady]);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (audio) { audio.pause(); audio.currentTime = 0; }
+    currentTrackIdRef.current = track.id;
+    audioPlayingRef.current = false;
+    setAudioPlaying(false);
+    setAudioTime(0);
+    setAudioDuration(track.duration);
+    if (isPremium && sdk.isReady) {
+      sdk.playTrack(track.spotifyUrl);
+    } else if (!isPremium) {
+      if (track.previewUrl) {
+        shouldAutoPlayRef.current = true;
+        if (audio && audio.readyState >= 3) {
+          audio.play().then(() => {
+            audioPlayingRef.current = true;
+            setAudioPlaying(true);
+            shouldAutoPlayRef.current = false;
+          }).catch(() => {});
+        }
+      } else if (autoPlay) {
+        const t = setTimeout(() => handleNextRef.current(), 800);
+        return () => clearTimeout(t);
+      }
+    }
+  }, [track.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (audioRef.current) audioRef.current.volume = volume / 100;
-  }, [volume]);
+    if (isPremium) sdk.setVolume(volume / 100);
+  }, [volume]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const togglePlay = () => {
-    if (!audioRef.current) {
-      // No preview available — toggle state for UI feedback only
-      setIsPlaying(p => !p);
-      return;
+  useEffect(() => {
+    if (!isPremium) return;
+    if (sdk.duration > 0 && sdk.position >= sdk.duration - 1000 && !sdk.isPlaying) {
+      handleNextRef.current();
     }
-    if (isPlaying) { audioRef.current.pause(); setIsPlaying(false); }
-    else { audioRef.current.play().catch(() => {}); setIsPlaying(true); }
-  };
+  }, [sdk.isPlaying, sdk.position, sdk.duration]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const isPlaying = isPremium ? sdk.isPlaying : audioPlaying;
+
+  const prevIsPlayingRef = useRef(isPlaying);
+  useEffect(() => {
+    if (prevIsPlayingRef.current !== isPlaying) {
+      prevIsPlayingRef.current = isPlaying;
+      onPlayingChange?.(isPlaying);
+    }
+  });
+
+  const handleTogglePlay = useCallback(() => {
+    if (isPremium) {
+      sdk.togglePlay();
+    } else {
+      if (!audioRef.current) return;
+      if (audioPlayingRef.current) {
+        audioRef.current.pause();
+        audioPlayingRef.current = false;
+        setAudioPlaying(false);
+      } else {
+        audioRef.current.play().catch(() => {});
+        audioPlayingRef.current = true;
+        setAudioPlaying(true);
+      }
+    }
+  }, [isPremium, sdk]);
+
+  if (togglePlayRef) togglePlayRef.current = handleTogglePlay;
+
+  const handleNext = useCallback(() => {
+    const idx = tracks.findIndex(t => t.id === track.id);
+    const nextIdx = idx + 1 < tracks.length ? idx + 1 : 0;
+    if (nextIdx !== idx) onTrackChange(tracks[nextIdx], tracks);
+    if (isPremium && sdk.isReady) sdk.playTrack(tracks[nextIdx].spotifyUrl);
+  }, [tracks, track.id, isPremium, sdk.isReady, sdk.playTrack, onTrackChange]);
+
+  useEffect(() => { handleNextRef.current = handleNext; }, [handleNext]);
 
   const handlePrev = () => {
     const idx = tracks.findIndex(t => t.id === track.id);
-    if (idx > 0) onTrackChange(tracks[idx - 1]);
-  };
-
-  const handleNext = () => {
-    const idx = tracks.findIndex(t => t.id === track.id);
-    if (idx < tracks.length - 1) onTrackChange(tracks[idx + 1]);
+    if (idx > 0) {
+      const prev = tracks[idx - 1];
+      onTrackChange(prev, tracks);
+      if (isPremium && sdk.isReady) sdk.playTrack(prev.spotifyUrl);
+    }
   };
 
   const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = Number(e.target.value);
-    setCurrentTime(val);
-    if (audioRef.current) audioRef.current.currentTime = val;
+    if (isPremium) sdk.seek(val * 1000);
+    else { setAudioTime(val); if (audioRef.current) audioRef.current.currentTime = val; }
   };
 
-  const card = isDark ? "bg-[#111111] border-[#2a2a2a]" : "bg-white border-[#FFDDD2]";
-  const muted = isDark ? "text-[#aaa]" : "text-[#7A6055]";
+  const handleVolumeIcon = () => {
+    if (isMuted) { setVolumeState(prevVolume || 80); }
+    else { setPrevVolume(volume); setVolumeState(0); }
+  };
+
+  const currentTime = isPremium ? sdk.position / 1000 : audioTime;
+  const duration = isPremium ? sdk.duration / 1000 : audioDuration;
+  const hasPreview = !!track.previewUrl;
+
+  const bar = isDark ? "bg-[#111111] border-[#2a2a2a]" : "bg-white border-[#FFDDD2]";
+  const iconCls = isDark ? "text-[#aaa] hover:text-white" : "text-[#7A6055] hover:text-[#3a2a20]";
 
   return (
-    <div className={`rounded-2xl border p-5 flex gap-4 items-center w-full h-full transition-colors duration-300 ${card}`}>
-      {/* Album Art */}
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={track.albumArt}
-        alt={track.album || track.title}
-        className="w-24 h-24 rounded-xl object-cover flex-shrink-0"
-      />
+    <div className={`rounded-2xl border px-5 flex items-center gap-4 w-full h-full transition-colors duration-300 ${bar}`}>
 
-      {/* Info + Controls */}
-      <div className="flex flex-col gap-2 flex-1 min-w-0">
-        <div>
-          <p className={`text-xl font-bold truncate ${isDark ? "text-white" : "text-[#3a2a20]"}`}>{track.title}</p>
-          <p className={`text-sm truncate ${muted}`}>{track.artist}</p>
-        </div>
-
-        {/* Seek bar */}
-        <div className="flex items-center gap-2">
-          <span className={`text-xs w-8 ${muted}`}>{formatTime(currentTime)}</span>
-          <input
-            type="range" min={0} max={duration} value={currentTime}
-            onChange={handleSeek}
-            className="flex-1 h-1 accent-[#FF6B35] cursor-pointer"
+      {/* ── LEFT: album art + track info ── */}
+      <div className="flex items-center gap-3 w-[220px] flex-shrink-0 min-w-0">
+        <AnimatePresence mode="wait">
+          <motion.img
+            key={track.id + "-art"}
+            src={track.albumArt}
+            alt={track.album || track.title}
+            initial={{ opacity: 0, scale: 0.88 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.88 }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
+            className="w-14 h-14 rounded-lg object-cover flex-shrink-0"
           />
-          <span className={`text-xs w-8 text-right ${muted}`}>{formatTime(duration)}</span>
-        </div>
+        </AnimatePresence>
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={track.id + "-info"}
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            transition={{ duration: 0.18, ease: "easeOut" }}
+            className="min-w-0"
+          >
+            <p className={`text-sm font-semibold truncate ${isDark ? "text-white" : "text-[#3a2a20]"}`}>{track.title}</p>
+            <p className={`text-xs truncate ${isDark ? "text-[#aaa]" : "text-[#7A6055]"}`}>{track.artist}</p>
+            {isPremium && showConnecting && !sdk.isReady && (
+              <p className="text-[10px] text-yellow-500">Connecting...</p>
+            )}
+          </motion.div>
+        </AnimatePresence>
+      </div>
 
-        {/* Volume */}
-        <div className="flex items-center gap-2">
-          <Volume2 size={13} className="text-[#FF6B35]" />
-          <input
-            type="range" min={0} max={100} value={volume}
-            onChange={e => setVolume(Number(e.target.value))}
-            className="flex-1 h-1 accent-[#FF6B35] cursor-pointer"
-          />
-          <span className={`text-xs w-8 text-right ${muted}`}>{volume}%</span>
-        </div>
-
-        {/* Playback controls */}
-        <div className="flex items-center gap-4">
-          <button onClick={handlePrev} className={`hover:text-[#FF6B35] transition-colors ${muted}`}>
+      {/* ── CENTRE: transport controls + seek bar ── */}
+      <div className="flex flex-col items-center gap-1.5 flex-1 min-w-0">
+        <div className="flex items-center gap-5">
+          <button className={`transition-colors ${iconCls}`}>
+            <Shuffle size={15} />
+          </button>
+          <button onClick={handlePrev} className={`transition-colors ${iconCls}`}>
             <SkipBack size={18} />
           </button>
           <button
-            onClick={togglePlay}
-            className="w-10 h-10 rounded-full bg-[#FF6B35] hover:bg-[#e85d2a] flex items-center justify-center text-white transition-colors"
+            onClick={handleTogglePlay}
+            disabled={!isPremium && !hasPreview}
+            className="w-9 h-9 rounded-full bg-white hover:scale-105 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center text-black transition-all shadow-sm"
           >
-            {isPlaying ? <Pause size={18} /> : <Play size={18} fill="white" />}
+            {isPlaying ? <Pause size={16} fill="black" /> : <Play size={16} fill="black" className="ml-0.5" />}
           </button>
-          <button onClick={handleNext} className={`hover:text-[#FF6B35] transition-colors ${muted}`}>
+          <button onClick={handleNext} className={`transition-colors ${iconCls}`}>
             <SkipForward size={18} />
           </button>
+          <button className={`transition-colors ${iconCls}`}>
+            <Repeat size={15} />
+          </button>
         </div>
-
-        {/* Open in Spotify — always shown when a track is active */}
-        <a
-          href={track.spotifyUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className={`flex items-center justify-center gap-1.5 w-full py-1.5 rounded-xl border text-xs transition-colors ${
-            isDark ? "border-[#2a2a2a] text-[#aaa] hover:text-white hover:border-[#FF6B35]" : "border-[#FFDDD2] text-[#7A6055] hover:border-[#FF6B35]"
-          }`}
-        >
-          🔗 Open in Spotify
-        </a>
+        <div className="flex items-center gap-2 w-full">
+          <span className={`text-[11px] w-8 text-right flex-shrink-0 ${isDark ? "text-[#aaa]" : "text-[#7A6055]"}`}>
+            {formatTime(currentTime)}
+          </span>
+          <input
+            type="range" min={0} max={duration || 1} value={currentTime}
+            onChange={handleSeek}
+            className="flex-1 h-1 accent-[#FF6B35] cursor-pointer"
+          />
+          <span className={`text-[11px] w-8 flex-shrink-0 ${isDark ? "text-[#aaa]" : "text-[#7A6055]"}`}>
+            {formatTime(duration)}
+          </span>
+        </div>
       </div>
 
-      {/* Hidden audio element — TODO (Phase 4): swap src with previewUrl */}
-      {track.previewUrl && (
+      {/* ── RIGHT: go to album · go to artist · volume ── */}
+      <div className="flex items-center gap-3 w-[220px] flex-shrink-0 justify-end">
+        <button
+          onClick={() => track.albumId && onGoToAlbum?.(track.albumId)}
+          title="Go to Album"
+          className={`transition-colors ${iconCls}`}
+        >
+          <Disc3 size={17} />
+        </button>
+        <button
+          onClick={() => track.artistId && onGoToArtist?.(track.artistId)}
+          title="Go to Artist"
+          className={`transition-colors ${iconCls}`}
+        >
+          <Mic2 size={17} />
+        </button>
+        <button onClick={handleVolumeIcon} className={`flex-shrink-0 transition-colors ${iconCls}`}>
+          {isMuted ? <VolumeX size={17} /> : <Volume2 size={17} />}
+        </button>
+        <input
+          type="range" min={0} max={100} value={volume}
+          onChange={e => setVolumeState(Number(e.target.value))}
+          className="w-20 h-1 accent-[#FF6B35] cursor-pointer"
+        />
+      </div>
+
+      {!isPremium && track.previewUrl && (
         <audio
           ref={audioRef}
           src={track.previewUrl}
-          onTimeUpdate={() => setCurrentTime(audioRef.current?.currentTime || 0)}
-          onLoadedMetadata={() => setDuration(audioRef.current?.duration || track.duration)}
-          onEnded={() => { setIsPlaying(false); handleNext(); }}
+          preload="auto"
+          onCanPlay={() => {
+            if (
+              shouldAutoPlayRef.current &&
+              audioRef.current &&
+              currentTrackIdRef.current === track.id
+            ) {
+              shouldAutoPlayRef.current = false;
+              audioRef.current.play().then(() => {
+                audioPlayingRef.current = true;
+                setAudioPlaying(true);
+              }).catch(() => {});
+            }
+          }}
+          onTimeUpdate={() => setAudioTime(audioRef.current?.currentTime || 0)}
+          onLoadedMetadata={() => setAudioDuration(audioRef.current?.duration || track.duration)}
+          onEnded={() => {
+            audioPlayingRef.current = false;
+            setAudioPlaying(false);
+            handleNextRef.current();
+          }}
         />
       )}
-
-
     </div>
   );
 }

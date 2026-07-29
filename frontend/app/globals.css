@@ -14,6 +14,25 @@ body {
   overflow-x: hidden;
   font-family: var(--font-comfortaa), sans-serif;
   -webkit-font-smoothing: antialiased;
+  scrollbar-width: thin;
+  scrollbar-color: #FF6B35 #0a0a0a;
+}
+
+body::-webkit-scrollbar {
+  width: 6px;
+}
+
+body::-webkit-scrollbar-track {
+  background: #0a0a0a;
+}
+
+body::-webkit-scrollbar-thumb {
+  background: #FF6B35;
+  border-radius: 999px;
+}
+
+body::-webkit-scrollbar-thumb:hover {
+  background: #e85d2a;
 }
 
 a {
@@ -57,4 +76,54 @@ a {
 
 .animate-fadeIn {
   animation: fadeIn 0.3s ease forwards;
+}
+
+@keyframes pulse-ring {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255,107,53,0.55), 0 0 0 0 rgba(255,107,53,0.25); }
+  50%       { box-shadow: 0 0 0 7px rgba(255,107,53,0.15), 0 0 0 14px rgba(255,107,53,0); }
+}
+
+.animate-pulse-ring {
+  animation: pulse-ring 2.2s ease-in-out infinite;
+}
+
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+
+@keyframes float-up {
+  0%   { transform: translateY(0)   translateX(0)    scale(1);    opacity: 0; }
+  10%  { opacity: 1; }
+  50%  { transform: translateY(-45vh) translateX(18px)  scale(1.08); opacity: 0.7; }
+  90%  { opacity: 0.3; }
+  100% { transform: translateY(-95vh) translateX(-12px) scale(0.85); opacity: 0; }
+}
+
+@keyframes dash-draw {
+  from { stroke-dashoffset: 600; }
+  to   { stroke-dashoffset: 0; }
+}
+
+.animate-marquee {
+  animation: marquee 28s linear infinite;
+}
+
+@keyframes glitch-shake {
+  0%        { transform: translate(0, 0) skewX(0deg); }
+  10%       { transform: translate(-4px, 1px) skewX(-2deg); }
+  20%       { transform: translate(4px, -1px) skewX(2deg); }
+  30%       { transform: translate(-3px, 2px) skewX(-1deg); }
+  40%       { transform: translate(3px, -2px) skewX(1.5deg); }
+  50%       { transform: translate(-2px, 1px) skewX(-0.5deg); }
+  60%       { transform: translate(2px, 0px) skewX(1deg); }
+  70%       { transform: translate(-1px, -1px) skewX(0deg); }
+  80%       { transform: translate(1px, 1px) skewX(-0.5deg); }
+  90%       { transform: translate(0, 0) skewX(0deg); }
+  100%      { transform: translate(0, 0) skewX(0deg); }
+}
+
+@keyframes glitch-scan {
+  0%   { background-position: 0 0; }
+  100% { background-position: 0 8px; }
 }

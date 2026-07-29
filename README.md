@@ -1,6 +1,6 @@
-# Moodify — AI Mood-Based Music Player
+# MoodiFy — AI Mood-Based Music Player
 
-Moodify detects your facial expression in real time via webcam, maps it to an emotional state, and instantly serves a Spotify-powered playlist that fits how you feel. Built with Next.js 14, FastAPI (Python), Firebase, deepface, and the Spotify Web API (OAuth).
+MoodiFy detects your facial expression in real time via webcam, maps it to an emotional state, and instantly serves a Spotify-powered playlist that fits how you feel. Built with Next.js 14, FastAPI (Python), Firebase, deepface, and the Spotify Web API (OAuth).
 
 ---
 
@@ -38,7 +38,7 @@ Browser Webcam → WebSocket → FastAPI → deepface/fer → Emotion → Mood �
   frontend/
   ├── app/
   │   ├── (auth)/login & signup pages
-  │   ├── (app)/home, history, profile
+  │   ├── (app)/home, history, profile, mood-room
   │   └── globals.css
   ├── components/auth, detection, player, ui
   ├── context/AuthContext.tsx
@@ -67,9 +67,11 @@ Browser Webcam → WebSocket → FastAPI → deepface/fer → Emotion → Mood �
 - [x] Add Firebase config to `frontend/.env.local`
 - [x] `lib/firebase.ts` — initialize Firebase app, Auth, Firestore
 - [x] `AuthContext` — React context exposing `user`, `loading`, `signIn`, `signOut`
+- [x] `ThemeContext.tsx` — dark/light theme context with `useTheme()` hook, persists to `localStorage`
+- [x] `ThemeToggle.tsx` — sun/moon toggle button used in Header
 - [x] Login page (`/login`) — Google OAuth button + email/password form
 - [x] Signup page (`/signup`) — email/password registration + display name
-- [x] Route protection — middleware redirects unauthenticated users from `/home`, `/history`, `/profile`
+- [x] Route protection — middleware redirects unauthenticated users from `/home`, `/history`, `/profile`, `/playlist`, `/mood-room`
 - [x] Logged-in users redirected away from `/login` and `/signup` back to `/home`
 - [x] Persist auth state across page refreshes
 - [x] FastAPI — verify Firebase ID tokens on protected routes
@@ -103,172 +105,121 @@ Browser Webcam → WebSocket → FastAPI → deepface/fer → Emotion → Mood �
 ### Phase 4 — Spotify OAuth Integration
 
 #### Backend
-- [ ] FastAPI `/api/spotify/login` — build Spotify auth URL + redirect user to Spotify authorization page
-- [ ] FastAPI `/api/spotify/callback` — exchange code for `access_token` + `refresh_token`
-- [ ] FastAPI `/api/spotify/recommendations?mood=&uid=` — returns 10 personalized tracks based on mood
-- [ ] FastAPI `/api/spotify/refresh?uid=` — auto-refresh expired access tokens
-- [ ] `spotify_service.py`:
-  - `get_auth_url()` — builds Spotify OAuth URL with required scopes
-  - `exchange_code(code)` — POST to Spotify token endpoint
-  - `refresh_access_token(refresh_token)` — get new access token
-  - `get_recommendations(mood, access_token)` — mood → audio features → tracks
-  - `save_tokens(uid, tokens)` — store tokens in Firestore
-  - `get_tokens(uid)` — fetch tokens from Firestore
-- [ ] Register spotify router in `main.py`
+- [x] FastAPI `/api/spotify/login` — build Spotify auth URL + redirect user to Spotify authorization page
+- [x] FastAPI `/api/spotify/callback` — exchange code for `access_token` + `refresh_token`
+- [x] FastAPI `/api/spotify/recommendations?mood=&uid=` — returns tracks based on mood
+- [x] FastAPI `/api/spotify/refresh?uid=` — auto-refresh expired access tokens
+- [x] FastAPI `/api/spotify/status?uid=` — returns `{connected, isPremium}`
+- [x] FastAPI `/api/spotify/disconnect?uid=` — removes tokens + premium flag from Firestore
+- [x] `spotify_service.py` — all service functions implemented and bug-fixed
+- [x] Spotify router registered in `main.py`
+
+> ⚠️ **Spotify Dev Mode Limitation** — `/recommendations` endpoint blocked for new apps. Search fallback via `/search` is used instead. Client credentials token also restricted in dev mode — unconnected users get no tracks until Spotify Extended Access is requested.
 
 #### Mood → Spotify Audio Features Mapping
 | Mood | Valence | Energy | Genre Seeds |
 |------|---------|--------|-------------|
-| happy | 0.8 | 0.8 | pop, happy        |
-| upbeat | 0.7 | 0.9 | dance, pop       |
-| chill | 0.5 | 0.3 | chill, ambient    |
-| melancholy | 0.2 | 0.3 | sad, indie   |
-| relaxing | 0.5 | 0.2 | sleep, acoustic|
-| energetic | 0.6 | 0.95 | work-out,rock|
+| happy | 0.8 | 0.8 | pop, happy |
+| upbeat | 0.7 | 0.9 | dance, pop |
+| chill | 0.5 | 0.3 | chill, ambient |
+| melancholy | 0.2 | 0.3 | sad, indie |
+| relaxing | 0.5 | 0.2 | sleep, acoustic |
+| energetic | 0.6 | 0.95 | work-out, rock |
 | intense | 0.3 | 0.9 | metal, hardcore |
 
-#### Personalized Recommendations
-- [ ] Fetch user's top artists + tracks from Spotify as recommendation seeds
-- [ ] Blend user's personal taste with mood-based audio features for better results
-
-#### Hybrid Recommendation System (Cache & Serve)
-- [ ] Every Spotify recommendation fetched → simultaneously saved to Firestore `moodTracks` collection with mood tag
-- [ ] Firestore `moodTracks` document structure:
-  ```
-  moodTracks/{trackId}
-  ├── spotifyId
-  ├── title
-  ├── artist
-  ├── albumArt
-  ├── previewUrl
-  ├── spotifyUrl
-  ├── mood          ← "happy", "chill", etc.
-  ├── valence
-  ├── energy
-  ├── playCount     ← increments on every play
-  ├── likeCount     ← increments on every heart/like
-  └── savedAt
-  ```
-- [ ] Fallback layer — when Spotify API unavailable, query Firestore `moodTracks` by mood tag
-- [ ] Hardcoded seed playlist per mood — last resort fallback when Firestore has < 5 results
-- [ ] Over time `playCount` + `likeCount` build a self-improving popularity ranking per mood
-
 #### Frontend
-- [ ] `useSpotify` hook — manages Spotify connection state (`connected`, `connecting`, `error`)
-- [ ] `connectSpotify()` — redirects to `/api/spotify/login`
-- [ ] `fetchRecommendations(mood)` — calls backend, returns tracks
-- [ ] Auto-fetch recommendations when mood changes
-- [ ] `lib/firestore.ts` — `saveSpotifyTokens(uid, tokens)` + `getSpotifyTokens(uid)`
-- [ ] `types/index.ts` — `SpotifyTrack` type + `SpotifyTokens` type
-- [ ] "Connect Spotify" button on home page
-- [ ] Handle `preview_url: null` — show "Open in Spotify" CTA
+- [x] `useSpotify` hook — manages Spotify connection state (`connected`, `connecting`, `isPremium`, `error`)
+- [x] `useSpotifyPlayer` hook — full Spotify Web Playback SDK integration for Premium users
+- [x] Profile page — Connect + Disconnect Spotify buttons, OAuth redirect handling
+- [x] Home page — real recommendations fetched on mount + on mood detection
+- [x] Nudge banner shown when Spotify not connected
+- [x] Premium detection — crown badge + golden ring on avatar, profile shows Premium status
+- [x] `moodTracks` Firestore collection — auto-populated on every successful fetch
 
 #### Two-Tier User System
 | Feature | Free User | Premium User |
 |---|---|---|
 | Face scan + mood detection | ✅ | ✅ |
 | See recommendations | ✅ | ✅ |
-| 30-sec preview playback | ✅ | ✅ |
-| Full song playback in MoodiFy | ❌ | ✅ |
+| 30-sec preview playback | ✅ (if previewUrl available) | ✅ |
+| Full song playback in MoodiFy | ❌ | ✅ Web Playback SDK |
 | "Open in Spotify" button | ✅ | ✅ |
 | Like songs | ✅ | ✅ |
 | Create playlist | ✅ | ✅ |
-| Premium badge on profile | ❌ | ✅ |
+| Premium badge + crown on avatar | ❌ | ✅ |
 | Artist browsing | ✅ | ✅ |
 | Mood Room (Listen Together) | ✅ | ✅ |
-
-#### Premium Detection Flow
-- [ ] After Spotify OAuth login call `GET /v1/me` — check `product` field (`"premium"` or `"free"`)
-- [ ] Save premium status to Firestore user profile
-- [ ] Frontend checks premium status → unlocks full playback via Web Playback SDK
-- [ ] Premium badge displayed on profile page
-- [ ] Free users get 30-sec preview + "Open in Spotify" button
-- [ ] Premium users get full song streaming inside MoodiFy via Web Playback SDK
-- [ ] Premium is determined by **user's own Spotify subscription** — no extra cost to developer
-
-#### Sharing
-- [ ] WhatsApp share button per track — `https://wa.me/?text=Check out this song on MoodiFy: {spotify_track_url}`
-- [ ] Web Share API fallback for native mobile share sheet (WhatsApp, Instagram, copy link, etc.)
 
 ---
 
 ### Phase 5 — Music Player
 
-> ⚠️ **Depends on Phase 4** — requires `SpotifyTrack` type, `useSpotify` hook, and `fetchRecommendations(mood)` to be available before wiring up the player.
-
 #### Components
-- [x] `components/player/MusicPlayer.tsx` — main player UI:
-  - Album art (large)
-  - Track name + artist name
-  - Seek bar + current time / duration
-  - Volume control
-  - Prev / Play / Pause / Next controls
-  - Free users — 30-sec `preview_url` playback via HTML `<audio>` tag (TODO Phase 4: wire real previewUrl)
-  - "Open in Spotify" button on every track
-  - Premium users — Spotify Web Playback SDK (TODO Phase 4)
-  - Heart/like button per track (TODO Phase 4: save to Firestore)
-- [x] `components/player/TrackList.tsx` — scrollable recommendations panel:
-  - List of tracks with album art thumbnail + track name + artist
-  - Active track highlighted
-  - Click to play
+- [x] `components/player/MusicPlayer.tsx` — Spotify-style single-row persistent bar (mounted in `(app)/layout.tsx`, height `80px`):
+  - **Left zone** — album art + title + artist (truncated)
+  - **Centre zone** — Shuffle · SkipBack · Play/Pause · SkipForward · Repeat + seek bar with timestamps
+  - **Right zone** — `Disc3` Go to Album · `Mic2` Go to Artist · Volume slider
+  - `currentTrackIdRef` guard on `onCanPlay` — prevents stale src firing autoplay for previous track
+  - Auto-skip via `setTimeout(800ms)` when `previewUrl` is null
+  - Free users — 30-sec `preview_url` playback via HTML `<audio>` tag
+  - Premium users — full song streaming via `useSpotifyPlayer` hook (Spotify Web Playback SDK)
+- [x] `components/player/TrackList.tsx` — scrollable Up Next panel:
+  - Album art `w-12 h-12`, track title `text-base`, artist `text-sm`, row padding `py-2` (enlarged for readability)
+  - Active track highlighted, click to play
   - Context menu with Like, Go to Artist, Go to Album, Share per row
-- [x] `components/ui/ContextMenu.tsx` — portal-based context menu used by TrackList
+- [x] `components/ui/ContextMenu.tsx` — portal-based context menu with rounded hover items
+- [x] `components/ui/ThemeToggle.tsx` — dark/light toggle in Header
+- [ ] `components/ui/Toast.tsx` — file scaffolded, implementation pending (Phase 7)
 
-#### Sharing
-- [x] Web Share API — native share sheet with WhatsApp fallback (`https://wa.me/?text=...`)
-- [x] "Open in Spotify" anchor tag on every track
+#### Header — Nav Pill Animation
+- [x] Framer Motion `layoutId="nav-capsule"` sliding orange capsule between tabs
+- [x] Water/jelly spring effect — `stiffness: 180`, `damping: 10`, `mass: 0.6` — capsule overshoots and wobbles on landing
+- [x] Nav pill hidden (`visibility: hidden`) on `/profile` and `/mood-room` pages — logo and avatar remain visible
+- [x] Back arrow (`ArrowLeft` + `router.back()`) on Profile and Mood Room pages instead of nav tabs
 
 #### Playback Logic
-- [x] Auto-play first track when mood is detected (switches queue from recommended → mood tracks)
-- [x] HTML `<audio>` player wired to `previewUrl` — shows "Open in Spotify" CTA when `previewUrl` is null
+- [x] Auto-play first track when mood is detected
 - [x] Prev / Next track navigation through current queue
-- [x] Recommended songs grid shown before mood is detected (4-col grid)
+- [x] Recommended songs grid shown before mood is detected (5-col grid)
 - [x] TrackList shown after mood is detected
-- [ ] Smooth transition animation when mood changes and playlist refreshes
-- [ ] Mood override — manual mood selector dropdown (TODO)
-- [ ] Premium users — Spotify Web Playback SDK full song streaming (TODO Phase 4)
+- [x] Language preference multi-select filter on home page
+- [x] Smooth transition animation when mood changes and playlist refreshes
+- [x] Premium users — Spotify Web Playback SDK full song streaming
 
 #### Playlist Page (`/playlist`)
 - [x] Sidebar with all user playlists — Liked Songs, custom playlists, Moods Playlist folder
-- [x] Moods Playlist folder — expands to show all 7 mood sub-playlists (happy, chill, etc.) by mood name only
-- [x] Clicking a mood sub-item loads that mood's tracks in the playlist view
-- [x] Albums tab — 3-col grid of saved albums
-- [x] Artists tab — 3-col grid of followed artists
+- [x] Moods Playlist folder — expands to show all 7 mood sub-playlists
 - [x] Spotify-style hero banner — large cover art, playlist label, name, song count + total duration, play + shuffle
 - [x] Track table — #, title + album art, album, date added, duration, context menu
 - [x] Create playlist button — prompts for name, adds to sidebar
-- [x] Active playlist highlight clears when switching to Albums/Artists tabs
-- [x] All data using `mockData.ts` — TODO Phase 4: replace with real Spotify data
+- [x] Custom playlists get ⋯ menu on hover — dropdown with 🔗 Share and 🗑️ Delete
+- [x] Mood picker grid view — clicking "Moods Playlist" folder shows 4-col emoji grid of all 7 moods
 
 #### History Page (`/history`)
-- [x] Today's date heading + mood summary pills (mood × count)
-- [x] "View Date" calendar dropdown — month/year selectors + full calendar grid, today highlighted
-- [x] Per-detection entry cards with orange-tinted header row:
-  - Mood emoji + name + confidence % on the left
-  - Center: "X Songs played" (clickable) or "No songs played after detection" (non-clickable)
-  - Timestamp on the right
-- [x] Clicking an entry with songs toggles a dropdown showing SONGS PLAYED list
-- [x] Each song row: music icon, title, artist, played-at time, duration
-- [x] All data using `mockData.ts` — TODO Phase 6: replace with real Firestore mood history
+- [x] Date heading — shows "Today" when today is selected, full date label otherwise
+- [x] "View Date" calendar dropdown — month/year selectors + full calendar grid
+- [x] Today highlighted with orange border ring; selected day filled orange
+- [x] Empty state card shown — "No history yet" (no mock data)
+- [ ] Per-detection entry cards — pending Phase 6
+- [ ] Mood summary pills — pending Phase 6
+- [ ] Songs played dropdown per entry — pending Phase 6
 
 #### Artist & Album Browsing
-- [ ] Click any artist name → opens Artist page inside MoodiFy
-- [ ] Artist page — artist image, name, genres, follower count
-- [ ] Artist top tracks list
-- [ ] Album grid — album art, name, release year
-- [ ] Click album → track list with play + share buttons
-- [ ] Spotify endpoints used:
-  - `GET /v1/artists/{id}` — artist info
-  - `GET /v1/artists/{id}/albums` — discography
-  - `GET /v1/artists/{id}/top-tracks` — top tracks
-  - `GET /v1/albums/{id}/tracks` — album track list
+- [x] Click any artist name → opens Artist modal (portal overlay)
+- [x] Artist modal — artist image, name, genres, follower count, popularity bar, top tracks, albums grid
+- [x] Album modal — album art, release year, label, track table with play
+- [x] `context/ArtistAlbumContext.tsx` — modal stack navigation
+- [x] `components/ui/ArtistModal.tsx`, `AlbumModal.tsx`, `ModalRenderer.tsx`, `ModalSkeleton.tsx`
+- [x] Backend `/api/spotify/artist/{id}` and `/api/spotify/album/{id}` endpoints live
+- [x] Artist endpoint 500 error fixed — safe `.get()` guards on all dict accesses, per-item try/except so one bad track/album can't crash the full response
 
 #### Mood Room — Listen Together
-- [ ] User A creates a Mood Room → gets a unique 6-digit room code
-- [ ] User B enters the room code → joins the same room
-- [ ] Both users see the same playlist synced in real time via Firestore `onSnapshot`
-- [ ] Playback state (current track, position, play/pause) synced across both users
-- [ ] Both hear 30-sec previews in sync (free) or full songs (premium)
+- [x] `/mood-room` page built — "Coming Soon" page with:
+  - Spinning disco ball with pulsing orange glow rings (Framer Motion)
+  - "Mood Room" in Pacifico font + "Coming Soon" with orange pulse dots
+  - Back arrow to return to previous page
+  - Route protected in middleware
+- [ ] Full Mood Room feature (real-time sync) — pending Phase 6+
 - [ ] Firestore `moodRooms` collection:
   ```
   moodRooms/{roomCode}
@@ -281,8 +232,25 @@ Browser Webcam → WebSocket → FastAPI → deepface/fer → Emotion → Mood �
   └── createdAt
   ```
 
-#### Design Notes for Collaborator
-- Dark mode default — bg `#0a0a0a`, cards `#111111`, borders `#2a2a2a`
+#### Landing Page (`app/page.tsx`)
+- [x] Hero section — headline, subtext, CTA buttons, pipeline pill
+- [x] Stats bar — 7 Moods, <1s Detection, 6 Languages, ∞ Tracks
+- [x] How It Works — 3-step cards with 3D tilt effect
+- [x] Mood Showcase — 7-col grid of all moods with genre tags
+- [x] Features Grid — 6 feature cards
+- [x] **Credits section** (replaces Testimonials):
+  - Two equal-height team cards — Soumyadip (Full-Stack Developer) + Sulagna (UI/UX Designer)
+  - Each card has GitHub + LinkedIn icon links
+  - Sulagna's card has a `FolderOpen` Designs button — clicking it slides open a 4-col design gallery below the cards with staggered spring animation (accordion expand/collapse)
+  - Each design card has an orange `↗` arrow on hover — opens full image in new tab
+  - Design images: Home, Playlist, History, Logo (from `public/credits/`)
+- [x] CTA Banner — gradient orange section with sign-up CTA
+- [x] Navbar includes: How It Works · Moods · Features · Credits anchor links
+- [x] Dark/light theme support throughout
+- [x] Framer Motion scroll animations + 3D tilt cards
+
+#### Design Notes
+- Dark mode — bg `#0a0a0a`, cards `#111111`, borders `#2a2a2a`
 - Light mode — bg gradient `#FFE8D6` → `#FFF5F0`, cards `white`, borders `#FFDDD2`
 - Orange accent — `#FF6B35` for all interactive elements
 - Muted text — `#7A6055` (light) / `#aaa` (dark)
@@ -298,6 +266,7 @@ Browser Webcam → WebSocket → FastAPI → deepface/fer → Emotion → Mood �
 - [ ] **Liked Tracks** — heart button saved to Firestore: `{ userId, trackId, title, artist, albumArt, external_url, likedAt }`
 - [ ] `/profile` page — display name, avatar, liked tracks, mood stats
 - [ ] Delete mood history entries
+- [ ] Mood Room full feature — real-time sync via Firestore `onSnapshot`
 
 ---
 
@@ -305,7 +274,7 @@ Browser Webcam → WebSocket → FastAPI → deepface/fer → Emotion → Mood �
 - [ ] Consistent dark black/orange design system across all pages
 - [ ] Mobile-first responsive layout (stacked on mobile, side-by-side on desktop)
 - [ ] Loading skeletons for player and detection panels
-- [ ] Toast notifications for auth events
+- [ ] Toast notifications for auth events (`Toast.tsx` pending)
 - [ ] Smooth page transitions
 - [ ] Favicon and Open Graph meta tags
 
@@ -356,42 +325,20 @@ FRONTEND_URL=http://localhost:3000
 ## Current Status
 
 ### ✅ Phase 1 — Complete
-- Next.js 14 scaffolded with TypeScript, Tailwind v3, ESLint, App Router
-- Full frontend folder structure created
-- All frontend dependencies installed (Framer Motion, React Three Fiber, Three.js, Firebase)
-- FastAPI backend scaffolded with full folder structure
-- All backend dependencies installed (deepface, fer, OpenCV, Firebase Admin, etc.)
-- `requirements.txt` generated
-- `.env.local` and `.env` placeholder files created
-
 ### ✅ Phase 2 — Firebase Authentication — Complete
-- `lib/firebase.ts` — Firebase app initialized with env vars
-- `AuthContext.tsx` — Google + Email/Password sign-in, token refresh every 55 mins
-- Login/Signup pages built with Framer Motion animations
-- Route protection middleware — redirects unauthenticated users to `/login`, logged-in users away from auth routes to `/home`
-- `backend/main.py` — FastAPI app with CORS middleware + auth + mood routers registered
-- `backend/serviceAccountKey.json` — valid service account key from Firebase console
-- Home page uses peach/orange design system consistent with auth pages
-
 ### ✅ Phase 3 — Realtime Face Detection (WebSocket) — Complete
-- FastAPI WebSocket endpoint `/ws/detect` — receives webcam frames, returns mood
-- `useFaceDetection` hook — manages webcam stream + WebSocket connection
-- `MoodDetector` component — wired into home page, design system aligned with Phase 2 (peach/orange)
-- Emotion → Mood mapping complete (`moodUtils.ts`)
-- deepface model pre-loaded at startup for reduced latency
-- Debounce (800ms) + frame interval (1500ms) to avoid rapid mood switching
+### ✅ Phase 4 — Spotify OAuth Integration — Complete
+### ✅ Phase 5 — Music Player — Complete
 
-### 🔲 Phase 4 — Spotify OAuth Integration
-
-### 🟡 Phase 5 — Music Player — UI Complete (mock data), pending Phase 4 wiring
-- `MusicPlayer.tsx` — album art, seek bar, volume, prev/play/next, Open in Spotify, audio playback
-- `TrackList.tsx` — scrollable track list, active highlight, context menu (like, artist, album, share)
-- `ContextMenu.tsx` — portal-based context menu
-- `/home` page — detection + recommended grid + mood-triggered tracklist + player wired together
-- `/playlist` page — sidebar with playlists + Moods folder, Spotify-style hero, track table, albums/artists grids
-- `/history` page — mood summary pills, calendar dropdown, collapsible detection entries with songs played
-- `types/index.ts` — `SpotifyTrack`, `SpotifyTokens`, `Playlist`, `Artist`, `Album`, `MoodRoom`, `MoodHistoryEntry`
-- `utils/mockData.ts` — full mock data for all Phase 5 UI (replaced by Phase 4 hooks after merge)
+Key Phase 5 details:
+- `MusicPlayer.tsx` — persistent player bar, premium/free dual mode
+- `TrackList.tsx` — Up Next panel with enlarged rows (w-12 album art, text-base title, text-sm artist)
+- `Header.tsx` — water-effect spring nav capsule, nav hidden on profile/mood-room, back arrow on those pages
+- `/mood-room` — Coming Soon page with animated disco ball, protected route
+- `app/page.tsx` — landing page with Credits section (team cards + sliding design gallery)
+- `middleware.ts` — `/mood-room` added to protected routes
+- `ContextMenu.tsx` — rounded hover fix (rounded-lg + p-1 container padding)
+- `backend/routes/spotify.py` — artist endpoint 500 bug fixed
 
 ### 🔲 Phase 6 — User Features (Firestore)
 ### 🔲 Phase 7 — UI Polish & Responsiveness
@@ -405,7 +352,7 @@ FRONTEND_URL=http://localhost:3000
 
 **1. Clone the repo:**
 ```bash
-git clone https://github.com/<your-username>/MoodiFy.git
+git clone https://github.com/Soumyadip-03/MoodiFy.git
 cd MoodiFy
 ```
 
@@ -460,10 +407,15 @@ Open [http://localhost:8000/docs](http://localhost:8000/docs)
 
 ---
 
-## Folder Structure (Target)
+## Folder Structure
 
 ```
 MoodiFy/
+├── Credits/                    ← UI design screenshots (source)
+│   ├── Home.jpeg
+│   ├── PlayList.jpeg
+│   ├── History.jpeg
+│   └── Logo.jpeg
 ├── frontend/
 │   ├── app/
 │   │   ├── (auth)/
@@ -472,38 +424,58 @@ MoodiFy/
 │   │   ├── (app)/
 │   │   │   ├── home/page.tsx
 │   │   │   ├── history/page.tsx
-│   │   │   └── profile/page.tsx
+│   │   │   ├── playlist/page.tsx
+│   │   │   ├── profile/page.tsx
+│   │   │   └── mood-room/page.tsx  ← Coming Soon page
 │   │   ├── layout.tsx
-│   │   ├── page.tsx          ← landing page
+│   │   ├── page.tsx              ← landing page
 │   │   └── globals.css
 │   ├── components/
 │   │   ├── auth/
 │   │   │   ├── LoginForm.tsx
 │   │   │   └── GoogleSignInButton.tsx
 │   │   ├── detection/
-│   │   │   └── MoodDetector.tsx   ← webcam + WebSocket
+│   │   │   └── MoodDetector.tsx
 │   │   ├── player/
 │   │   │   ├── MusicPlayer.tsx
 │   │   │   └── TrackList.tsx
 │   │   └── ui/
 │   │       ├── Header.tsx
 │   │       ├── Toast.tsx
-│   │       └── MoodBadge.tsx
+│   │       ├── MoodBadge.tsx
+│   │       ├── ArtistModal.tsx
+│   │       ├── AlbumModal.tsx
+│   │       ├── ModalRenderer.tsx
+│   │       ├── ModalSkeleton.tsx
+│   │       └── ThemeToggle.tsx
 │   ├── context/
-│   │   └── AuthContext.tsx
+│   │   ├── AuthContext.tsx
+│   │   ├── ThemeContext.tsx
+│   │   ├── PlayerContext.tsx
+│   │   └── ArtistAlbumContext.tsx
 │   ├── hooks/
 │   │   ├── useFaceDetection.ts
-│   │   └── useSpotify.ts
+│   │   ├── useSpotify.ts
+│   │   └── useSpotifyPlayer.ts
 │   ├── lib/
 │   │   ├── firebase.ts
 │   │   └── firestore.ts
+│   ├── public/
+│   │   ├── logo.png
+│   │   ├── disco-ball.png
+│   │   └── credits/            ← design images served by Next.js
+│   │       ├── Home.jpeg
+│   │       ├── PlayList.jpeg
+│   │       ├── History.jpeg
+│   │       └── Logo.jpeg
 │   ├── types/
 │   │   └── index.ts
 │   ├── utils/
-│   │   └── moodUtils.ts
-│   ├── middleware.ts           ← route protection
+│   │   ├── moodUtils.ts
+│   │   └── mockData.ts
+│   ├── middleware.ts
 │   ├── .env.local
-│   ├── next.config.js
+│   ├── next.config.mjs
 │   ├── tailwind.config.js
 │   └── tsconfig.json
 └── backend/
@@ -518,6 +490,26 @@ MoodiFy/
     ├── requirements.txt
     └── .env
 ```
+
+---
+
+## Known Pending Items
+
+- **Like / Add to Playlist in context menu** — Go to Artist and Go to Album work via `ArtistAlbumContext`. Like and Add to Playlist are TODO (Phase 6 — Firestore).
+- **Shuffle / Repeat buttons** — render in `MusicPlayer.tsx` but have no logic wired. Visual only — pending Phase 7.
+- **Mood Room** — route exists and is protected, Coming Soon page shown. Full real-time sync pending Phase 6+.
+- **Toast.tsx** — file exists but empty, pending Phase 7.
+- **Spotify `/recommendations`** — blocked in dev mode, using `/search` fallback.
+- **30s preview URLs** — deprecated by Spotify, most tracks have `previewUrl: null`.
+
+---
+
+## Credits
+
+| Name | Role | GitHub | LinkedIn |
+|---|---|---|---|
+| Soumyadip | Full-Stack Developer | [Soumyadip-03](https://github.com/Soumyadip-03) | [Profile](https://www.linkedin.com/in/soumyadip-khan-sarkar-8bbb6331b/) |
+| Sulagna | UI / UX Designer | [Sulagna2005](https://github.com/Sulagna2005) | [Profile](https://www.linkedin.com/in/sulagna-bhattacharya-145993377/) |
 
 ---
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   onAuthStateChanged,
   signInWithEmailAndPassword,
@@ -26,6 +27,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -39,10 +41,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (firebaseUser) {
         const token = await firebaseUser.getIdToken();
-        document.cookie = `firebaseToken=${token}; path=/; max-age=3600; SameSite=Strict`;
+        document.cookie = `firebaseToken=${token}; path=/; max-age=3600; SameSite=Lax`;
         refreshInterval = setInterval(async () => {
           const refreshed = await firebaseUser.getIdToken(true);
-          document.cookie = `firebaseToken=${refreshed}; path=/; max-age=3600; SameSite=Strict`;
+          document.cookie = `firebaseToken=${refreshed}; path=/; max-age=3600; SameSite=Lax`;
         }, 55 * 60 * 1000);
       } else {
         document.cookie = "firebaseToken=; path=/; max-age=0";
@@ -72,6 +74,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = async () => {
     await firebaseSignOut(auth);
+    sessionStorage.removeItem("moodify-recommended");
+    router.push("/");
   };
 
   return (

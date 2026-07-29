@@ -6,8 +6,6 @@ import { useTheme } from "@/context/ThemeContext";
 import type { Playlist, SpotifyTrack } from "@/types/index";
 
 interface ContextMenuProps {
-  x: number;
-  y: number;
   track: SpotifyTrack;
   playlists: Playlist[];
   onClose: () => void;
@@ -20,7 +18,7 @@ interface ContextMenuProps {
 }
 
 export default function ContextMenu({
-  x, y, track, playlists, onClose,
+  track, playlists, onClose,
   onLike, onAddToPlaylist, onCreatePlaylist,
   onGoToArtist, onGoToAlbum, onShare,
 }: ContextMenuProps) {
@@ -46,7 +44,7 @@ export default function ContextMenu({
   const subMenu = `w-full rounded-xl border overflow-hidden mt-0.5 ${
     isDark ? "bg-[#1a1a1a] border-[#2a2a2a]" : "bg-[#FFF5F0] border-[#FFDDD2]"
   }`;
-  const subItem = `w-full flex items-center gap-2 px-4 py-2.5 text-sm whitespace-nowrap transition-colors ${
+  const subItem = `w-full flex items-center gap-2 px-4 py-2.5 text-sm whitespace-nowrap transition-colors rounded-lg ${
     isDark ? "text-[#ccc] hover:bg-[#222]" : "text-[#7A6055] hover:bg-[#FFF5F0]"
   }`;
   const divider = `border-t my-0.5 ${isDark ? "border-[#2a2a2a]" : "border-[#FFDDD2]"}`;
@@ -54,14 +52,14 @@ export default function ContextMenu({
   return (
     <div
       ref={ref}
-      className={`rounded-xl shadow-xl border overflow-visible ${
+      className={`rounded-xl shadow-xl border overflow-visible p-1 ${
         isDark ? "bg-[#111] border-[#2a2a2a]" : "bg-white border-[#FFDDD2]"
       }`}
       style={{ width: 200 }}
     >
       {/* Like */}
       <button
-        className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-sm transition-colors ${
+        className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-sm transition-colors rounded-lg ${
           isDark ? "text-[#ccc] hover:bg-[#222]" : "text-[#7A6055] hover:bg-[#FFF5F0]"
         }`}
         onClick={() => { onLike(track); onClose(); }}
@@ -72,7 +70,7 @@ export default function ContextMenu({
       {/* Add to Playlist */}
       <div className="relative">
         <button
-          className={`w-full flex items-center justify-between gap-2.5 px-4 py-2.5 text-sm transition-colors ${
+          className={`w-full flex items-center justify-between gap-2.5 px-4 py-2.5 text-sm transition-colors rounded-lg ${
             isDark ? "text-[#ccc] hover:bg-[#222]" : "text-[#7A6055] hover:bg-[#FFF5F0]"
           }`}
           onClick={() => { setAddOpen(o => !o); setShareOpen(false); }}
@@ -101,7 +99,7 @@ export default function ContextMenu({
 
       {/* Go to Artist */}
       <button
-        className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-sm transition-colors ${
+        className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-sm transition-colors rounded-lg ${
           isDark ? "text-[#ccc] hover:bg-[#222]" : "text-[#7A6055] hover:bg-[#FFF5F0]"
         }`}
         onClick={() => { onGoToArtist(track.artistId || ""); onClose(); }}
@@ -111,7 +109,7 @@ export default function ContextMenu({
 
       {/* Go to Album */}
       <button
-        className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-sm transition-colors ${
+        className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-sm transition-colors rounded-lg ${
           isDark ? "text-[#ccc] hover:bg-[#222]" : "text-[#7A6055] hover:bg-[#FFF5F0]"
         }`}
         onClick={() => { onGoToAlbum(track.albumId || ""); onClose(); }}
@@ -124,7 +122,7 @@ export default function ContextMenu({
       {/* Share */}
       <div className="relative">
         <button
-          className={`w-full flex items-center justify-between gap-2.5 px-4 py-2.5 text-sm transition-colors ${
+          className={`w-full flex items-center justify-between gap-2.5 px-4 py-2.5 text-sm transition-colors rounded-lg ${
             isDark ? "text-[#ccc] hover:bg-[#222]" : "text-[#7A6055] hover:bg-[#FFF5F0]"
           }`}
           onClick={() => { setShareOpen(o => !o); setAddOpen(false); }}
