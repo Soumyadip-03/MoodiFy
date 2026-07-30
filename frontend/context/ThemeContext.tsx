@@ -12,12 +12,10 @@ interface ThemeContextType {
 const ThemeContext = createContext<ThemeContextType | null>(null);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setTheme] = useState<Theme>("dark");
-
-  useEffect(() => {
-    const stored = localStorage.getItem("moodify-theme") as Theme | null;
-    if (stored) setTheme(stored);
-  }, []);
+  const [theme, setTheme] = useState<Theme>(() => {
+    if (typeof window === "undefined") return "dark";
+    return (localStorage.getItem("moodify-theme") as Theme) || "dark";
+  });
 
   useEffect(() => {
     localStorage.setItem("moodify-theme", theme);

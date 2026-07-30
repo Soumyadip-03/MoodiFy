@@ -47,6 +47,7 @@ export default function MusicPlayer({
   const [prevVolume, setPrevVolume] = useState(80);
   const isMuted = volume === 0;
 
+  const [blockedByPolicy, setBlockedByPolicy] = useState(false);
   const [showConnecting, setShowConnecting] = useState(false);
   useEffect(() => {
     if (!isPremium || sdk.isReady) { setShowConnecting(false); return; }
@@ -71,8 +72,9 @@ export default function MusicPlayer({
           audio.play().then(() => {
             audioPlayingRef.current = true;
             setAudioPlaying(true);
+            setBlockedByPolicy(false);
             shouldAutoPlayRef.current = false;
-          }).catch(() => {});
+          }).catch(() => { setBlockedByPolicy(true); shouldAutoPlayRef.current = false; });
         }
       } else if (autoPlay) {
         const t = setTimeout(() => handleNextRef.current(), 800);
@@ -189,6 +191,9 @@ export default function MusicPlayer({
             {isPremium && showConnecting && !sdk.isReady && (
               <p className="text-[10px] text-yellow-500">Connecting...</p>
             )}
+            {!isPremium && blockedByPolicy && (
+              <p className="text-[10px] text-[#FF6B35] cursor-pointer" onClick={handleTogglePlay}>▶ Click to play</p>
+            )}
           </motion.div>
         </AnimatePresence>
       </div>
@@ -272,7 +277,8 @@ export default function MusicPlayer({
               audioRef.current.play().then(() => {
                 audioPlayingRef.current = true;
                 setAudioPlaying(true);
-              }).catch(() => {});
+                setBlockedByPolicy(false);
+              }).catch(() => { setBlockedByPolicy(true); });
             }
           }}
           onTimeUpdate={() => setAudioTime(audioRef.current?.currentTime || 0)}

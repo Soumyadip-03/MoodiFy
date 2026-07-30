@@ -35,6 +35,13 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){var t=localStorage.getItem('moodify-theme');document.documentElement.setAttribute('data-theme',t||'dark');})();`,
+          }}
+        />
+      </head>
       <body className={`${pacifico.variable} ${comfortaa.variable} font-comfortaa`}>
         <ThemeProvider>
           <AuthProvider>
