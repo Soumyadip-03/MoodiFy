@@ -1,5 +1,5 @@
 export type Emotion = "happy" | "surprise" | "neutral" | "sad" | "fear" | "disgust" | "angry";
-export type Mood = "happy" | "upbeat" | "chill" | "melancholy" | "relaxing" | "energetic" | "intense";
+export type Mood = "happy" | "upbeat" | "chill" | "melancholy" | "relaxing" | "romantic" | "intense";
 
 export const emotionToMood: Record<Emotion, Mood> = {
   happy: "happy",
@@ -7,7 +7,7 @@ export const emotionToMood: Record<Emotion, Mood> = {
   neutral: "chill",
   sad: "melancholy",
   fear: "relaxing",
-  disgust: "energetic",
+  disgust: "romantic",
   angry: "intense",
 };
 
@@ -17,7 +17,7 @@ export const moodLabels: Record<Mood, string> = {
   chill: "😎 Chill",
   melancholy: "😢 Melancholy",
   relaxing: "😌 Relaxing",
-  energetic: "💪 Energetic",
+  romantic: "💕 Romantic",
   intense: "😠 Intense",
 };
 

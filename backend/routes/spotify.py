@@ -6,7 +6,7 @@ from services.spotify_service import (
     exchange_code,
     refresh_access_token,
     get_recommendations,
-    get_top_tracks,
+    get_trending_tracks,
     save_tokens,
     get_tokens,
     save_tracks_to_firestore,
@@ -60,16 +60,12 @@ async def spotify_callback(code: str = None, error: str = None, state: str = Non
 
 @router.get("/top-tracks")
 async def top_tracks(uid: str = None):
-    """Returns user's top tracks (Spotify connected) or chill genre search (unconnected)."""
+    """Always returns trending owner playlist — same for all users."""
     try:
-        if uid and uid.strip():
-            token = await ensure_fresh_token(uid)
-            if token:
-                tracks = await get_top_tracks(token)
-                return {"tracks": tracks}
-        # Not connected — fall back to chill genre search via client credentials
-        token = await _get_client_credentials_token()
-        tracks = await search_tracks_by_mood("chill", token)
+        tracks = await get_trending_tracks()
+        if not tracks:
+            token = await _get_client_credentials_token()
+            tracks = await search_tracks_by_mood("chill", token)
         return {"tracks": tracks}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

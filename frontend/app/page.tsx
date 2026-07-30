@@ -80,7 +80,7 @@ const MOODS = [
   { emoji: "😎", mood: "Chill",      genres: "Ambient · Lo-fi",     color: "from-blue-400/20 to-cyan-400/10",     ring: "hover:ring-blue-400/50" },
   { emoji: "😔", mood: "Melancholy", genres: "Indie · Sad",         color: "from-purple-400/20 to-violet-400/10", ring: "hover:ring-purple-400/50" },
   { emoji: "😌", mood: "Relaxing",   genres: "Acoustic · Sleep",    color: "from-green-400/20 to-teal-400/10",    ring: "hover:ring-green-400/50" },
-  { emoji: "⚡", mood: "Energetic",  genres: "Rock · Workout",      color: "from-red-400/20 to-orange-500/10",    ring: "hover:ring-red-400/50" },
+  { emoji: "💕", mood: "Romantic",   genres: "Soul · R&B",          color: "from-rose-400/20 to-pink-500/10",     ring: "hover:ring-rose-400/50" },
   { emoji: "😠", mood: "Intense",    genres: "Metal · Hardcore",    color: "from-gray-400/20 to-zinc-400/10",     ring: "hover:ring-gray-400/50" },
 ];
 

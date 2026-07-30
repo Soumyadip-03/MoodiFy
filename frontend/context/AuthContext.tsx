@@ -74,7 +74,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = async () => {
     await firebaseSignOut(auth);
-    sessionStorage.removeItem("moodify-recommended");
+    Object.keys(sessionStorage)
+      .filter(k => k.startsWith("moodify-"))
+      .forEach(k => sessionStorage.removeItem(k));
     router.push("/");
   };
 

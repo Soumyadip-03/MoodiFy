@@ -97,7 +97,7 @@ Browser Webcam → WebSocket → FastAPI → deepface/fer → Emotion → Mood �
   | neutral |  chill   |
   |   sad   |melancholy|
   |  fear   | relaxing |
-  | disgust | energetic|
+  | disgust | romantic |
   |  angry  | intense  |
 
 ---
@@ -111,10 +111,12 @@ Browser Webcam → WebSocket → FastAPI → deepface/fer → Emotion → Mood �
 - [x] FastAPI `/api/spotify/refresh?uid=` — auto-refresh expired access tokens
 - [x] FastAPI `/api/spotify/status?uid=` — returns `{connected, isPremium}`
 - [x] FastAPI `/api/spotify/disconnect?uid=` — removes tokens + premium flag from Firestore
-- [x] `spotify_service.py` — all service functions implemented and bug-fixed
+- [x] `spotify_service.py` — all service functions implemented, dead code removed (`get_top_tracks`, module-level `MOODIFY_REFRESH_TOKEN` var)
+- [x] `spotify_service.py` — random offset on playlist fetch for full playlist variety
+- [x] `spotify_service.py` — `_filter_by_language()` — language filter fixed (was bypassed before, now applied to playlist tracks)
 - [x] Spotify router registered in `main.py`
 
-> ⚠️ **Spotify Dev Mode Limitation** — `/recommendations` endpoint blocked for new apps. Search fallback via `/search` is used instead. Client credentials token also restricted in dev mode — unconnected users get no tracks until Spotify Extended Access is requested.
+> ⚠️ **Spotify Dev Mode Limitation** — `/recommendations` endpoint blocked for new apps. Search fallback via `/search` is used instead. Owner account playlists used as primary source — full track data returned. Language filter works via title/artist keyword matching at query time. Random offset used on playlist fetch so all 200+ songs are accessible, not just first 100.
 
 #### Mood → Spotify Audio Features Mapping
 | Mood | Valence | Energy | Genre Seeds |
@@ -124,7 +126,7 @@ Browser Webcam → WebSocket → FastAPI → deepface/fer → Emotion → Mood �
 | chill | 0.5 | 0.3 | chill, ambient |
 | melancholy | 0.2 | 0.3 | sad, indie |
 | relaxing | 0.5 | 0.2 | sleep, acoustic |
-| energetic | 0.6 | 0.95 | work-out, rock |
+| romantic | 0.7 | 0.4 | romance, soul |
 | intense | 0.3 | 0.9 | metal, hardcore |
 
 #### Frontend
@@ -149,6 +151,8 @@ Browser Webcam → WebSocket → FastAPI → deepface/fer → Emotion → Mood �
 | Premium badge + crown on avatar | ❌ | ✅ |
 | Artist browsing | ✅ | ✅ |
 | Mood Room (Listen Together) | ✅ | ✅ |
+
+> ⚠️ **Spotify Dev Mode** — Owner account playlists used for mood tracks. Trending playlist used for home page recommendations. `energetic` mood replaced by `romantic`. `MOOD_PLAYLIST_ROMANTIC` still has placeholder ID in `.env` — needs to be filled.
 
 ---
 
@@ -330,16 +334,6 @@ FRONTEND_URL=http://localhost:3000
 ### ✅ Phase 4 — Spotify OAuth Integration — Complete
 ### ✅ Phase 5 — Music Player — Complete
 
-Key Phase 5 details:
-- `MusicPlayer.tsx` — persistent player bar, premium/free dual mode
-- `TrackList.tsx` — Up Next panel with enlarged rows (w-12 album art, text-base title, text-sm artist)
-- `Header.tsx` — water-effect spring nav capsule, nav hidden on profile/mood-room, back arrow on those pages
-- `/mood-room` — Coming Soon page with animated disco ball, protected route
-- `app/page.tsx` — landing page with Credits section (team cards + sliding design gallery)
-- `middleware.ts` — `/mood-room` added to protected routes
-- `ContextMenu.tsx` — rounded hover fix (rounded-lg + p-1 container padding)
-- `backend/routes/spotify.py` — artist endpoint 500 bug fixed
-
 ### 🔲 Phase 6 — User Features (Firestore)
 ### 🔲 Phase 7 — UI Polish & Responsiveness
 ### 🔲 Phase 8 — Deployment
@@ -499,7 +493,7 @@ MoodiFy/
 - **Shuffle / Repeat buttons** — render in `MusicPlayer.tsx` but have no logic wired. Visual only — pending Phase 7.
 - **Mood Room** — route exists and is protected, Coming Soon page shown. Full real-time sync pending Phase 6+.
 - **Toast.tsx** — file exists but empty, pending Phase 7.
-- **Spotify `/recommendations`** — blocked in dev mode, using `/search` fallback.
+- **`MOOD_PLAYLIST_ROMANTIC`** — still `PLACEHOLDER_ID` in `backend/.env`, needs to be filled manually.
 - **30s preview URLs** — deprecated by Spotify, most tracks have `previewUrl: null`.
 
 ---

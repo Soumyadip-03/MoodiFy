@@ -24,9 +24,7 @@ SCOPES = [
 LANGUAGE_KEYWORDS = {
     "ENGLISH": ["english"],
     "HINDI": ["hindi", "bollywood"],
-    "SPANISH": ["spanish", "latin"],
-    "FRENCH": ["french"],
-    "JAPANESE": ["japanese", "j-pop"],
+    "BENGALI": ["bengali", "bangla"],
     "KOREAN": ["korean", "k-pop"],
 }
 
@@ -36,14 +34,88 @@ MOOD_FEATURES = {
     "chill":      {"valence": 0.5, "energy": 0.3,  "genres": ["chill", "ambient"]},
     "melancholy": {"valence": 0.2, "energy": 0.3,  "genres": ["sad", "indie"]},
     "relaxing":   {"valence": 0.5, "energy": 0.2,  "genres": ["sleep", "acoustic"]},
-    "energetic":  {"valence": 0.6, "energy": 0.95, "genres": ["work-out", "rock"]},
+    "romantic":   {"valence": 0.7, "energy": 0.4,  "genres": ["romance", "soul"]},
     "intense":    {"valence": 0.3, "energy": 0.9,  "genres": ["metal", "hardcore"]},
 }
+
+def _get_mood_playlist_id(mood: str) -> str:
+    """Read playlist ID at call time so .env is always loaded first."""
+    key = f"MOOD_PLAYLIST_{mood.upper()}"
+    return os.getenv(key, "")
+
+
+def _get_trending_playlist_id() -> str:
+    return os.getenv("MOOD_PLAYLIST_TRENDING", "")
 
 
 def _auth_header() -> str:
     creds = base64.b64encode(f"{SPOTIFY_CLIENT_ID}:{SPOTIFY_CLIENT_SECRET}".encode()).decode()
     return f"Basic {creds}"
+
+
+def _get_owner_refresh_token() -> str:
+    return os.getenv("MOODIFY_REFRESH_TOKEN", "")
+
+
+async def get_owner_token() -> str:
+    """Get a fresh access token using the MoodiFy owner account refresh token."""
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(
+            SPOTIFY_TOKEN_URL,
+            headers={"Authorization": _auth_header(), "Content-Type": "application/x-www-form-urlencoded"},
+            data={"grant_type": "refresh_token", "refresh_token": _get_owner_refresh_token()},
+        )
+        resp.raise_for_status()
+        return resp.json()["access_token"]
+
+
+async def get_playlist_tracks(playlist_id: str, owner_token: str, mood: str) -> list:
+    """Fetch tracks from an owner-account playlist using a random offset for variety."""
+    if not playlist_id or playlist_id == "PLACEHOLDER_ID":
+        return []
+    import random
+    # First get total track count
+    async with httpx.AsyncClient() as client:
+        meta = await client.get(
+            f"{SPOTIFY_API_BASE}/playlists/{playlist_id}",
+            headers={"Authorization": f"Bearer {owner_token}"},
+            params={"fields": "tracks.total"},
+        )
+        total = meta.json().get("tracks", {}).get("total", 100) if meta.is_success else 100
+        max_offset = max(0, total - 100)
+        offset = random.randint(0, max_offset)
+        resp = await client.get(
+            f"{SPOTIFY_API_BASE}/playlists/{playlist_id}/items",
+            headers={"Authorization": f"Bearer {owner_token}"},
+            params={"limit": 100, "offset": offset},
+        )
+    if not resp.is_success:
+        return []
+    items = resp.json().get("items", [])
+    tracks = []
+    for item in items:
+        try:
+            # New Spotify API returns 'item' key, not 'track'
+            t = item.get("item") or item.get("track")
+            if t and t.get("id") and t.get("type") == "track":
+                tracks.append(_format_track(t, mood))
+        except Exception:
+            pass
+    return tracks
+
+
+async def get_trending_tracks() -> list:
+    """Fetch tracks from the trending playlist using owner token."""
+    try:
+        owner_token = await get_owner_token()
+        tracks = await get_playlist_tracks(_get_trending_playlist_id(), owner_token, "mixed")
+        if tracks:
+            import random
+            random.shuffle(tracks)
+            return tracks[:80]
+    except Exception:
+        pass
+    return []
 
 
 def _db():
@@ -91,38 +163,6 @@ async def check_premium(access_token: str) -> str:
         return resp.json().get("product", "free")
 
 
-async def get_top_tracks(access_token: str) -> list:
-    """Fetch user's actual top tracks — no mood filter, pure listening history."""
-    async with httpx.AsyncClient() as client:
-        resp = await client.get(
-            f"{SPOTIFY_API_BASE}/me/top/tracks",
-            headers={"Authorization": f"Bearer {access_token}"},
-            params={"limit": 20, "time_range": "medium_term"},
-        )
-    if resp.is_success:
-        tracks = [_format_track(t, "mixed") for t in resp.json().get("items", []) if t]
-        if tracks:
-            return tracks
-    # top/tracks returned nothing — fall back to search
-    return await search_tracks_by_mood("chill", access_token)
-
-
-async def get_user_top_seeds(access_token: str) -> dict:
-    async with httpx.AsyncClient() as client:
-        artists_resp = await client.get(
-            f"{SPOTIFY_API_BASE}/me/top/artists",
-            headers={"Authorization": f"Bearer {access_token}"},
-            params={"limit": 2, "time_range": "medium_term"},
-        )
-        tracks_resp = await client.get(
-            f"{SPOTIFY_API_BASE}/me/top/tracks",
-            headers={"Authorization": f"Bearer {access_token}"},
-            params={"limit": 2, "time_range": "medium_term"},
-        )
-        seed_artists = [a["id"] for a in artists_resp.json().get("items", [])] if artists_resp.is_success else []
-        seed_tracks = [t["id"] for t in tracks_resp.json().get("items", [])] if tracks_resp.is_success else []
-        return {"seed_artists": seed_artists[:2], "seed_tracks": seed_tracks[:2]}
-
 
 def _format_track(item: dict, mood: str) -> dict:
     track = item if "album" in item else item.get("track", item)
@@ -142,43 +182,34 @@ def _format_track(item: dict, mood: str) -> dict:
     }
 
 
+def _filter_by_language(tracks: list, languages: list) -> list:
+    """Filter tracks whose title or artist contains a language keyword."""
+    if not languages:
+        return tracks
+    keywords = [kw for lang in languages if lang in LANGUAGE_KEYWORDS for kw in LANGUAGE_KEYWORDS[lang]]
+    if not keywords:
+        return tracks
+    filtered = [
+        t for t in tracks
+        if any(kw in (t["title"] + " " + t["artist"]).lower() for kw in keywords)
+    ]
+    return filtered if filtered else tracks  # fallback to unfiltered if nothing matches
+
+
 async def get_recommendations(mood: str, access_token: str | None, languages: list = []) -> list:
-    features = MOOD_FEATURES.get(mood, MOOD_FEATURES["chill"])
-    token = access_token or await _get_client_credentials_token()
-
-    if access_token:
-        seed_artists, seed_tracks_ids = [], []
-        try:
-            seeds = await get_user_top_seeds(access_token)
-            seed_artists = seeds["seed_artists"]
-            seed_tracks_ids = seeds["seed_tracks"]
-        except Exception:
-            pass
-
-        seed_genres = features["genres"] if (len(seed_artists) + len(seed_tracks_ids)) < 3 else []
-        params = {
-            "limit": 10,
-            "target_valence": features["valence"],
-            "target_energy": features["energy"],
-        }
-        if seed_artists:
-            params["seed_artists"] = ",".join(seed_artists)
-        if seed_tracks_ids:
-            params["seed_tracks"] = ",".join(seed_tracks_ids)
-        if seed_genres:
-            params["seed_genres"] = ",".join(seed_genres[:2])
-
-        async with httpx.AsyncClient() as client:
-            resp = await client.get(
-                f"{SPOTIFY_API_BASE}/recommendations",
-                headers={"Authorization": f"Bearer {token}"},
-                params=params,
-            )
-            if resp.is_success:
-                tracks = [_format_track(t, mood) for t in resp.json().get("tracks", []) if t]
-                if tracks:
-                    return tracks
-
+    # Always use owner playlist — no blending, no old /recommendations API
+    try:
+        owner_token = await get_owner_token()
+        playlist_id = _get_mood_playlist_id(mood)
+        tracks = await get_playlist_tracks(playlist_id, owner_token, mood)
+        if tracks:
+            import random
+            tracks = _filter_by_language(tracks, languages)
+            random.shuffle(tracks)
+            return tracks[:30]
+    except Exception:
+        pass
+    # Fallback: search
     search_token = access_token if access_token else await _get_client_credentials_token()
     return await search_tracks_by_mood(mood, search_token, languages)
 

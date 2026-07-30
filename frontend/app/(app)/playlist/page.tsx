@@ -29,7 +29,7 @@ const MOOD_ANIMATIONS: Record<string, object> = {
   chill:      { animate: { y: [0, -6, 0, -4, 0], scale: [1, 1.08, 1, 1.05, 1], rotate: [0, 3, -3, 0] },  transition: { duration: 1.1, ease: "easeInOut" } },
   melancholy: { animate: { y: [0, 6, 0, 4, 0], scale: [1, 0.92, 1, 0.95, 1], rotate: [0, -4, 4, 0] },    transition: { duration: 1.0, ease: "easeInOut" } },
   relaxing:   { animate: { scale: [1, 1.12, 1, 1.06, 1], rotate: [0, 5, -5, 2, 0], y: [0, -4, 0] },      transition: { duration: 1.2, ease: "easeInOut" } },
-  energetic:  { animate: { x: [0, -8, 8, -6, 6, 0], scale: [1, 1.2, 1, 1.15, 1], rotate: [0, -10, 10, 0] }, transition: { duration: 0.5, ease: "easeInOut" } },
+  romantic:   { animate: { scale: [1, 1.2, 1, 1.1, 1], y: [0, -8, 0, -5, 0], rotate: [0, 5, -5, 0] },   transition: { duration: 0.9, ease: "easeInOut" } },
   intense:    { animate: { scale: [1, 1.3, 0.9, 1.2, 1], rotate: [0, -12, 12, -6, 0] },                  transition: { duration: 0.55, ease: "easeInOut" } },
 };
 
@@ -165,7 +165,7 @@ export default function PlaylistPage() {
   const { openArtist, openAlbum, registerPlayHandler } = useArtistAlbum();
   const { activeTrack, likedTrackIds, setQueue, toggleLike } = usePlayer();
 
-  const MOOD_IDS = ["happy", "upbeat", "chill", "melancholy", "relaxing", "energetic", "intense"];
+  const MOOD_IDS = ["happy", "upbeat", "chill", "melancholy", "relaxing", "romantic", "intense"];
   const moodPlaylists = defaultMoodPlaylists;
   const nonMoodPlaylists = defaultPlaylists.filter((p) => !MOOD_IDS.includes(p.id));
 

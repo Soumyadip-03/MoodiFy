@@ -11,7 +11,7 @@ export const defaultMoodPlaylists: Playlist[] = [
   { id: "chill",      name: "Chill Playlist",      emoji: "😎", tracks: [], createdAt: new Date().toISOString() },
   { id: "melancholy", name: "Melancholy Playlist", emoji: "😔", tracks: [], createdAt: new Date().toISOString() },
   { id: "relaxing",   name: "Relaxing Playlist",   emoji: "😌", tracks: [], createdAt: new Date().toISOString() },
-  { id: "energetic",  name: "Energetic Playlist",  emoji: "⚡", tracks: [], createdAt: new Date().toISOString() },
+  { id: "romantic",   name: "Romantic Playlist",   emoji: "💕", tracks: [], createdAt: new Date().toISOString() },
   { id: "intense",    name: "Intense Playlist",    emoji: "😠", tracks: [], createdAt: new Date().toISOString() },
 ];
 

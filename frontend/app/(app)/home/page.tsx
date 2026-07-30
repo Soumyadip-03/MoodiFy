@@ -15,7 +15,7 @@ import { useSpotify } from "@/hooks/useSpotify";
 import { useArtistAlbum } from "@/context/ArtistAlbumContext";
 import { usePlayer } from "@/context/PlayerContext";
 
-const LANGUAGES = ["ENGLISH", "HINDI", "SPANISH", "FRENCH", "JAPANESE", "KOREAN"];
+const LANGUAGES = ["ENGLISH", "HINDI", "BENGALI", "KOREAN"];
 const DETECT_SECONDS = 5;
 
 export default function HomePage() {
@@ -32,6 +32,7 @@ export default function HomePage() {
   const [langOpen, setLangOpen] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
   const [lockedResult, setLockedResult] = useState<typeof result>(null);
+  const [detectCount, setDetectCount] = useState(0); // increments on every detection
   const countdownRef = useRef<NodeJS.Timeout | null>(null);
   const langRef = useRef<HTMLDivElement>(null);
   const latestResultRef = useRef<typeof result>(null);
@@ -72,10 +73,11 @@ export default function HomePage() {
     });
   }, [registerPlayHandler, setQueue]);
 
-  // Fetch recommended tracks once per session
+  // Fetch trending tracks once per login session, resets automatically on sign-out/sign-in
   useEffect(() => {
     if (!user?.uid) return;
-    const cached = sessionStorage.getItem("moodify-recommended");
+    const cacheKey = `moodify-trending-${user.uid}`;
+    const cached = sessionStorage.getItem(cacheKey);
     if (cached) {
       try {
         const parsed = JSON.parse(cached) as SpotifyTrack[];
@@ -85,29 +87,29 @@ export default function HomePage() {
     fetchTopTracks().then(tracks => {
       if (tracks.length) {
         setRecommendedTracks(tracks);
-        sessionStorage.setItem("moodify-recommended", JSON.stringify(tracks));
+        sessionStorage.setItem(cacheKey, JSON.stringify(tracks));
       }
     });
   }, [user?.uid]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { latestResultRef.current = result; }, [result]);
 
-  // Fetch mood-based tracks when mood is detected
+  // Fetch mood tracks on every detection (re-shuffles even if same mood)
   useEffect(() => {
-    if (!lockedResult) return;
+    if (!lockedResult || detectCount === 0) return;
     setLoadingTracks(true);
     fetchRecommendations(lockedResult.mood, selectedLangs).then(tracks => {
-      setQueue(tracks, tracks[0]);
+      if (tracks.length) setQueue(tracks, tracks[0]);
       setLoadingTracks(false);
     });
-  }, [lockedResult]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [detectCount]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Re-fetch when language changes after mood detected
   useEffect(() => {
     if (!lockedResult) return;
     setLoadingTracks(true);
     fetchRecommendations(lockedResult.mood, selectedLangs).then(tracks => {
-      setQueue(tracks, tracks[0]);
+      if (tracks.length) setQueue(tracks, tracks[0]);
       setLoadingTracks(false);
     });
   }, [selectedLangs]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -140,7 +142,10 @@ export default function HomePage() {
         setCountdown(null);
         setTimeout(() => {
           const final = latestResultRef.current;
-          if (final) setLockedResult(final);
+          if (final) {
+            setLockedResult(final);
+            setDetectCount(c => c + 1);
+          }
           stopDetection();
         }, 900);
       }
@@ -250,7 +255,7 @@ export default function HomePage() {
               <ChevronDown size={14} className={`flex-shrink-0 transition-transform ${langOpen ? "rotate-180" : ""}`} />
             </button>
             {langOpen && (
-              <div className={`absolute top-full left-0 right-0 mt-1 rounded-xl border shadow-lg z-20 overflow-hidden ${isDark ? "bg-[#111] border-[#2a2a2a]" : "bg-white border-[#FFDDD2]"}`}>
+              <div className={`absolute bottom-full left-0 right-0 mb-1 rounded-xl border shadow-lg z-20 overflow-hidden ${isDark ? "bg-[#111] border-[#2a2a2a]" : "bg-white border-[#FFDDD2]"}`}>
                 {LANGUAGES.map(lang => {
                   const checked = selectedLangs.includes(lang);
                   return (
@@ -282,10 +287,7 @@ export default function HomePage() {
               transition={{ duration: 0.35, ease: "easeOut" }}
               className={`rounded-2xl border p-5 h-full flex flex-col transition-colors duration-300 ${card}`}
             >
-              <p className={`text-xl font-bold mb-4 flex-shrink-0 ${isDark ? "text-white" : "text-[#3a2a20]"}`}>Recommended Songs</p>
-              {!connected && (
-                <p className={`text-xs mb-2 flex-shrink-0 ${muted}`}>✨ Connect Spotify in your profile for personalized recommendations</p>
-              )}
+              <p className={`text-xl font-bold mb-4 flex-shrink-0 ${isDark ? "text-white" : "text-[#3a2a20]"}`}>Trendings</p>
               <div className="grid grid-cols-5 gap-3 app-scroll overflow-y-auto flex-1 content-start">
                 {recommendedTracks.map(track => (
                   <div
