@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-const protectedRoutes = ["/dashboard", "/history", "/profile"];
+const protectedRoutes = ["/home", "/history", "/profile", "/playlist", "/mood-room"];
 const authRoutes = ["/login", "/signup"];
 
 export function middleware(request: NextRequest) {
@@ -16,12 +16,12 @@ export function middleware(request: NextRequest) {
   }
 
   if (isAuthRoute && token) {
-    return NextResponse.redirect(new URL("/dashboard", request.url));
+    return NextResponse.redirect(new URL("/home", request.url));
   }
 
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/history/:path*", "/profile/:path*", "/login", "/signup"],
+  matcher: ["/home/:path*", "/history/:path*", "/profile/:path*", "/playlist/:path*", "/mood-room/:path*", "/login", "/signup"],
 };
