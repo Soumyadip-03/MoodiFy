@@ -18,7 +18,7 @@ export default function GoogleSignInButton() {
     setError("");
     try {
       await signInWithGoogle();
-      router.push("/dashboard");
+      router.push("/home");
     } catch (err) {
       console.error(err);
       setError("Google sign-in failed. Please try again.");

@@ -3,6 +3,9 @@ import { Pacifico, Comfortaa } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
 import { ThemeProvider } from "@/context/ThemeContext";
+import { ArtistAlbumProvider } from "@/context/ArtistAlbumContext";
+import { PlayerProvider } from "@/context/PlayerContext";
+import ModalRenderer from "@/components/ui/ModalRenderer";
 
 const pacifico = Pacifico({
   weight: "400",
@@ -17,8 +20,12 @@ const comfortaa = Comfortaa({
 });
 
 export const metadata: Metadata = {
-  title: "Moodify",
+  title: "MoodiFy",
   description: "AI Mood-Based Music Player",
+  icons: {
+    icon: "/logo.png",
+    apple: "/logo.png",
+  },
 };
 
 export default function RootLayout({
@@ -28,9 +35,23 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){var t=localStorage.getItem('moodify-theme');document.documentElement.setAttribute('data-theme',t||'dark');})();`,
+          }}
+        />
+      </head>
       <body className={`${pacifico.variable} ${comfortaa.variable} font-comfortaa`}>
         <ThemeProvider>
-          <AuthProvider>{children}</AuthProvider>
+          <AuthProvider>
+            <ArtistAlbumProvider>
+              <PlayerProvider>
+                {children}
+                <ModalRenderer />
+              </PlayerProvider>
+            </ArtistAlbumProvider>
+          </AuthProvider>
         </ThemeProvider>
       </body>
     </html>
