@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { X, ArrowLeft, Play, Disc3 } from "lucide-react";
+import { X, ArrowLeft, Play, Disc3, Plus, Check } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useTheme } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
@@ -35,17 +35,19 @@ export default function AlbumModal({ albumId }: { albumId: string }) {
   const { theme } = useTheme();
   const isDark = theme === "dark";
   const { user } = useAuth();
-  const { stack, goBack, closeAll, openArtist, playTrack } = useArtistAlbum();
+  const { stack, goBack, closeAll, playTrack, saveAlbum } = useArtistAlbum();
 
   const [data, setData] = useState<AlbumData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
 
   useEffect(() => {
     if (!albumId) return;
     setLoading(true);
     setError(null);
     setData(null);
+    setSaved(false);
     const url = `${BACKEND}/api/spotify/album/${albumId}${user?.uid ? `?uid=${user.uid}` : ""}`;
     fetch(url)
       .then(r => { if (!r.ok) throw new Error("Failed to load album"); return r.json(); })
@@ -144,12 +146,9 @@ export default function AlbumModal({ albumId }: { albumId: string }) {
                     <p className="text-4xl font-bold text-white leading-tight truncate">{data.name}</p>
                     <div className="flex items-center gap-2 flex-wrap">
                       {data.artistName && (
-                        <button
-                          onClick={() => data.artistId && openArtist(data.artistId)}
-                          className="text-sm text-white/80 hover:text-[#FF6B35] transition-colors font-medium"
-                        >
+                        <span className="text-sm text-white/80 font-medium">
                           {data.artistName}
-                        </button>
+                        </span>
                       )}
                       {data.releaseDate && (
                         <span className="text-xs text-[#aaa]">· {data.releaseDate.slice(0, 4)}</span>
@@ -157,14 +156,29 @@ export default function AlbumModal({ albumId }: { albumId: string }) {
                       <span className="text-xs text-[#aaa]">· {data.totalTracks} tracks</span>
                       {data.label && <span className="text-xs text-[#aaa]">· {data.label}</span>}
                     </div>
-                    {/* Play all button */}
+                    {/* Play all + Save buttons */}
                     {data.tracks.length > 0 && (
-                      <button
-                        onClick={() => playTrack(data.tracks[0], data.tracks)}
-                        className="mt-1 w-10 h-10 rounded-full bg-[#FF6B35] hover:bg-[#e85d2a] flex items-center justify-center shadow-lg transition-all hover:scale-105"
-                      >
-                        <Play size={16} fill="white" className="text-white ml-0.5" />
-                      </button>
+                      <div className="flex items-center gap-3 mt-1">
+                        <button
+                          onClick={() => playTrack(data.tracks[0], data.tracks)}
+                          className="w-10 h-10 rounded-full bg-[#FF6B35] hover:bg-[#e85d2a] flex items-center justify-center shadow-lg transition-all hover:scale-105"
+                        >
+                          <Play size={16} fill="white" className="text-white ml-0.5" />
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (saved) return;
+                            saveAlbum({ id: data.id, name: data.name, albumArt: data.albumArt, artistName: data.artistName, totalTracks: data.totalTracks, releaseDate: data.releaseDate });
+                            setSaved(true);
+                          }}
+                          title={saved ? "Saved" : "Add to album"}
+                          className={`w-10 h-10 rounded-full border-2 flex items-center justify-center shadow-lg transition-all hover:scale-105 ${
+                            saved ? "border-[#FF6B35] bg-[#FF6B35]/10 text-[#FF6B35]" : "border-white/40 hover:border-white text-white"
+                          }`}
+                        >
+                          {saved ? <Check size={16} /> : <Plus size={16} />}
+                        </button>
+                      </div>
                     )}
                   </div>
                 </div>

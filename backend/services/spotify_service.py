@@ -70,11 +70,10 @@ async def get_owner_token() -> str:
 
 
 async def get_playlist_tracks(playlist_id: str, owner_token: str, mood: str) -> list:
-    """Fetch tracks from an owner-account playlist using a random offset for variety."""
+    """Fetch up to 100 tracks from a playlist with a random offset for variety."""
     if not playlist_id or playlist_id == "PLACEHOLDER_ID":
         return []
     import random
-    # First get total track count
     async with httpx.AsyncClient() as client:
         meta = await client.get(
             f"{SPOTIFY_API_BASE}/playlists/{playlist_id}",
@@ -82,8 +81,10 @@ async def get_playlist_tracks(playlist_id: str, owner_token: str, mood: str) -> 
             params={"fields": "tracks.total"},
         )
         total = meta.json().get("tracks", {}).get("total", 100) if meta.is_success else 100
+        # If playlist fits in one page, offset 0 always — shuffle handles variety
+        # If larger, pick a random window so all tracks are reachable over time
         max_offset = max(0, total - 100)
-        offset = random.randint(0, max_offset)
+        offset = random.randint(0, max_offset) if max_offset > 0 else 0
         resp = await client.get(
             f"{SPOTIFY_API_BASE}/playlists/{playlist_id}/items",
             headers={"Authorization": f"Bearer {owner_token}"},
@@ -95,12 +96,12 @@ async def get_playlist_tracks(playlist_id: str, owner_token: str, mood: str) -> 
     tracks = []
     for item in items:
         try:
-            # New Spotify API returns 'item' key, not 'track'
             t = item.get("item") or item.get("track")
             if t and t.get("id") and t.get("type") == "track":
                 tracks.append(_format_track(t, mood))
         except Exception:
             pass
+    random.shuffle(tracks)
     return tracks
 
 

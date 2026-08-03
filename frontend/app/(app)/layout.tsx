@@ -12,8 +12,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { theme } = useTheme();
   const isDark = theme === "dark";
   const { isPremium, connecting } = useSpotify();
-  const { activeTrack, currentQueue, setQueue, setIsPlaying, togglePlayRef } = usePlayer();
-  const { openArtist, openAlbum } = useArtistAlbum();
+  const { activeTrack, currentQueue, setQueue, setIsPlaying, togglePlayRef, notifyTrackPlayed } = usePlayer();
+  const { openAlbum } = useArtistAlbum();
 
   const card = isDark ? "bg-[#111111] border-[#2a2a2a]" : "bg-white border-[#FFDDD2]";
   const muted = isDark ? "text-[#aaa]" : "text-[#7A6055]";
@@ -39,8 +39,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               onTrackChange={(track, queue) => setQueue(queue, track)}
               onPlayingChange={setIsPlaying}
               togglePlayRef={togglePlayRef}
-              onGoToArtist={openArtist}
               onGoToAlbum={openAlbum}
+              onTrackPlayed={notifyTrackPlayed}
             />
           </div>
         ) : (

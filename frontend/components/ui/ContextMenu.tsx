@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Heart, Plus, Mic2, Disc3, Share2, ChevronRight } from "lucide-react";
+import { Heart, Plus, Disc3, Share2, ChevronRight } from "lucide-react";
 import { useTheme } from "@/context/ThemeContext";
 import type { Playlist, SpotifyTrack } from "@/types/index";
 
@@ -12,7 +12,6 @@ interface ContextMenuProps {
   onLike: (track: SpotifyTrack) => void;
   onAddToPlaylist: (track: SpotifyTrack, playlistId: string) => void;
   onCreatePlaylist: (track: SpotifyTrack) => void;
-  onGoToArtist: (artistId: string) => void;
   onGoToAlbum: (albumId: string) => void;
   onShare: (track: SpotifyTrack) => void;
 }
@@ -20,7 +19,7 @@ interface ContextMenuProps {
 export default function ContextMenu({
   track, playlists, onClose,
   onLike, onAddToPlaylist, onCreatePlaylist,
-  onGoToArtist, onGoToAlbum, onShare,
+  onGoToAlbum, onShare,
 }: ContextMenuProps) {
   const { theme } = useTheme();
   const isDark = theme === "dark";
@@ -96,16 +95,6 @@ export default function ContextMenu({
       </div>
 
       <div className={divider} />
-
-      {/* Go to Artist */}
-      <button
-        className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-sm transition-colors rounded-lg ${
-          isDark ? "text-[#ccc] hover:bg-[#222]" : "text-[#7A6055] hover:bg-[#FFF5F0]"
-        }`}
-        onClick={() => { onGoToArtist(track.artistId || ""); onClose(); }}
-      >
-        <Mic2 size={14} className="text-[#FF6B35]" /> Go to Artist
-      </button>
 
       {/* Go to Album */}
       <button

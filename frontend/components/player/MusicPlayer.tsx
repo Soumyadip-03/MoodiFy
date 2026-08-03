@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { SkipBack, SkipForward, Play, Pause, Volume2, VolumeX, Shuffle, Repeat, Disc3, Mic2 } from "lucide-react";
+import { SkipBack, SkipForward, Play, Pause, Volume2, VolumeX, Shuffle, Repeat, Disc3 } from "lucide-react";
 import { useTheme } from "@/context/ThemeContext";
 import { useSpotifyPlayer } from "@/hooks/useSpotifyPlayer";
 import type { SpotifyTrack } from "@/types/index";
@@ -15,8 +15,8 @@ interface MusicPlayerProps {
   onTrackChange: (track: SpotifyTrack, queue: SpotifyTrack[]) => void;
   onPlayingChange?: (isPlaying: boolean) => void;
   togglePlayRef?: React.MutableRefObject<(() => void) | null>;
-  onGoToArtist?: (artistId: string) => void;
   onGoToAlbum?: (albumId: string) => void;
+  onTrackPlayed?: (track: SpotifyTrack) => void;
 }
 
 function formatTime(s: number) {
@@ -28,7 +28,7 @@ function formatTime(s: number) {
 export default function MusicPlayer({
   track, tracks, isPremium, autoPlay = false,
   onTrackChange, onPlayingChange, togglePlayRef,
-  onGoToArtist, onGoToAlbum,
+  onGoToAlbum, onTrackPlayed,
 }: MusicPlayerProps) {
   const { theme } = useTheme();
   const isDark = theme === "dark";
@@ -55,6 +55,16 @@ export default function MusicPlayer({
     return () => clearTimeout(t);
   }, [isPremium, sdk.isReady]);
 
+  const onTrackPlayedRef = useRef(onTrackPlayed);
+  useEffect(() => { onTrackPlayedRef.current = onTrackPlayed; }, [onTrackPlayed]);
+
+  const notifiedTrackRef = useRef<string | null>(null);
+
+  const notifyPlayed = useCallback((t: SpotifyTrack) => {
+    if (notifiedTrackRef.current === t.id) return;
+    notifiedTrackRef.current = t.id;
+    onTrackPlayedRef.current?.(t);
+  }, []);
   useEffect(() => {
     const audio = audioRef.current;
     if (audio) { audio.pause(); audio.currentTime = 0; }
@@ -63,6 +73,9 @@ export default function MusicPlayer({
     setAudioPlaying(false);
     setAudioTime(0);
     setAudioDuration(track.duration);
+    // Always notify immediately on track change — track was selected to play
+    notifyPlayed(track);
+
     if (isPremium && sdk.isReady) {
       sdk.playTrack(track.spotifyUrl);
     } else if (!isPremium) {
@@ -188,7 +201,10 @@ export default function MusicPlayer({
           >
             <p className={`text-sm font-semibold truncate ${isDark ? "text-white" : "text-[#3a2a20]"}`}>{track.title}</p>
             <p className={`text-xs truncate ${isDark ? "text-[#aaa]" : "text-[#7A6055]"}`}>{track.artist}</p>
-            {isPremium && showConnecting && !sdk.isReady && (
+            {isPremium && !sdk.isReady && sdk.error && (
+              <p className="text-[10px] text-red-400" title={sdk.error}>DRM error — use Chrome</p>
+            )}
+            {isPremium && showConnecting && !sdk.isReady && !sdk.error && (
               <p className="text-[10px] text-yellow-500">Connecting...</p>
             )}
             {!isPremium && blockedByPolicy && (
@@ -244,13 +260,6 @@ export default function MusicPlayer({
           className={`transition-colors ${iconCls}`}
         >
           <Disc3 size={17} />
-        </button>
-        <button
-          onClick={() => track.artistId && onGoToArtist?.(track.artistId)}
-          title="Go to Artist"
-          className={`transition-colors ${iconCls}`}
-        >
-          <Mic2 size={17} />
         </button>
         <button onClick={handleVolumeIcon} className={`flex-shrink-0 transition-colors ${iconCls}`}>
           {isMuted ? <VolumeX size={17} /> : <Volume2 size={17} />}

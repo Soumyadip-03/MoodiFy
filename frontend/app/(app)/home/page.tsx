@@ -9,11 +9,16 @@ import { useFaceDetection } from "@/hooks/useFaceDetection";
 import TrackList from "@/components/player/TrackList";
 import ContextMenu from "@/components/ui/ContextMenu";
 import { motion, AnimatePresence } from "framer-motion";
-import type { SpotifyTrack } from "@/types/index";
-import { mockPlaylists } from "@/utils/mockData";
+import type { SpotifyTrack, Playlist } from "@/types/index";
 import { useSpotify } from "@/hooks/useSpotify";
 import { useArtistAlbum } from "@/context/ArtistAlbumContext";
 import { usePlayer } from "@/context/PlayerContext";
+import {
+  getUserPlaylists, saveUserPlaylist, addTrackToPlaylist,
+  saveMoodHistory, updateMoodHistoryTracks,
+} from "@/lib/firestore";
+import { doc, updateDoc, increment } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 
 const LANGUAGES = ["ENGLISH", "HINDI", "BENGALI", "KOREAN"];
 const DETECT_SECONDS = 5;
@@ -25,14 +30,15 @@ export default function HomePage() {
 
   const { videoRef, canvasRef, status, result, error, startDetection, stopDetection } = useFaceDetection();
   const { connected, fetchRecommendations, fetchTopTracks } = useSpotify();
-  const { openArtist, openAlbum, registerPlayHandler } = useArtistAlbum();
-  const { activeTrack, currentQueue, isPlaying, likedTrackIds, queueSource, togglePlayRef, setQueue, setActiveTrack, toggleLike } = usePlayer();
+  const { openAlbum, registerPlayHandler } = useArtistAlbum();
+  const { activeTrack, currentQueue, isPlaying, likedTrackIds, queueSource, togglePlayRef, setQueue, setActiveTrack, toggleLike, lockedMood, setLockedMood, setCurrentMoodHistoryId } = usePlayer();
 
   const [selectedLangs, setSelectedLangs] = useState<string[]>([]);
   const [langOpen, setLangOpen] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
-  const [lockedResult, setLockedResult] = useState<typeof result>(null);
-  const [detectCount, setDetectCount] = useState(0); // increments on every detection
+  const [lockedResult, setLockedResult] = useState<typeof result>(lockedMood as typeof result);
+  const [detectCount, setDetectCount] = useState(0);
+  const isMountedRef = useRef(false);
   const countdownRef = useRef<NodeJS.Timeout | null>(null);
   const langRef = useRef<HTMLDivElement>(null);
   const latestResultRef = useRef<typeof result>(null);
@@ -41,8 +47,38 @@ export default function HomePage() {
   const recMenuRef = useRef<HTMLDivElement>(null);
   const [recContextMenu, setRecContextMenu] = useState<{ x: number; y: number; track: SpotifyTrack } | null>(null);
 
+  // Phase 6 — playlists + create modal
+  const [userPlaylists, setUserPlaylists] = useState<Playlist[]>([]);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [newPlaylistName, setNewPlaylistName] = useState("");
+  const pendingTrackRef = useRef<SpotifyTrack | null>(null);
+  const moodHistoryDocIdRef = useRef<string | null>(null);
+
+  // Sync lockedResult to PlayerContext so it survives page navigation
+  const setLockedResultAndSync = useCallback((r: typeof result) => {
+    setLockedResult(r);
+    setLockedMood(r);
+  }, [setLockedMood]);
+
   const moodDetected = lockedResult !== null;
+  // Show tracklist if mood detected OR if queue came from an album
+  const showTrackList = moodDetected || queueSource?.type === "album";
   const safeActiveTrack = activeTrack ?? currentQueue[0] ?? null;
+  // Load user playlists on mount
+  useEffect(() => {
+    if (!user?.uid) return;
+    getUserPlaylists(user.uid).then(setUserPlaylists).catch(() => {});
+  }, [user?.uid]);
+
+  // Playlist lists passed to context menus
+  const customPlaylists = userPlaylists.filter(p => p.id !== "liked" && !p.id.startsWith("mood-"));
+  const moodPlaylists = userPlaylists.filter(p => p.id.startsWith("mood-"));
+  // Up Next: only the detected mood bucket + custom playlists
+  const upNextPlaylists = lockedResult
+    ? [...moodPlaylists.filter(p => p.id === `mood-${lockedResult.mood}`), ...customPlaylists]
+    : customPlaylists;
+  // Trending: all 7 mood buckets + custom playlists
+  const trendingPlaylists = [...moodPlaylists, ...customPlaylists];
 
   // Context menu outside-click
   useEffect(() => {
@@ -65,29 +101,29 @@ export default function HomePage() {
   // Register play handler for artist/album modals
   useEffect(() => {
     registerPlayHandler((track, queue) => {
-      const isAlbumQueue = queue.length > 1 && queue.every(t => t.albumId === queue[0].albumId);
-      const source = isAlbumQueue
-        ? { type: "album" as const, name: queue[0].album ?? "Album", art: queue[0].albumArt ?? "" }
-        : { type: "artist" as const, name: track.artist.split(", ")[0], art: track.albumArt ?? "" };
+      const source = { type: "album" as const, name: queue[0].album ?? "Album", art: queue[0].albumArt ?? "" };
       setQueue(queue, track, source);
     });
   }, [registerPlayHandler, setQueue]);
 
-  // Fetch trending tracks once per login session, resets automatically on sign-out/sign-in
+  // Fetch trending tracks — cache for 10 minutes so shuffle refreshes periodically
   useEffect(() => {
     if (!user?.uid) return;
     const cacheKey = `moodify-trending-${user.uid}`;
     const cached = sessionStorage.getItem(cacheKey);
     if (cached) {
       try {
-        const parsed = JSON.parse(cached) as SpotifyTrack[];
-        if (parsed.length) { setRecommendedTracks(parsed); return; }
+        const { tracks, ts } = JSON.parse(cached) as { tracks: SpotifyTrack[]; ts: number };
+        if (tracks.length && Date.now() - ts < 10 * 60 * 1000) {
+          setRecommendedTracks(tracks);
+          return;
+        }
       } catch { /* fall through */ }
     }
     fetchTopTracks().then(tracks => {
       if (tracks.length) {
         setRecommendedTracks(tracks);
-        sessionStorage.setItem(cacheKey, JSON.stringify(tracks));
+        sessionStorage.setItem(cacheKey, JSON.stringify({ tracks, ts: Date.now() }));
       }
     });
   }, [user?.uid]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -99,13 +135,21 @@ export default function HomePage() {
     if (!lockedResult || detectCount === 0) return;
     setLoadingTracks(true);
     fetchRecommendations(lockedResult.mood, selectedLangs).then(tracks => {
-      if (tracks.length) setQueue(tracks, tracks[0]);
+      if (tracks.length) {
+        setQueue(tracks, tracks[0]);
+        // Update mood history with tracks served
+        if (moodHistoryDocIdRef.current) {
+          updateMoodHistoryTracks(moodHistoryDocIdRef.current, tracks.map(t => t.id)).catch(() => {});
+          // do NOT clear moodHistoryDocIdRef here — keep it active so played tracks get logged
+        }
+      }
       setLoadingTracks(false);
     });
   }, [detectCount]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Re-fetch when language changes after mood detected
+  // Re-fetch when language changes after mood detected — skip on initial mount
   useEffect(() => {
+    if (!isMountedRef.current) { isMountedRef.current = true; return; }
     if (!lockedResult) return;
     setLoadingTracks(true);
     fetchRecommendations(lockedResult.mood, selectedLangs).then(tracks => {
@@ -140,24 +184,61 @@ export default function HomePage() {
         clearInterval(countdownRef.current!);
         countdownRef.current = null;
         setCountdown(null);
-        setTimeout(() => {
+        setTimeout(async () => {
           const final = latestResultRef.current;
-          if (final) {
-            setLockedResult(final);
+          if (final && user?.uid) {
+            setLockedResultAndSync(final);
             setDetectCount(c => c + 1);
+            // Save mood history entry
+            const docId = await saveMoodHistory(user.uid, final.mood, final.confidence).catch(() => null);
+            moodHistoryDocIdRef.current = docId;
+            setCurrentMoodHistoryId(docId);
+            // Increment moodStats on user doc
+            updateDoc(doc(db, "users", user.uid), {
+              [`moodStats.${final.mood}`]: increment(1),
+            }).catch(() => {});
           }
           stopDetection();
         }, 900);
       }
     }, 1000);
-  }, [startDetection, stopDetection]);
+  }, [startDetection, stopDetection, user?.uid]);
 
   const handleTogglePlay = useCallback(() => { togglePlayRef.current?.(); }, [togglePlayRef]);
-  const handleGoToArtist = (artistId: string) => openArtist(artistId);
   const handleGoToAlbum = (albumId: string) => openAlbum(albumId);
   const handleLike = (track: SpotifyTrack) => toggleLike(track);
-  const handleAddToPlaylist = (track: SpotifyTrack, _playlistId: string) => toggleLike(track);
-  const handleCreatePlaylist = (_track: SpotifyTrack) => { /* TODO Phase 6 */ };
+
+  const handleAddToPlaylist = useCallback((track: SpotifyTrack, playlistId: string) => {
+    if (!user?.uid) return;
+    addTrackToPlaylist(user.uid, playlistId, track).catch(() => {});
+  }, [user?.uid]);
+
+  const handleCreatePlaylist = useCallback((track: SpotifyTrack) => {
+    pendingTrackRef.current = track;
+    setNewPlaylistName("");
+    setCreateOpen(true);
+  }, []);
+
+  const handleConfirmCreatePlaylist = useCallback(async () => {
+    if (!newPlaylistName.trim() || !user?.uid) return;
+    const trackToAdd = pendingTrackRef.current;
+    pendingTrackRef.current = null;
+    const newPlaylist: Playlist = {
+      id: `custom-${Date.now()}`,
+      name: newPlaylistName.trim(),
+      emoji: "🎵",
+      tracks: [],
+      createdAt: new Date().toISOString(),
+    };
+    setCreateOpen(false);
+    await saveUserPlaylist(user.uid, newPlaylist);
+    if (trackToAdd) {
+      await addTrackToPlaylist(user.uid, newPlaylist.id, trackToAdd);
+      newPlaylist.tracks = [trackToAdd];
+    }
+    setUserPlaylists(prev => [...prev, newPlaylist]);
+  }, [newPlaylistName, user?.uid]);
+
   const handleTrackSelect = (track: SpotifyTrack) => setActiveTrack(track);
   const handleRecommendedPlay = (track: SpotifyTrack) => setQueue(recommendedTracks, track);
 
@@ -168,6 +249,7 @@ export default function HomePage() {
   const isDetecting = countdown !== null && !isCameraError;
 
   return (
+    <>
     <main className="flex gap-3 px-3 py-3 h-full min-h-0">
 
       {/* ── Left Panel ── */}
@@ -279,7 +361,7 @@ export default function HomePage() {
 
       {/* ── Right Panel ── */}
       <div className="flex-1 min-w-0 h-full">
-        {!moodDetected ? (
+        {!showTrackList ? (
           <AnimatePresence mode="wait">
             <motion.div
               key="recommended"
@@ -316,10 +398,10 @@ export default function HomePage() {
               {recContextMenu && typeof document !== "undefined" && createPortal(
                 <div ref={recMenuRef} style={{ position: "fixed", top: recContextMenu.y, left: recContextMenu.x, zIndex: 9999 }}>
                   <ContextMenu
-                    track={recContextMenu.track} playlists={mockPlaylists}
+                    track={recContextMenu.track} playlists={trendingPlaylists}
                     onClose={() => setRecContextMenu(null)} onLike={handleLike}
                     onAddToPlaylist={handleAddToPlaylist} onCreatePlaylist={handleCreatePlaylist}
-                    onGoToArtist={handleGoToArtist} onGoToAlbum={handleGoToAlbum} onShare={() => {}}
+                    onGoToAlbum={handleGoToAlbum} onShare={() => {}}
                   />
                 </div>,
                 document.body
@@ -329,7 +411,7 @@ export default function HomePage() {
         ) : (
           <AnimatePresence mode="wait">
             <motion.div
-              key={lockedResult?.mood ?? "tracklist"}
+              key={(lockedResult?.mood ?? "album") + (queueSource?.name ?? "")}
               initial={{ opacity: 0, x: 30 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -30 }}
               transition={{ duration: 0.35, ease: "easeOut" }}
               className="h-full"
@@ -342,10 +424,10 @@ export default function HomePage() {
               {!loadingTracks && safeActiveTrack && (
                 <TrackList
                   tracks={currentQueue} activeTrack={safeActiveTrack} isPlaying={isPlaying}
-                  likedTrackIds={likedTrackIds} playlists={mockPlaylists}
+                  likedTrackIds={likedTrackIds} playlists={upNextPlaylists}
                   onTrackSelect={handleTrackSelect} onTogglePlay={handleTogglePlay}
                   onLike={handleLike} onAddToPlaylist={handleAddToPlaylist}
-                  onCreatePlaylist={handleCreatePlaylist} onGoToArtist={handleGoToArtist}
+                  onCreatePlaylist={handleCreatePlaylist}
                   onGoToAlbum={handleGoToAlbum} queueSource={queueSource}
                 />
               )}
@@ -354,5 +436,57 @@ export default function HomePage() {
         )}
       </div>
     </main>
+
+      {/* ── Create Playlist Modal ── */}
+      {createOpen && typeof document !== "undefined" && createPortal(
+        <div
+          className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm"
+          onClick={() => setCreateOpen(false)}
+        >
+          <div
+            className={`w-[340px] rounded-2xl border p-6 flex flex-col gap-4 shadow-2xl ${
+              isDark ? "bg-[#111111] border-[#2a2a2a]" : "bg-white border-[#FFDDD2]"
+            }`}
+            onClick={e => e.stopPropagation()}
+          >
+            <div>
+              <p className={`text-lg font-bold ${isDark ? "text-white" : "text-[#3a2a20]"}`}>New Playlist</p>
+              <p className={`text-xs mt-0.5 ${muted}`}>Give your playlist a name</p>
+            </div>
+            <input
+              autoFocus
+              type="text"
+              placeholder="My Playlist..."
+              value={newPlaylistName}
+              onChange={e => setNewPlaylistName(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter") handleConfirmCreatePlaylist(); if (e.key === "Escape") setCreateOpen(false); }}
+              className={`w-full px-4 py-3 rounded-xl border text-sm outline-none transition-colors ${
+                isDark
+                  ? "bg-[#1a1a1a] border-[#2a2a2a] text-white placeholder-[#555] focus:border-[#FF6B35]"
+                  : "bg-[#FFF5F0] border-[#FFDDD2] text-[#3a2a20] placeholder-[#bbb] focus:border-[#FF6B35]"
+              }`}
+            />
+            <div className="flex gap-3">
+              <button
+                onClick={() => setCreateOpen(false)}
+                className={`flex-1 py-2.5 rounded-xl border text-sm font-medium transition-colors ${
+                  isDark ? "border-[#2a2a2a] text-[#aaa] hover:bg-[#1a1a1a]" : "border-[#FFDDD2] text-[#7A6055] hover:bg-[#FFF5F0]"
+                }`}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmCreatePlaylist}
+                disabled={!newPlaylistName.trim()}
+                className="flex-1 py-2.5 rounded-xl bg-[#FF6B35] hover:bg-[#e85d2a] disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors"
+              >
+                Create
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+    </>
   );
 }

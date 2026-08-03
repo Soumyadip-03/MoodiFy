@@ -65,12 +65,15 @@ export function useSpotifyPlayer(isPremium: boolean) {
       });
 
       player.addListener("initialization_error", ({ message }) => {
-        setState(s => ({ ...s, error: `Init error: ${message}` }));
+        console.error("[SpotifySDK] initialization_error:", message);
+        setState(s => ({ ...s, isReady: false, error: `DRM/init error — try Chrome or enable Widevine: ${message}` }));
       });
       player.addListener("authentication_error", ({ message }) => {
+        console.error("[SpotifySDK] authentication_error:", message);
         setState(s => ({ ...s, error: `Auth error: ${message}` }));
       });
       player.addListener("account_error", ({ message }) => {
+        console.error("[SpotifySDK] account_error:", message);
         setState(s => ({ ...s, error: `Account error: ${message}` }));
       });
 
@@ -79,14 +82,17 @@ export function useSpotifyPlayer(isPremium: boolean) {
     };
 
     // Load SDK script if not already loaded
-    if (window.Spotify) {
+    if (window.Spotify && !playerRef.current) {
       initPlayer();
-    } else {
+    } else if (!window.Spotify && !document.querySelector('script[src*="spotify-player"]')) {
       window.onSpotifyWebPlaybackSDKReady = initPlayer;
       const script = document.createElement("script");
       script.src = "https://sdk.scdn.co/spotify-player.js";
       script.async = true;
       document.body.appendChild(script);
+    } else if (!window.Spotify) {
+      // Script already loading — override callback to use latest closure
+      window.onSpotifyWebPlaybackSDKReady = initPlayer;
     }
 
     return () => {
