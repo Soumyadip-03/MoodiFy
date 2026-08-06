@@ -7,7 +7,7 @@ EMOTION_TO_MOOD = {
     "neutral": "chill",
     "sad": "melancholy",
     "fear": "relaxing",
-    "disgust": "energetic",
+    "disgust": "romantic",
     "angry": "intense",
 }
 

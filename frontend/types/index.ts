@@ -31,17 +31,6 @@ export interface Playlist {
   createdAt: string;
 }
 
-// Artist Types
-export interface Artist {
-  id: string;
-  name: string;
-  image: string;
-  genres: string[];
-  followers: number;
-  topTracks?: SpotifyTrack[];
-  albums?: Album[];
-}
-
 // Album Types
 export interface Album {
   id: string;
@@ -54,21 +43,29 @@ export interface Album {
   tracks?: SpotifyTrack[];
 }
 
-// Mood History Types
-export interface SongPlayed {
-  id: string;
+// Liked Track Type
+export interface LikedTrack {
+  trackId: string;
   title: string;
   artist: string;
-  playedAt: string;
-  duration: string;
+  album?: string;
+  albumId?: string;
+  albumArt: string;
+  artistId?: string;
+  spotifyUrl: string;
+  duration: number;
+  likedAt: string;
 }
 
+// Mood History Types
 export interface MoodHistoryEntry {
   id: string;
+  userId: string;
   mood: string;
   confidence: number;
   timestamp: string;
-  songsPlayed: SongPlayed[];
+  tracksServed: string[];
+  tracksPlayed: string[];
 }
 
 // Mood Room Types

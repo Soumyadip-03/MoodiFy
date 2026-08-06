@@ -38,10 +38,14 @@ MOOD_FEATURES = {
     "intense":    {"valence": 0.3, "energy": 0.9,  "genres": ["metal", "hardcore"]},
 }
 
-def _get_mood_playlist_id(mood: str) -> str:
-    """Read playlist ID at call time so .env is always loaded first."""
-    key = f"MOOD_PLAYLIST_{mood.upper()}"
-    return os.getenv(key, "")
+def _get_mood_playlist_id(mood: str, language: str = "") -> str:
+    """Return language-specific playlist ID if available, else default mood playlist."""
+    if language:
+        key = f"MOOD_PLAYLIST_{mood.upper()}_{language.upper()}"
+        pid = os.getenv(key, "")
+        if pid:
+            return pid
+    return os.getenv(f"MOOD_PLAYLIST_{mood.upper()}", "")
 
 
 def _get_trending_playlist_id() -> str:
@@ -69,12 +73,11 @@ async def get_owner_token() -> str:
         return resp.json()["access_token"]
 
 
-async def get_playlist_tracks(playlist_id: str, owner_token: str, mood: str) -> list:
-    """Fetch tracks from an owner-account playlist using a random offset for variety."""
+async def get_playlist_tracks(playlist_id: str, owner_token: str, mood: str, fetch_limit: int = 100) -> list:
+    """Fetch tracks from a playlist with a random offset for variety."""
     if not playlist_id or playlist_id == "PLACEHOLDER_ID":
         return []
     import random
-    # First get total track count
     async with httpx.AsyncClient() as client:
         meta = await client.get(
             f"{SPOTIFY_API_BASE}/playlists/{playlist_id}",
@@ -82,12 +85,12 @@ async def get_playlist_tracks(playlist_id: str, owner_token: str, mood: str) -> 
             params={"fields": "tracks.total"},
         )
         total = meta.json().get("tracks", {}).get("total", 100) if meta.is_success else 100
-        max_offset = max(0, total - 100)
-        offset = random.randint(0, max_offset)
+        max_offset = max(0, total - fetch_limit)
+        offset = random.randint(0, max_offset) if max_offset > 0 else 0
         resp = await client.get(
             f"{SPOTIFY_API_BASE}/playlists/{playlist_id}/items",
             headers={"Authorization": f"Bearer {owner_token}"},
-            params={"limit": 100, "offset": offset},
+            params={"limit": fetch_limit, "offset": offset},
         )
     if not resp.is_success:
         return []
@@ -95,12 +98,12 @@ async def get_playlist_tracks(playlist_id: str, owner_token: str, mood: str) -> 
     tracks = []
     for item in items:
         try:
-            # New Spotify API returns 'item' key, not 'track'
             t = item.get("item") or item.get("track")
             if t and t.get("id") and t.get("type") == "track":
                 tracks.append(_format_track(t, mood))
         except Exception:
             pass
+    random.shuffle(tracks)
     return tracks
 
 
@@ -196,17 +199,40 @@ def _filter_by_language(tracks: list, languages: list) -> list:
     return filtered if filtered else tracks  # fallback to unfiltered if nothing matches
 
 
+LANGUAGES = ["ENGLISH", "HINDI", "BENGALI", "KOREAN"]
+TARGET_QUEUE = 40
+
 async def get_recommendations(mood: str, access_token: str | None, languages: list = []) -> list:
-    # Always use owner playlist — no blending, no old /recommendations API
+    import random
+    import math
     try:
         owner_token = await get_owner_token()
-        playlist_id = _get_mood_playlist_id(mood)
-        tracks = await get_playlist_tracks(playlist_id, owner_token, mood)
-        if tracks:
-            import random
-            tracks = _filter_by_language(tracks, languages)
+        active_langs = [l for l in languages if l in LANGUAGES] if languages else LANGUAGES
+        per_playlist = math.ceil(TARGET_QUEUE / len(active_langs))
+
+        all_tracks = []
+        seen_ids: set = set()
+
+        # Fetch concurrently from all active language playlists
+        import asyncio
+        async def fetch_lang(lang: str) -> list:
+            pid = _get_mood_playlist_id(mood, lang)
+            tracks = await get_playlist_tracks(pid, owner_token, mood, fetch_limit=min(per_playlist * 2, 100))
             random.shuffle(tracks)
-            return tracks[:30]
+            return tracks[:per_playlist]
+
+        results = await asyncio.gather(*[fetch_lang(lang) for lang in active_langs], return_exceptions=True)
+
+        for result in results:
+            if isinstance(result, list):
+                for t in result:
+                    if t["id"] not in seen_ids:
+                        seen_ids.add(t["id"])
+                        all_tracks.append(t)
+
+        if all_tracks:
+            random.shuffle(all_tracks)
+            return all_tracks[:TARGET_QUEUE]
     except Exception:
         pass
     # Fallback: search
