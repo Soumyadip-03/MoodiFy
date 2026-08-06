@@ -29,6 +29,8 @@ interface PlayerContextValue {
   setQueue: (tracks: SpotifyTrack[], active?: SpotifyTrack, source?: QueueSource) => void;
   setIsPlaying: (v: boolean) => void;
   toggleLike: (track: SpotifyTrack) => void;
+  shuffle: boolean;
+  setShuffle: (v: boolean) => void;
 }
 
 const PlayerContext = createContext<PlayerContextValue | null>(null);
@@ -41,6 +43,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const [likedTrackIds, setLikedTrackIds] = useState<Set<string>>(new Set());
   const [queueSource, setQueueSource] = useState<QueueSource | undefined>(undefined);
   const [lockedMood, setLockedMood] = useState<LockedMoodResult | null>(null);
+  const [shuffle, setShuffle] = useState(false);
   const currentMoodHistoryIdRef = useRef<string | null>(null);
   const [currentMoodHistoryId, setCurrentMoodHistoryIdState] = useState<string | null>(null);
   const togglePlayRef = useRef<(() => void) | null>(null);
@@ -138,7 +141,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     <PlayerContext.Provider value={{
       activeTrack, currentQueue, isPlaying, likedTrackIds, queueSource,
       togglePlayRef, lockedMood, setLockedMood, currentMoodHistoryId, setCurrentMoodHistoryId, notifyTrackPlayed,
-      setActiveTrack, setQueue, setIsPlaying, toggleLike,
+      setActiveTrack, setQueue, setIsPlaying, toggleLike, shuffle, setShuffle,
     }}>
       {children}
     </PlayerContext.Provider>

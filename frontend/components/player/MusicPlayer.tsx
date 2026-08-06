@@ -23,7 +23,7 @@ export default function MusicPlayer() {
   const {
     activeTrack, currentQueue, isPlaying, setIsPlaying,
     setActiveTrack, togglePlayRef, notifyTrackPlayed,
-    likedTrackIds, toggleLike,
+    likedTrackIds, toggleLike, shuffle, setShuffle,
   } = usePlayer();
 
   const { isPremium } = useSpotify();
@@ -78,14 +78,17 @@ export default function MusicPlayer() {
   }, [sdkOnReady, sdkPlay]);
 
   // ── Shuffle / Repeat state ──
-  const [shuffle, setShuffle] = useState(false);
   const [repeat, setRepeat] = useState<"off" | "one" | "all">("off");
   const shuffleRef = useRef(false);
   const repeatRef = useRef<"off" | "one" | "all">("off");
 
   const toggleShuffle = useCallback(() => {
-    setShuffle(s => { shuffleRef.current = !s; return !s; });
-  }, []);
+    setShuffle(!shuffle);
+    shuffleRef.current = !shuffle;
+  }, [shuffle, setShuffle]);
+
+  // Keep shuffleRef in sync with context shuffle
+  useEffect(() => { shuffleRef.current = shuffle; }, [shuffle]);
   const cycleRepeat = useCallback(() => {
     setRepeat(r => {
       const next = r === "off" ? "all" : r === "all" ? "one" : "off";
@@ -205,7 +208,7 @@ const handlePrev = useCallback(() => {
         audio.play().catch(() => {});
       }
     }
-  }, [activeTrack, isPremium, isPlaying, sdkToggle, setIsPlaying]);
+  }, [activeTrack, isPremium, isPlaying, sdkToggle]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Write into togglePlayRef so home page can call it
   togglePlayRef.current = handleTogglePlay;

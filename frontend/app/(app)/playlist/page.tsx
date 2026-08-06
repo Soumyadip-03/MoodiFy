@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useRef, useCallback, MouseEvent } from "react";
 import { createPortal } from "react-dom";
-import { Play, Pause, Shuffle, MoreHorizontal, CheckCircle2, Clock } from "lucide-react";
+import { Play, Pause, Shuffle, MoreHorizontal, Clock } from "lucide-react";
+import ContextMenu from "@/components/ui/ContextMenu";
 import { useTheme } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
 import type { SpotifyTrack, Playlist } from "@/types/index";
@@ -12,7 +13,7 @@ import { usePlayer } from "@/context/PlayerContext";
 import {
   getUserPlaylists, saveUserPlaylist, deleteUserPlaylist,
   addTrackToPlaylist, getLikedTracks,
-  getSavedAlbums, saveAlbumToFirestore, removeSavedAlbum, type SavedAlbumDoc,
+  getSavedAlbums, saveAlbumToFirestore, type SavedAlbumDoc,
 } from "@/lib/firestore";
 
 type SavedAlbum = SavedAlbumDoc;
@@ -172,7 +173,7 @@ export default function PlaylistPage() {
   const isDark = theme === "dark";
   const { user } = useAuth();
   const { openAlbum, registerPlayHandler, registerSaveAlbumHandler } = useArtistAlbum();
-  const { activeTrack, isPlaying, likedTrackIds, setQueue, toggleLike, togglePlayRef } = usePlayer();
+  const { activeTrack, isPlaying, likedTrackIds, currentQueue, setQueue, toggleLike, togglePlayRef, shuffle, setShuffle } = usePlayer();
 
   const MOOD_IDS = ["happy", "upbeat", "chill", "melancholy", "relaxing", "romantic", "intense"];
 
@@ -183,14 +184,16 @@ export default function PlaylistPage() {
   const [selectedId, setSelectedId] = useState<string>("liked");
   const [viewTab, setViewTab] = useState<SidebarTab>("Tracks");
   const [menuTrackId, setMenuTrackId] = useState<string | null>(null);
+  const [menuPos, setMenuPos] = useState<{ x: number; y: number } | null>(null);
   const [moodView, setMoodView] = useState<"moods" | string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [newName, setNewName] = useState("");
   const pendingTrackRef = useRef<SpotifyTrack | null>(null);
   const [activeQueue, setActiveQueue] = useState<SpotifyTrack[]>([]);
-  const [isShuffled, setIsShuffled] = useState(false);
   const [playlistMenuId, setPlaylistMenuId] = useState<string | null>(null);
-  const [menuPos, setMenuPos] = useState<{ x: number; y: number } | null>(null);
+  // double-click tracking
+  const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastClickedRef = useRef<string | null>(null);
 
   // Load all playlists + saved albums from Firestore on mount
   useEffect(() => {
@@ -202,7 +205,6 @@ export default function PlaylistPage() {
           .filter(p => p.id.startsWith("mood-"))
           .sort((a, b) => MOOD_IDS.indexOf(a.id.replace("mood-", "")) - MOOD_IDS.indexOf(b.id.replace("mood-", "")));
         const custom = allPlaylists.filter(p => !p.id.startsWith("mood-") && p.id !== "liked");
-        // Build liked songs playlist from likedTracks subcollection
         const likedPlaylist: Playlist = {
           id: "liked",
           name: "Liked Songs",
@@ -238,7 +240,6 @@ export default function PlaylistPage() {
     return () => window.removeEventListener("click", close);
   }, []);
 
-  // Register save album handler — persists to Firestore
   useEffect(() => {
     registerSaveAlbumHandler((album) => {
       if (!user?.uid) return;
@@ -247,7 +248,6 @@ export default function PlaylistPage() {
     });
   }, [registerSaveAlbumHandler, user?.uid]);
 
-  // Register play handler for artist/album modals — always set queueSource so home page shows tracklist
   useEffect(() => {
     registerPlayHandler((track, queue) => {
       const source = { type: "album" as const, name: queue[0].album ?? "Album", art: queue[0].albumArt ?? "" };
@@ -256,12 +256,10 @@ export default function PlaylistPage() {
     });
   }, [registerPlayHandler, setQueue]);
 
-  // moodView stores the mood-{id} key e.g. "mood-chill"
   const activeMoodPlaylist = moodView && moodView !== "moods"
     ? moodPlaylists.find((p) => p.id === moodView) ?? null
     : null;
 
-  // What's shown in the right panel
   const selected = activeMoodPlaylist ?? playlists.find((p) => p.id === selectedId) ?? playlists[0];
   const queue = selected?.tracks ?? [];
 
@@ -278,13 +276,56 @@ export default function PlaylistPage() {
   const rowHover = isDark ? "hover:bg-[#1a1a1a]" : "hover:bg-[#FFF5F0]";
   const activeRow = isDark ? "bg-[#1e1e2e]" : "bg-[#FFF5F0]";
 
+  // True when this playlist's tracks are what's loaded in the player
+  const isThisQueueActive = queue.length > 0 && currentQueue.length > 0 && queue[0]?.id === currentQueue[0]?.id;
+
+  // Hero Play button — toggle if same queue, load+play if different
+  const handlePlayPause = () => {
+    if (queue.length === 0) return;
+    if (isThisQueueActive) {
+      togglePlayRef.current?.();
+    } else {
+      setQueue(queue, queue[0]);
+      setShuffle(false);
+    }
+  };
+
+  // Hero Shuffle button — synced with PlayerContext shuffle
+  const handleShuffle = () => {
+    if (queue.length === 0) return;
+    if (isThisQueueActive) {
+      setShuffle(!shuffle);
+    } else {
+      const shuffled = [...queue].sort(() => Math.random() - 0.5);
+      setQueue(shuffled, shuffled[0]);
+      setShuffle(true);
+    }
+  };
 
   const handleSelectPlaylist = (id: string) => {
     setSelectedId(id);
     setActiveQueue([]);
-    setIsShuffled(false);
     setViewTab("Tracks");
     setMoodView(null);
+  };
+
+  // Double-click to play a row; single click just highlights
+  const handleRowClick = (track: SpotifyTrack) => {
+    if (lastClickedRef.current === track.id && clickTimerRef.current) {
+      // Second click within 300ms — play
+      clearTimeout(clickTimerRef.current);
+      clickTimerRef.current = null;
+      lastClickedRef.current = null;
+      setQueue(activeQueue.length ? activeQueue : queue, track);
+    } else {
+      // First click — just highlight, wait for possible second
+      lastClickedRef.current = track.id;
+      if (clickTimerRef.current) clearTimeout(clickTimerRef.current);
+      clickTimerRef.current = setTimeout(() => {
+        clickTimerRef.current = null;
+        lastClickedRef.current = null;
+      }, 300);
+    }
   };
 
   const handleCreatePlaylist = useCallback(async () => {
@@ -310,14 +351,6 @@ export default function PlaylistPage() {
     setNewName("");
   }, [newName, user?.uid]);
 
-  const handleShuffle = () => {
-    if (queue.length === 0) return;
-    const shuffled = [...queue].sort(() => Math.random() - 0.5);
-    setActiveQueue(shuffled);
-    setQueue(shuffled, shuffled[0]);
-    setIsShuffled(true);
-  };
-
   const handleLike = (track: SpotifyTrack) => toggleLike(track);
 
   const handleDeletePlaylist = useCallback((id: string) => {
@@ -338,14 +371,14 @@ export default function PlaylistPage() {
     setPlaylistMenuId(null);
   };
 
-  const handleShare = (track: SpotifyTrack) => {
-    const msg = `Check out this song on MoodiFy: ${track.spotifyUrl}`;
-    if (navigator.share) {
-      navigator.share({ title: track.title, text: msg, url: track.spotifyUrl }).catch(() => {});
-    } else {
-      window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank");
-    }
-  };
+  const handleShare = (_track: SpotifyTrack) => {};  // eslint-disable-line @typescript-eslint/no-unused-vars
+
+  const handleAddToPlaylist = useCallback(async (track: SpotifyTrack, playlistId: string) => {
+    if (!user?.uid) return;
+    await addTrackToPlaylist(user.uid, playlistId, track);
+    setPlaylists(prev => prev.map(p => p.id === playlistId && !p.tracks.find(t => t.id === track.id)
+      ? { ...p, tracks: [...p.tracks, track] } : p));
+  }, [user?.uid]);
 
   return (
     <>
@@ -461,7 +494,7 @@ export default function PlaylistPage() {
                   rowHover={rowHover}
                   moodId={moodId}
                   indent
-                  onClick={() => { setMoodView(p.id); setActiveQueue([]); setIsShuffled(false); }}
+                  onClick={() => { setMoodView(p.id); setActiveQueue([]); }}
                 />
               );
             })}
@@ -523,20 +556,23 @@ export default function PlaylistPage() {
                   {/* Play + Shuffle */}
                   <div className="flex items-center gap-4 mt-2">
                     <button
-                      onClick={() => { setQueue(queue, queue[0]); setActiveQueue([]); setIsShuffled(false); }}
+                      onClick={handlePlayPause}
                       className="w-12 h-12 rounded-full bg-[#FF6B35] hover:bg-[#e85d2a] flex items-center justify-center shadow-lg transition-all hover:scale-105"
                     >
-                      <Play size={20} fill="white" className="text-white ml-0.5" />
+                      {isThisQueueActive && isPlaying
+                        ? <Pause size={20} fill="white" className="text-white" />
+                        : <Play size={20} fill="white" className="text-white ml-0.5" />
+                      }
                     </button>
                     <button
                       onClick={handleShuffle}
                       className={`transition-all ${
-                        isShuffled
-                          ? "text-white scale-110"
+                        isThisQueueActive && shuffle
+                          ? "text-[#FF6B35] scale-110"
                           : "text-[#aaa] hover:text-white"
                       }`}
                     >
-                      <Shuffle size={isShuffled ? 24 : 22} />
+                      <Shuffle size={isThisQueueActive && shuffle ? 24 : 22} />
                     </button>
                   </div>
                 </div>
@@ -590,16 +626,16 @@ export default function PlaylistPage() {
                   <tbody>
                     {queue.map((track, i) => {
                       const isActive = activeTrack?.id === track.id;
-                      const isLiked = likedTrackIds.has(track.id);
                       return (
                         <tr
                           key={track.id}
-                          onClick={() => setQueue(activeQueue.length ? activeQueue : queue, track)}
+                          onClick={() => handleRowClick(track)}
                           className={`group cursor-pointer transition-colors border-b ${border} ${
                             isActive ? activeRow : rowHover
                           }`}
+                          title="Double-click to play"
                         >
-                          <td className="px-5 py-3 w-10" onClick={(e) => { if (isActive) { e.stopPropagation(); togglePlayRef.current?.(); } }}>
+                          <td className="px-5 py-3 w-10" onClick={(e) => { e.stopPropagation(); if (isActive) { togglePlayRef.current?.(); } else { setQueue(activeQueue.length ? activeQueue : queue, track); } }}>
                             <span className={`text-sm ${muted} flex items-center`}>
                               {isActive && isPlaying
                                 ? <Pause size={13} fill="#FF6B35" className="text-[#FF6B35]" />
@@ -624,7 +660,6 @@ export default function PlaylistPage() {
                           <td className={`px-3 py-3 text-sm ${muted} whitespace-nowrap`}>{track.addedAt ?? "—"}</td>
                           <td className="px-5 py-3 w-24">
                             <div className="flex items-center justify-start gap-2">
-                              {isLiked && <CheckCircle2 size={13} className="text-[#FF6B35] flex-shrink-0" />}
                               <span className={`text-sm ${muted}`}>{formatDuration(track.duration)}</span>
                               <div className="relative">
                                 <button
@@ -737,26 +772,30 @@ export default function PlaylistPage() {
           </div>
         </div>
       )}
-      {menuTrackId && menuPos && typeof document !== 'undefined' && createPortal(
-        <div
-          className={`fixed rounded-xl border shadow-xl z-[9999] overflow-hidden w-44 ${isDark ? 'bg-[#111] border-[#2a2a2a]' : 'bg-white border-[#FFDDD2]'}`}
-          style={{ top: menuPos.y + 4, right: window.innerWidth - menuPos.x }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          {[
-            { label: '❤️ Like', action: () => { const t = queue.find(t => t.id === menuTrackId); if (t) handleLike(t); } },
-            { label: '💿 Go to Album', action: () => { const t = queue.find(t => t.id === menuTrackId); if (t) openAlbum(t.albumId ?? ''); } },
-            { label: '➕ Add to Playlist', action: () => { /* TODO */ } },
-            { label: '🆕 Create Playlist', action: () => { const t = queue.find(t => t.id === menuTrackId); if (t) { pendingTrackRef.current = t; setNewName(""); setCreateOpen(true); } } },
-            { label: '🔗 Share', action: () => { const t = queue.find(t => t.id === menuTrackId); if (t) handleShare(t); } },
-          ].map(({ label, action }) => (
-            <button key={label} onClick={() => { action(); setMenuTrackId(null); setMenuPos(null); }}
-              className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${isDark ? 'text-[#ccc] hover:bg-[#1a1a1a]' : 'text-[#7A6055] hover:bg-[#FFF5F0]'}`}
-            >{label}</button>
-          ))}
-        </div>,
-        document.body
-      )}
+      {menuTrackId && menuPos && typeof document !== "undefined" && (() => {
+        const t = queue.find(tr => tr.id === menuTrackId);
+        if (!t) return null;
+        return createPortal(
+          <div
+            className="fixed z-[9999]"
+            style={{ top: menuPos.y + 4, right: window.innerWidth - menuPos.x }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <ContextMenu
+              track={t}
+              playlists={playlists.filter(p => p.id !== "liked")}
+              likedTrackIds={likedTrackIds}
+              onClose={() => { setMenuTrackId(null); setMenuPos(null); }}
+              onLike={handleLike}
+              onAddToPlaylist={handleAddToPlaylist}
+              onCreatePlaylist={(track) => { pendingTrackRef.current = track; setNewName(""); setCreateOpen(true); }}
+              onGoToAlbum={(albumId) => openAlbum(albumId)}
+              onShare={handleShare}
+            />
+          </div>,
+          document.body
+        );
+      })()}
     </>
   );
 }

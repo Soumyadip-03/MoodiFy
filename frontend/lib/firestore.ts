@@ -191,17 +191,13 @@ export async function toggleLikedTrack(uid: string, track: SpotifyTrack): Promis
 }
 
 export async function saveTrackToMoodTracks(track: SpotifyTrack): Promise<void> {
-  const ref = doc(db, "moodTracks", track.id);
-  const snap = await getDoc(ref);
-  if (!snap.exists()) {
-    await setDoc(ref, {
-      title: track.title,
-      artist: track.artist,
-      albumArt: track.albumArt,
-      spotifyUrl: track.spotifyUrl,
-      album: track.album ?? "",
-    });
-  }
+  await setDoc(doc(db, "moodTracks", track.id), {
+    title: track.title,
+    artist: track.artist,
+    albumArt: track.albumArt,
+    spotifyUrl: track.spotifyUrl,
+    album: track.album ?? "",
+  }, { merge: true });
 }
 
 // ─── Mood History ─────────────────────────────────────────────────────────────

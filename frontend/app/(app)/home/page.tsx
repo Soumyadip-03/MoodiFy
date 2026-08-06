@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Play, ChevronDown, AlertCircle, MoreHorizontal } from "lucide-react";
+import { Play, Pause, ChevronDown, AlertCircle, MoreHorizontal } from "lucide-react";
 import { createPortal } from "react-dom";
 import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
@@ -87,8 +87,12 @@ export default function HomePage() {
   const openRecMenu = (e: React.MouseEvent, track: SpotifyTrack) => {
     e.stopPropagation();
     e.preventDefault();
-    const x = Math.min(e.clientX, window.innerWidth - 210);
-    const y = Math.min(e.clientY, window.innerHeight - 230);
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    // Anchor below-left of the button; clamp so menu stays inside viewport
+    const menuW = 210;
+    const menuH = 240;
+    const x = rect.right - menuW < 0 ? rect.left : rect.right - menuW;
+    const y = rect.bottom + menuH > window.innerHeight ? rect.top - menuH : rect.bottom + 4;
     setRecContextMenu({ x, y, track });
   };
 
@@ -234,8 +238,13 @@ export default function HomePage() {
     setUserPlaylists(prev => [...prev, newPlaylist]);
   }, [newPlaylistName, user?.uid]);
 
-  const handleTrackSelect = (track: SpotifyTrack) => setActiveTrack(track);
-  const handleRecommendedPlay = (track: SpotifyTrack) => setQueue(recommendedTracks, track);
+  const handleRecommendedPlay = (track: SpotifyTrack) => {
+    if (activeTrack?.id === track.id) {
+      togglePlayRef.current?.();
+    } else {
+      setQueue(recommendedTracks, track);
+    }
+  };
 
   const card = isDark ? "bg-[#111111] border-[#2a2a2a]" : "bg-white border-[#FFDDD2]";
   const muted = isDark ? "text-[#aaa]" : "text-[#7A6055]";
@@ -375,8 +384,15 @@ export default function HomePage() {
                     <div className="relative aspect-square rounded-xl overflow-hidden bg-[#1a1a1a]">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img src={track.albumArt} alt={track.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
-                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
-                        <Play size={24} fill="white" className="text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-lg" />
+                      <div className={`absolute inset-0 transition-colors flex items-center justify-center ${
+                        activeTrack?.id === track.id ? "bg-black/40" : "bg-black/0 group-hover:bg-black/30"
+                      }`}>
+                        {activeTrack?.id === track.id && isPlaying
+                          ? <Pause size={24} fill="white" className="text-white drop-shadow-lg" />
+                          : <Play size={24} fill="white" className={`text-white drop-shadow-lg ${
+                              activeTrack?.id === track.id ? "" : "opacity-0 group-hover:opacity-100 transition-opacity"
+                            }`} />
+                        }
                       </div>
                     </div>
                     <p className={`text-sm font-semibold truncate ${isDark ? "text-white" : "text-[#3a2a20]"}`}>{track.title}</p>
@@ -394,6 +410,7 @@ export default function HomePage() {
                 <div ref={recMenuRef} style={{ position: "fixed", top: recContextMenu.y, left: recContextMenu.x, zIndex: 9999 }}>
                   <ContextMenu
                     track={recContextMenu.track} playlists={trendingPlaylists}
+                    likedTrackIds={likedTrackIds}
                     onClose={() => setRecContextMenu(null)} onLike={handleLike}
                     onAddToPlaylist={handleAddToPlaylist} onCreatePlaylist={handleCreatePlaylist}
                     onGoToAlbum={handleGoToAlbum} onShare={() => {}}
@@ -420,7 +437,7 @@ export default function HomePage() {
                 <TrackList
                   tracks={currentQueue} activeTrack={safeActiveTrack} isPlaying={isPlaying}
                   likedTrackIds={likedTrackIds} playlists={upNextPlaylists}
-                  onTrackSelect={handleTrackSelect} onTogglePlay={handleTogglePlay}
+                  onTrackSelect={(track) => setActiveTrack(track)} onTogglePlay={handleTogglePlay}
                   onLike={handleLike} onAddToPlaylist={handleAddToPlaylist}
                   onCreatePlaylist={handleCreatePlaylist}
                   onGoToAlbum={handleGoToAlbum} queueSource={queueSource}

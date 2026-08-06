@@ -266,6 +266,18 @@ Browser Webcam → WebSocket → FastAPI → deepface/fer → Emotion → Mood �
 ---
 
 ### Phase 6 — User Features (Firestore)
+
+- [x] **Mood History** — every detection session saved: { userId, mood, confidence, timestamp }
+- [x] **/history page** — timeline of past moods with date grouping
+- [x] **/history page** — timeline of past moods with date grouping, per-detection entry cards, mood summary pills, songs played dropdown per entry
+- [x] **Weekly Mood Chart** — bar/line chart showing mood frequency over last 7 days
+- [x] **Liked Tracks** — heart button saved to Firestore: { userId, trackId, title, artist, albumArt, external_url, likedAt }
+- [x] **/profile page** — display name, avatar, liked tracks, mood stats
+- [x] **Liked Tracks** — heart button saved to Firestore: { userId, trackId, title, artist, albumArt, external_url, likedAt } — currently in-memory only, resets on refresh
+- [x] **Custom Playlists** — save to Firestore, persist across sessions, wire "Add to Playlist" in context menu
+- [x] **/profile page** — display name, avatar, liked tracks count, mood stats
+
+#### Bug Fixes & Known Issues
 - [x] **Mood History** — every detection session saved: `{ userId, mood, confidence, timestamp }`
 - [x] `/history` page — timeline of past moods with date grouping, per-detection entry cards, mood summary pills, songs played dropdown per entry
 - [x] **Weekly Mood Chart** — bar/line chart showing mood frequency over last 7 days
@@ -286,11 +298,10 @@ Browser Webcam → WebSocket → FastAPI → deepface/fer → Emotion → Mood �
 - [ ] Smooth page transitions
 - [ ] Favicon and Open Graph meta tags
 - [ ] Shuffle / Repeat logic wired in `MusicPlayer.tsx`
-- [ ] **Romantic playlist** — create playlist on owner Spotify account, fill `MOOD_PLAYLIST_ROMANTIC` in `backend/.env`
+- [x] **Romantic playlist** — create playlist on owner Spotify account, fill `MOOD_PLAYLIST_ROMANTIC` in `backend/.env`
 - [ ] **Mood Room** — full real-time listen-together feature via Firestore `onSnapshot`
 
 #### Bug Fixes & Known Issues
-- [ ] **Delete mood history entry button** — add a 🗑️ delete button on each `EntryCard` in `/history` page; calls `deleteDoc` on `moodHistory/{id}` and removes entry from local state
 - [ ] **Album queue** — playing a track from AlbumModal should load the full album as the active queue in `PlayerContext`
 - [ ] **Up Next panel refreshing** — `TrackList` re-renders/resets scroll position unexpectedly; needs stable queue reference
 - [ ] **No back button from album tracklist** — AlbumModal has no way to return to the Up Next / mood tracklist view; add back navigation
@@ -348,7 +359,7 @@ FRONTEND_URL=http://localhost:3000
 ### ✅ Phase 3 — Realtime Face Detection (WebSocket) — Complete
 ### ✅ Phase 4 — Spotify OAuth Integration — Complete
 ### ✅ Phase 5 — Music Player — Complete
-### ✅ Phase 6 — User Features (Firestore) — Complete (1 item pending: delete mood history entry)
+### ✅ Phase 6 — User Features (Firestore) — Complete
 
 ### 🔲 Phase 7 — UI Polish & Responsiveness
 ### 🔲 Phase 8 — Deployment
@@ -504,7 +515,6 @@ MoodiFy/
 
 ## Known Pending Items
 
-- **Delete mood history entry** — no 🗑️ delete button on `EntryCard` in `/history`; `deleteDoc` not wired
 - **Album queue** — playing from AlbumModal doesn't load album as active queue; pending Phase 7
 - **Up Next panel refreshing** — `TrackList` resets unexpectedly on re-render; pending Phase 7
 - **No back button from album tracklist** — AlbumModal missing back navigation to mood tracklist; pending Phase 7
@@ -513,7 +523,6 @@ MoodiFy/
 - **Shuffle / Repeat buttons** — now fully wired with ref-based state
 - **30s preview URLs** — deprecated by Spotify, most tracks have `previewUrl: null`
 - **Mood Room** — Coming Soon page shown, full real-time sync postponed to Phase 7
-- **Romantic playlist** — now filled in `backend/.env`
 - **Toast.tsx** — file exists but empty, pending Phase 7
 
 ---

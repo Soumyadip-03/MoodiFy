@@ -157,6 +157,7 @@ export default function TrackList({
           <ContextMenu
             track={contextMenu.track}
             playlists={playlists}
+            likedTrackIds={likedTrackIds}
             onClose={() => setContextMenu(null)}
             onLike={onLike}
             onAddToPlaylist={onAddToPlaylist}
