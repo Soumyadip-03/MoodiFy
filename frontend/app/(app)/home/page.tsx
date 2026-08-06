@@ -29,7 +29,7 @@ export default function HomePage() {
   const isDark = theme === "dark";
 
   const { videoRef, canvasRef, status, result, error, startDetection, stopDetection } = useFaceDetection();
-  const { connected, fetchRecommendations, fetchTopTracks } = useSpotify();
+  const { fetchRecommendations, fetchTopTracks } = useSpotify();
   const { openAlbum, registerPlayHandler } = useArtistAlbum();
   const { activeTrack, currentQueue, isPlaying, likedTrackIds, queueSource, togglePlayRef, setQueue, setActiveTrack, toggleLike, lockedMood, setLockedMood, setCurrentMoodHistoryId } = usePlayer();
 
@@ -53,12 +53,6 @@ export default function HomePage() {
   const [newPlaylistName, setNewPlaylistName] = useState("");
   const pendingTrackRef = useRef<SpotifyTrack | null>(null);
   const moodHistoryDocIdRef = useRef<string | null>(null);
-
-  // Sync lockedResult to PlayerContext so it survives page navigation
-  const setLockedResultAndSync = useCallback((r: typeof result) => {
-    setLockedResult(r);
-    setLockedMood(r);
-  }, [setLockedMood]);
 
   const moodDetected = lockedResult !== null;
   // Show tracklist if mood detected OR if queue came from an album
@@ -187,7 +181,8 @@ export default function HomePage() {
         setTimeout(async () => {
           const final = latestResultRef.current;
           if (final && user?.uid) {
-            setLockedResultAndSync(final);
+            setLockedResult(final);
+            setLockedMood(final);
             setDetectCount(c => c + 1);
             // Save mood history entry
             const docId = await saveMoodHistory(user.uid, final.mood, final.confidence).catch(() => null);
@@ -202,10 +197,10 @@ export default function HomePage() {
         }, 900);
       }
     }, 1000);
-  }, [startDetection, stopDetection, user?.uid]);
+  }, [startDetection, stopDetection, user?.uid, setLockedMood, setCurrentMoodHistoryId]);
 
   const handleTogglePlay = useCallback(() => { togglePlayRef.current?.(); }, [togglePlayRef]);
-  const handleGoToAlbum = (albumId: string) => openAlbum(albumId);
+  const handleGoToAlbum = useCallback((albumId: string) => openAlbum(albumId), [openAlbum]);
   const handleLike = (track: SpotifyTrack) => toggleLike(track);
 
   const handleAddToPlaylist = useCallback((track: SpotifyTrack, playlistId: string) => {

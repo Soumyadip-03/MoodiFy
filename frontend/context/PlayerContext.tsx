@@ -122,13 +122,13 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     if (!user?.uid) return;
     setLikedTrackIds(prev => {
       const next = new Set(prev);
-      next.has(track.id) ? next.delete(track.id) : next.add(track.id);
+      if (next.has(track.id)) next.delete(track.id); else next.add(track.id);
       return next;
     });
     toggleLikedTrack(user.uid, track).catch(() => {
       setLikedTrackIds(prev => {
         const next = new Set(prev);
-        next.has(track.id) ? next.delete(track.id) : next.add(track.id);
+        if (next.has(track.id)) next.delete(track.id); else next.add(track.id);
         return next;
       });
     });

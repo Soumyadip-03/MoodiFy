@@ -269,9 +269,12 @@ Browser Webcam → WebSocket → FastAPI → deepface/fer → Emotion → Mood �
 - [x] **Mood History** — every detection session saved: `{ userId, mood, confidence, timestamp }`
 - [x] `/history` page — timeline of past moods with date grouping, per-detection entry cards, mood summary pills, songs played dropdown per entry
 - [x] **Weekly Mood Chart** — bar/line chart showing mood frequency over last 7 days
-- [x] **Liked Tracks** — heart button saved to Firestore: `{ userId, trackId, title, artist, albumArt, external_url, likedAt }` — currently in-memory only, resets on refresh
+- [x] **Liked Tracks** — heart button saved to Firestore: `{ userId, trackId, title, artist, albumArt, external_url, likedAt }` — persists across sessions via `likedTracks/{uid}/tracks/{trackId}`
 - [x] **Custom Playlists** — save to Firestore, persist across sessions, wire "Add to Playlist" in context menu
 - [x] `/profile` page — display name, avatar, liked tracks count, mood stats
+- [x] **Language filter** — language-specific playlists per mood fetched from owner account; selected languages fetch from dedicated playlists and merge results
+- [x] **Profile page — Delete Account** — `deleteUser` + Firestore cleanup implemented
+- [x] **Always 2nd song playing** — fixed; queue now starts at index 0 on mood detection
 
 ---
 
@@ -292,11 +295,7 @@ Browser Webcam → WebSocket → FastAPI → deepface/fer → Emotion → Mood �
 - [ ] **Up Next panel refreshing** — `TrackList` re-renders/resets scroll position unexpectedly; needs stable queue reference
 - [ ] **No back button from album tracklist** — AlbumModal has no way to return to the Up Next / mood tracklist view; add back navigation
 - [ ] **History page UI fixes** — layout and spacing polish on `/history` page
-- [ ] **Profile page — Delete Account button** — add Firebase `deleteUser` + Firestore cleanup flow on `/profile`
 - [ ] **Profile page UI fixes** — layout and spacing polish on `/profile` page
-- [ ] **Always 2nd song playing** — on mood detection the queue starts at index 1 instead of 0; fix initial index in `PlayerContext`
-- [ ] **Language filter not working** — selected language preference not correctly filtering tracks returned from backend
-- [ ] **Auto-next song not playing** — `onEnded` / auto-advance to next track broken; song stops instead of advancing queue
 
 ---
 
@@ -349,7 +348,7 @@ FRONTEND_URL=http://localhost:3000
 ### ✅ Phase 3 — Realtime Face Detection (WebSocket) — Complete
 ### ✅ Phase 4 — Spotify OAuth Integration — Complete
 ### ✅ Phase 5 — Music Player — Complete
-### ✅ Phase 6 — User Features (Firestore) — Complete
+### ✅ Phase 6 — User Features (Firestore) — Complete (1 item pending: delete mood history entry)
 
 ### 🔲 Phase 7 — UI Polish & Responsiveness
 ### 🔲 Phase 8 — Deployment
@@ -505,21 +504,17 @@ MoodiFy/
 
 ## Known Pending Items
 
-- **Like / Add to Playlist in context menu** — Go to Artist and Go to Album work via `ArtistAlbumContext`. Like and Add to Playlist are TODO (Phase 6 — Firestore).
-- **Shuffle / Repeat buttons** — render in `MusicPlayer.tsx` but have no logic wired. Visual only — pending Phase 7.
-- **Mood Room** — Coming Soon page shown, full real-time sync postponed to Phase 7.
-- **Romantic playlist** — `MOOD_PLAYLIST_ROMANTIC` still `PLACEHOLDER_ID` in `backend/.env`, postponed to Phase 7.
-- **Toast.tsx** — file exists but empty, pending Phase 7.
-- **30s preview URLs** — deprecated by Spotify, most tracks have `previewUrl: null`.
-- **Album queue** — playing from AlbumModal doesn't load album as active queue; pending Phase 7.
-- **Up Next panel refreshing** — `TrackList` resets unexpectedly on re-render; pending Phase 7.
-- **No back button from album tracklist** — AlbumModal missing back navigation to mood tracklist; pending Phase 7.
-- **History page UI fixes** — layout/spacing polish pending Phase 7.
-- **Profile page — Delete Account** — `deleteUser` + Firestore cleanup not implemented; pending Phase 7.
-- **Profile page UI fixes** — layout/spacing polish pending Phase 7.
-- **Always 2nd song playing** — queue starts at index 1 on mood detection instead of 0; pending Phase 7.
-- **Language filter not working** — language preference not correctly filtering backend results; pending Phase 7.
-- **Auto-next song not playing** — `onEnded` auto-advance broken, song stops instead of continuing; pending Phase 7.
+- **Delete mood history entry** — no 🗑️ delete button on `EntryCard` in `/history`; `deleteDoc` not wired
+- **Album queue** — playing from AlbumModal doesn't load album as active queue; pending Phase 7
+- **Up Next panel refreshing** — `TrackList` resets unexpectedly on re-render; pending Phase 7
+- **No back button from album tracklist** — AlbumModal missing back navigation to mood tracklist; pending Phase 7
+- **History page UI fixes** — layout/spacing polish pending Phase 7
+- **Profile page UI fixes** — layout/spacing polish pending Phase 7
+- **Shuffle / Repeat buttons** — now fully wired with ref-based state
+- **30s preview URLs** — deprecated by Spotify, most tracks have `previewUrl: null`
+- **Mood Room** — Coming Soon page shown, full real-time sync postponed to Phase 7
+- **Romantic playlist** — now filled in `backend/.env`
+- **Toast.tsx** — file exists but empty, pending Phase 7
 
 ---
 

@@ -1,7 +1,7 @@
 import {
   doc, setDoc, getDoc, getDocs, deleteDoc,
   collection, query, where, orderBy, limit,
-  arrayUnion, arrayRemove, increment,
+  arrayUnion, increment,
   serverTimestamp, addDoc, updateDoc, Timestamp,
 } from "firebase/firestore";
 import { db } from "./firebase";
@@ -38,6 +38,10 @@ export async function createUserProfile(user: User) {
 export async function getUserPhotoURL(uid: string): Promise<string | null> {
   const snap = await getDoc(doc(db, "users", uid));
   return snap.exists() ? (snap.data().photoURL || null) : null;
+}
+
+export async function updateUserPhotoURL(uid: string, photoURL: string): Promise<void> {
+  await setDoc(doc(db, "users", uid), { photoURL }, { merge: true });
 }
 
 export async function saveSpotifyTokens(uid: string, tokens: SpotifyTokens) {
