@@ -1,7 +1,7 @@
-import {
+﻿import {
   doc, setDoc, getDoc, getDocs, deleteDoc,
   collection, query, where, orderBy, limit,
-  arrayUnion, increment,
+  arrayUnion, arrayRemove, increment,
   serverTimestamp, addDoc, updateDoc, Timestamp,
 } from "firebase/firestore";
 import { db } from "./firebase";
@@ -23,14 +23,17 @@ export async function createUserProfile(user: User) {
     });
     await initUserPlaylists(user.uid);
   } else {
+    // Update photoURL if Firebase Auth has one and Firestore doesn't
     const data = snap.data();
     if (!data.photoURL && user.photoURL) {
       await setDoc(ref, { photoURL: user.photoURL }, { merge: true });
     }
+    // Backfill new fields for existing users
     const updates: Record<string, unknown> = {};
     if (data.likedTracksCount === undefined) updates.likedTracksCount = 0;
     if (data.moodStats === undefined) updates.moodStats = {};
     if (Object.keys(updates).length) await setDoc(ref, updates, { merge: true });
+    // Ensure playlists exist (idempotent â€” skips if already created)
     await initUserPlaylists(user.uid);
   }
 }
@@ -38,10 +41,6 @@ export async function createUserProfile(user: User) {
 export async function getUserPhotoURL(uid: string): Promise<string | null> {
   const snap = await getDoc(doc(db, "users", uid));
   return snap.exists() ? (snap.data().photoURL || null) : null;
-}
-
-export async function updateUserPhotoURL(uid: string, photoURL: string): Promise<void> {
-  await setDoc(doc(db, "users", uid), { photoURL }, { merge: true });
 }
 
 export async function saveSpotifyTokens(uid: string, tokens: SpotifyTokens) {
@@ -55,21 +54,36 @@ export async function getSpotifyTokens(uid: string): Promise<SpotifyTokens | nul
   return snap.exists() ? (snap.data().spotifyTokens ?? null) : null;
 }
 
-// ─── Mood Playlist IDs ────────────────────────────────────────────────────────
+// â”€â”€â”€ Mood Playlist IDs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const MOOD_IDS = ["happy", "upbeat", "chill", "melancholy", "relaxing", "romantic", "intense"];
 const MOOD_META: Record<string, { name: string; emoji: string }> = {
-  happy:      { name: "Happy Playlist",      emoji: "😊" },
-  upbeat:     { name: "Upbeat Playlist",     emoji: "😍" },
-  chill:      { name: "Chill Playlist",      emoji: "😎" },
-  melancholy: { name: "Melancholy Playlist", emoji: "😔" },
-  relaxing:   { name: "Relaxing Playlist",   emoji: "😌" },
-  romantic:   { name: "Romantic Playlist",   emoji: "💕" },
-  intense:    { name: "Intense Playlist",    emoji: "😠" },
+  happy:      { name: "Happy Playlist",      emoji: "ðŸ˜Š" },
+  upbeat:     { name: "Upbeat Playlist",     emoji: "ðŸ˜" },
+  chill:      { name: "Chill Playlist",      emoji: "ðŸ˜Ž" },
+  melancholy: { name: "Melancholy Playlist", emoji: "ðŸ˜”" },
+  relaxing:   { name: "Relaxing Playlist",   emoji: "ðŸ˜Œ" },
+  romantic:   { name: "Romantic Playlist",   emoji: "ðŸ’•" },
+  intense:    { name: "Intense Playlist",    emoji: "ðŸ˜ " },
 };
 
-// ─── Init user playlists on first sign-in ─────────────────────────────────────
+// â”€â”€â”€ Init user playlists on first sign-in â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export async function initUserPlaylists(uid: string): Promise<void> {
   const colRef = collection(db, "userPlaylists", uid, "playlists");
+
+  // Liked Songs
+  const likedRef = doc(colRef, "liked");
+  const likedSnap = await getDoc(likedRef);
+  if (!likedSnap.exists()) {
+    await setDoc(likedRef, {
+      id: "liked",
+      name: "Liked Songs",
+      emoji: "ðŸ’–",
+      tracks: [],
+      createdAt: serverTimestamp(),
+    });
+  }
+
+  // 7 mood buckets
   await Promise.all(
     MOOD_IDS.map(async (mood) => {
       const ref = doc(colRef, `mood-${mood}`);
@@ -87,7 +101,7 @@ export async function initUserPlaylists(uid: string): Promise<void> {
   );
 }
 
-// ─── Playlist CRUD ────────────────────────────────────────────────────────────
+// â”€â”€â”€ Playlist CRUD â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export async function getUserPlaylists(uid: string): Promise<Playlist[]> {
   const snap = await getDocs(collection(db, "userPlaylists", uid, "playlists"));
   return snap.docs.map((d) => {
@@ -113,39 +127,13 @@ export async function saveUserPlaylist(uid: string, playlist: Playlist): Promise
   });
 }
 
-// ─── Saved Albums ─────────────────────────────────────────────────────────────
-export type SavedAlbumDoc = {
-  id: string;
-  name: string;
-  albumArt: string | null;
-  artistName: string | null;
-  totalTracks: number;
-  releaseDate: string | null;
-  savedAt: string;
-};
-
-export async function getSavedAlbums(uid: string): Promise<SavedAlbumDoc[]> {
-  const snap = await getDocs(collection(db, "savedAlbums", uid, "albums"));
-  return snap.docs.map((d) => d.data() as SavedAlbumDoc);
-}
-
-export async function saveAlbumToFirestore(uid: string, album: Omit<SavedAlbumDoc, "savedAt">): Promise<void> {
-  const ref = doc(db, "savedAlbums", uid, "albums", album.id);
-  await setDoc(ref, { ...album, savedAt: new Date().toISOString() });
-}
-
-export async function removeSavedAlbum(uid: string, albumId: string): Promise<void> {
-  await deleteDoc(doc(db, "savedAlbums", uid, "albums", albumId));
-}
-
 export async function deleteUserPlaylist(uid: string, playlistId: string): Promise<void> {
   await deleteDoc(doc(db, "userPlaylists", uid, "playlists", playlistId));
 }
 
 export async function addTrackToPlaylist(uid: string, playlistId: string, track: SpotifyTrack): Promise<void> {
   const ref = doc(db, "userPlaylists", uid, "playlists", playlistId);
-  const stamped = { ...track, addedAt: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) };
-  await setDoc(ref, { tracks: arrayUnion(stamped) }, { merge: true });
+  await updateDoc(ref, { tracks: arrayUnion(track) });
 }
 
 export async function removeTrackFromPlaylist(uid: string, playlistId: string, trackId: string): Promise<void> {
@@ -157,7 +145,7 @@ export async function removeTrackFromPlaylist(uid: string, playlistId: string, t
   await updateDoc(ref, { tracks: updated });
 }
 
-// ─── Liked Tracks ─────────────────────────────────────────────────────────────
+// â”€â”€â”€ Liked Tracks â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export async function getLikedTracks(uid: string): Promise<LikedTrack[]> {
   const snap = await getDocs(collection(db, "likedTracks", uid, "tracks"));
   return snap.docs.map((d) => d.data() as LikedTrack);
@@ -171,65 +159,22 @@ export async function toggleLikedTrack(uid: string, track: SpotifyTrack): Promis
   if (snap.exists()) {
     await deleteDoc(ref);
     await updateDoc(userRef, { likedTracksCount: increment(-1) });
-    return false;
+    return false; // unliked
   } else {
     await setDoc(ref, {
       trackId: track.id,
       title: track.title,
       artist: track.artist,
-      album: track.album ?? "",
-      albumId: track.albumId ?? "",
       albumArt: track.albumArt,
-      artistId: track.artistId ?? "",
       spotifyUrl: track.spotifyUrl,
-      duration: track.duration ?? 0,
       likedAt: new Date().toISOString(),
     });
     await updateDoc(userRef, { likedTracksCount: increment(1) });
-    return true;
+    return true; // liked
   }
 }
 
-export async function saveTrackToMoodTracks(track: SpotifyTrack): Promise<void> {
-  await setDoc(doc(db, "moodTracks", track.id), {
-    title: track.title,
-    artist: track.artist,
-    albumArt: track.albumArt,
-    spotifyUrl: track.spotifyUrl,
-    album: track.album ?? "",
-  }, { merge: true });
-}
-
-// ─── Mood History ─────────────────────────────────────────────────────────────
-export async function getOrCreateTodayTrendingDoc(uid: string): Promise<string> {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  // Single-field query — no composite index required
-  const q = query(
-    collection(db, "moodHistory"),
-    where("userId", "==", uid),
-    where("mood", "==", "trending"),
-    limit(20)
-  );
-  const snap = await getDocs(q);
-  const todayDoc = snap.docs.find(d => {
-    const ts = d.data().timestamp?.toDate?.();
-    return ts && ts >= today;
-  });
-  if (todayDoc) return todayDoc.id;
-
-  const ref = await addDoc(collection(db, "moodHistory"), {
-    userId: uid,
-    mood: "trending",
-    confidence: 1,
-    timestamp: serverTimestamp(),
-    tracksServed: [],
-    tracksPlayed: [],
-  });
-  return ref.id;
-}
-
+// â”€â”€â”€ Mood History â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export async function saveMoodHistory(
   uid: string,
   mood: string,
@@ -241,17 +186,12 @@ export async function saveMoodHistory(
     confidence,
     timestamp: serverTimestamp(),
     tracksServed: [],
-    tracksPlayed: [],
   });
   return ref.id;
 }
 
 export async function updateMoodHistoryTracks(docId: string, trackIds: string[]): Promise<void> {
   await updateDoc(doc(db, "moodHistory", docId), { tracksServed: trackIds });
-}
-
-export async function addPlayedTrackToHistory(docId: string, trackId: string): Promise<void> {
-  await updateDoc(doc(db, "moodHistory", docId), { tracksPlayed: arrayUnion(trackId) });
 }
 
 export async function getMoodHistoryByDate(
@@ -281,7 +221,6 @@ export async function getMoodHistoryByDate(
       confidence: data.confidence,
       timestamp: data.timestamp?.toDate?.()?.toISOString() ?? new Date().toISOString(),
       tracksServed: data.tracksServed ?? [],
-      tracksPlayed: data.tracksPlayed ?? [],
     } as MoodHistoryEntry;
   });
 }
@@ -311,7 +250,7 @@ export async function getMoodHistoryLast7Days(
       confidence: data.confidence,
       timestamp: data.timestamp?.toDate?.()?.toISOString() ?? new Date().toISOString(),
       tracksServed: data.tracksServed ?? [],
-      tracksPlayed: data.tracksPlayed ?? [],
     } as MoodHistoryEntry;
   });
 }
+

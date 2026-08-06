@@ -18,9 +18,8 @@ interface TrackListProps {
   onLike: (track: SpotifyTrack) => void;
   onAddToPlaylist: (track: SpotifyTrack, playlistId: string) => void;
   onCreatePlaylist: (track: SpotifyTrack) => void;
-  onGoToArtist: (artistId: string) => void;
   onGoToAlbum: (albumId: string) => void;
-  queueSource?: { type: "artist" | "album"; name: string; art: string };
+  queueSource?: { type: "album"; name: string; art: string };
 }
 
 function formatDuration(s: number) {
@@ -32,7 +31,7 @@ function formatDuration(s: number) {
 export default function TrackList({
   tracks, activeTrack, isPlaying, likedTrackIds, playlists,
   onTrackSelect, onTogglePlay, onLike, onAddToPlaylist,
-  onCreatePlaylist, onGoToArtist, onGoToAlbum, queueSource,
+  onCreatePlaylist, onGoToAlbum, queueSource,
 }: TrackListProps) {
   const { theme } = useTheme();
   const isDark = theme === "dark";
@@ -79,7 +78,7 @@ export default function TrackList({
               <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
                 <span className={`text-xl font-bold flex-shrink-0 ${muted}`}>·</span>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={queueSource.art} alt={queueSource.name} className={`w-5 h-5 object-cover flex-shrink-0 ${queueSource.type === "artist" ? "rounded-full" : "rounded"}`} />
+                <img src={queueSource.art} alt={queueSource.name} className="w-5 h-5 object-cover flex-shrink-0 rounded" />
                 <p className={`text-sm font-medium truncate ${muted}`}>{queueSource.name}</p>
               </div>
             )}
@@ -158,11 +157,11 @@ export default function TrackList({
           <ContextMenu
             track={contextMenu.track}
             playlists={playlists}
+            likedTrackIds={likedTrackIds}
             onClose={() => setContextMenu(null)}
             onLike={onLike}
             onAddToPlaylist={onAddToPlaylist}
             onCreatePlaylist={onCreatePlaylist}
-            onGoToArtist={onGoToArtist}
             onGoToAlbum={onGoToAlbum}
             onShare={() => {}}
           />
