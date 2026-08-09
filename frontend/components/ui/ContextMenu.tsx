@@ -1,26 +1,29 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Heart, Disc3, ChevronRight, ListPlus, FolderPlus, Link2, MessageCircle } from "lucide-react";
+import { Heart, Disc3, ChevronRight, ListPlus, FolderPlus, Link2, MessageCircle, Trash2 } from "lucide-react";
 import { useTheme } from "@/context/ThemeContext";
 import type { Playlist, SpotifyTrack } from "@/types/index";
+import { getMoodIcon, PLAYLIST_ICONS } from "@/utils/moodIcons";
 
 interface ContextMenuProps {
   track: SpotifyTrack;
   playlists: Playlist[];
   likedTrackIds?: Set<string>;
+  currentPlaylistId?: string;
   onClose: () => void;
   onLike: (track: SpotifyTrack) => void;
   onAddToPlaylist: (track: SpotifyTrack, playlistId: string) => void;
   onCreatePlaylist: (track: SpotifyTrack) => void;
   onGoToAlbum: (albumId: string) => void;
   onShare: (track: SpotifyTrack) => void;
+  onRemoveFromPlaylist?: (track: SpotifyTrack) => void;
 }
 
 export default function ContextMenu({
-  track, playlists, likedTrackIds, onClose,
+  track, playlists, likedTrackIds, currentPlaylistId, onClose,
   onLike, onAddToPlaylist, onCreatePlaylist,
-  onGoToAlbum, onShare,
+  onGoToAlbum, onShare, onRemoveFromPlaylist,
 }: ContextMenuProps) {
   const { theme } = useTheme();
   const isDark = theme === "dark";
@@ -60,7 +63,7 @@ export default function ContextMenu({
       className={`rounded-xl shadow-xl border overflow-visible p-1 ${
         isDark ? "bg-[#111] border-[#2a2a2a]" : "bg-white border-[#FFDDD2]"
       }`}
-      style={{ width: 200 }}
+      style={{ width: 240 }}
     >
       {/* Like */}
       <button
@@ -100,16 +103,41 @@ export default function ContextMenu({
             >
               <FolderPlus size={13} className="text-[#FF6B35]" /> Create Playlist
             </button>
-            {playlists.filter(p => p.id !== "liked").map(p => (
-              <button key={p.id} className={subItem} onClick={() => { onAddToPlaylist(track, p.id); onClose(); }}>
-                <span>{p.emoji}</span> {p.name}
-              </button>
-            ))}
+            {playlists.filter(p => p.id !== "liked").map(p => {
+              // Determine which icon to render
+              let IconComponent;
+              if (p.id.startsWith("mood-")) {
+                IconComponent = getMoodIcon(p.id);
+              } else if (p.id === "liked") {
+                IconComponent = PLAYLIST_ICONS.liked;
+              } else {
+                IconComponent = PLAYLIST_ICONS.custom;
+              }
+              
+              return (
+                <button key={p.id} className={subItem} onClick={() => { onAddToPlaylist(track, p.id); onClose(); }}>
+                  <IconComponent size={13} className="text-[#FF6B35]" /> {p.name}
+                </button>
+              );
+            })}
           </div>
         )}
       </div>
 
       <div className={divider} />
+
+      {/* Remove from Playlist - show for all playlists except Liked Songs */}
+      {currentPlaylistId && currentPlaylistId !== "liked" && onRemoveFromPlaylist && (
+        <>
+          <button
+            className={`${item} text-red-400 hover:bg-red-500/10`}
+            onClick={() => { onRemoveFromPlaylist(track); onClose(); }}
+          >
+            <Trash2 size={14} /> Remove from Playlist
+          </button>
+          <div className={divider} />
+        </>
+      )}
 
       {/* Share */}
       <div className="relative">

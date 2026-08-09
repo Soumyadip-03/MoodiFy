@@ -12,13 +12,13 @@ export const emotionToMood: Record<Emotion, Mood> = {
 };
 
 export const moodLabels: Record<Mood, string> = {
-  happy: "😊 Happy",
-  upbeat: "⚡ Upbeat",
-  chill: "😎 Chill",
-  melancholy: "😢 Melancholy",
-  relaxing: "😌 Relaxing",
-  romantic: "💕 Romantic",
-  intense: "😠 Intense",
+  happy: "Happy",
+  upbeat: "Upbeat",
+  chill: "Chill",
+  melancholy: "Melancholy",
+  relaxing: "Relaxing",
+  romantic: "Romantic",
+  intense: "Intense",
 };
 
 export function getMoodFromEmotion(emotion: string): Mood | null {

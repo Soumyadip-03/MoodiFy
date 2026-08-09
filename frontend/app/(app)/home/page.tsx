@@ -1,13 +1,15 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Play, Pause, ChevronDown, AlertCircle, MoreHorizontal } from "lucide-react";
+import { Play, Pause, ChevronDown, AlertCircle, MoreHorizontal, Camera } from "lucide-react";
 import { createPortal } from "react-dom";
+import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
 import { useFaceDetection } from "@/hooks/useFaceDetection";
 import TrackList from "@/components/player/TrackList";
 import ContextMenu from "@/components/ui/ContextMenu";
+import { TrendingCardSkeleton } from "@/components/ui/Skeleton";
 import { motion, AnimatePresence } from "framer-motion";
 import type { SpotifyTrack, Playlist } from "@/types/index";
 import { useSpotify } from "@/hooks/useSpotify";
@@ -30,15 +32,12 @@ export default function HomePage() {
 
   const { videoRef, canvasRef, status, result, error, startDetection, stopDetection } = useFaceDetection();
   const { fetchRecommendations, fetchTopTracks } = useSpotify();
-  const { openAlbum, registerPlayHandler } = useArtistAlbum();
-  const { activeTrack, currentQueue, isPlaying, likedTrackIds, queueSource, togglePlayRef, setQueue, setActiveTrack, toggleLike, lockedMood, setLockedMood, setCurrentMoodHistoryId } = usePlayer();
-
-  const [selectedLangs, setSelectedLangs] = useState<string[]>([]);
+  const { openAlbum, registerPlayAlbumHandler } = useArtistAlbum();
+  const { activeTrack, currentQueue, isPlaying, likedTrackIds, togglePlayRef, setQueue, setActiveTrack, toggleLike, lockedMood, setLockedMood, setCurrentMoodHistoryId, selectedLangs, setSelectedLangs, playAlbumTrack } = usePlayer();
   const [langOpen, setLangOpen] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
   const [lockedResult, setLockedResult] = useState<typeof result>(lockedMood as typeof result);
   const [detectCount, setDetectCount] = useState(0);
-  const isMountedRef = useRef(false);
   const countdownRef = useRef<NodeJS.Timeout | null>(null);
   const langRef = useRef<HTMLDivElement>(null);
   const latestResultRef = useRef<typeof result>(null);
@@ -55,9 +54,19 @@ export default function HomePage() {
   const moodHistoryDocIdRef = useRef<string | null>(null);
 
   const moodDetected = lockedResult !== null;
-  // Show tracklist if mood detected OR if queue came from an album
-  const showTrackList = moodDetected || queueSource?.type === "album";
+  // Show tracklist ONLY if mood detected (not for albums/playlists)
+  const showTrackList = moodDetected;
   const safeActiveTrack = activeTrack ?? currentQueue[0] ?? null;
+  
+  // Reset local detection state when user changes
+  useEffect(() => {
+    if (!user?.uid) {
+      setLockedResult(null);
+      setDetectCount(0);
+      moodHistoryDocIdRef.current = null;
+    }
+  }, [user?.uid]);
+
   // Load user playlists on mount
   useEffect(() => {
     if (!user?.uid) return;
@@ -96,13 +105,10 @@ export default function HomePage() {
     setRecContextMenu({ x, y, track });
   };
 
-  // Register play handler for artist/album modals
+  // Register album play handler — bridges ArtistAlbumContext → PlayerContext
   useEffect(() => {
-    registerPlayHandler((track, queue) => {
-      const source = { type: "album" as const, name: queue[0].album ?? "Album", art: queue[0].albumArt ?? "" };
-      setQueue(queue, track, source);
-    });
-  }, [registerPlayHandler, setQueue]);
+    registerPlayAlbumHandler((track, queue, source) => playAlbumTrack(track, queue, source));
+  }, [registerPlayAlbumHandler, playAlbumTrack]);
 
   // Fetch trending tracks — cache for 10 minutes so shuffle refreshes periodically
   useEffect(() => {
@@ -145,17 +151,6 @@ export default function HomePage() {
     });
   }, [detectCount]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Re-fetch when language changes after mood detected — skip on initial mount
-  useEffect(() => {
-    if (!isMountedRef.current) { isMountedRef.current = true; return; }
-    if (!lockedResult) return;
-    setLoadingTracks(true);
-    fetchRecommendations(lockedResult.mood, selectedLangs).then(tracks => {
-      if (tracks.length) setQueue(tracks, tracks[0]);
-      setLoadingTracks(false);
-    });
-  }, [selectedLangs]); // eslint-disable-line react-hooks/exhaustive-deps
-
   // Close lang dropdown on outside click
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -172,6 +167,12 @@ export default function HomePage() {
   const handleStart = useCallback(async () => {
     if (countdownRef.current) clearInterval(countdownRef.current);
     setCountdown(null);
+    
+    toast.info("Starting face detection...", {
+      description: "Please look at the camera",
+      duration: 2000,
+    });
+    
     await startDetection();
     setCountdown(DETECT_SECONDS);
     let remaining = DETECT_SECONDS;
@@ -188,6 +189,13 @@ export default function HomePage() {
             setLockedResult(final);
             setLockedMood(final);
             setDetectCount(c => c + 1);
+            
+            // Show mood detected toast
+            toast.success("Mood detected!", {
+              description: `You're feeling ${final.mood.toUpperCase()} with ${Math.round(final.confidence * 100)}% confidence`,
+              duration: 3000,
+            });
+            
             // Save mood history entry
             const docId = await saveMoodHistory(user.uid, final.mood, final.confidence).catch(() => null);
             moodHistoryDocIdRef.current = docId;
@@ -225,7 +233,7 @@ export default function HomePage() {
     const newPlaylist: Playlist = {
       id: `custom-${Date.now()}`,
       name: newPlaylistName.trim(),
-      emoji: "🎵",
+      emoji: "custom",
       tracks: [],
       createdAt: new Date().toISOString(),
     };
@@ -237,6 +245,45 @@ export default function HomePage() {
     }
     setUserPlaylists(prev => [...prev, newPlaylist]);
   }, [newPlaylistName, user?.uid]);
+
+  const handleRefreshQueue = useCallback(() => {
+    if (!lockedResult) return;
+    
+    // Format language list for display
+    const langDisplay = selectedLangs.length === 0 
+      ? "all languages" 
+      : selectedLangs.length === 1 
+        ? selectedLangs[0] 
+        : `${selectedLangs.slice(0, -1).join(", ")} & ${selectedLangs[selectedLangs.length - 1]}`;
+    
+    toast.info("Refreshing queue...", {
+      description: `Fetching new ${lockedResult.mood.toUpperCase()} songs in ${langDisplay}`,
+      duration: 2500,
+    });
+    
+    setLoadingTracks(true);
+    fetchRecommendations(lockedResult.mood, selectedLangs).then(tracks => {
+      if (tracks.length) {
+        setQueue(tracks, tracks[0]);
+        // Update mood history with tracks served
+        if (moodHistoryDocIdRef.current) {
+          updateMoodHistoryTracks(moodHistoryDocIdRef.current, tracks.map(t => t.id)).catch(() => {});
+        }
+        
+        toast.success("Queue refreshed!", {
+          description: `${tracks.length} new tracks loaded (${langDisplay})`,
+          duration: 2500,
+        });
+      }
+      setLoadingTracks(false);
+    }).catch(() => {
+      toast.error("Failed to refresh", {
+        description: "Please try again",
+        duration: 2000,
+      });
+      setLoadingTracks(false);
+    });
+  }, [lockedResult, selectedLangs, fetchRecommendations, setQueue]);
 
   const handleRecommendedPlay = (track: SpotifyTrack) => {
     if (activeTrack?.id === track.id) {
@@ -295,24 +342,17 @@ export default function HomePage() {
                 disabled={isDetecting || status === "connecting"}
                 className="flex-shrink-0 py-2.5 px-4 rounded-xl bg-[#FF6B35] hover:bg-[#e85d2a] disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors flex items-center justify-center gap-2"
               >
-                🎥 {status === "connecting" ? "Connecting..." : isDetecting ? `${countdown}s` : "Re-detect"}
+                <Camera size={16} /> {status === "connecting" ? "Connecting..." : isDetecting ? `${countdown}s` : "Re-detect"}
               </button>
-              <AnimatePresence mode="wait">
-                <motion.div
-                  key={lockedResult.mood}
-                  initial={{ opacity: 0, scale: 0.85, y: 6 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.85, y: -6 }}
-                  transition={{ duration: 0.3, ease: "easeOut" }}
-                  className={`flex items-center justify-between px-4 py-2.5 rounded-xl border flex-1 ${isDark ? "bg-[#1a1a1a] border-[#2a2a2a]" : "bg-[#FFF5F0] border-[#FFDDD2]"}`}
-                >
-                  <div className="flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-[#FF6B35] animate-pulse" />
-                    <span className="text-sm font-bold text-[#FF6B35] uppercase tracking-wide">{lockedResult.mood}</span>
-                  </div>
-                  <span className={`text-sm font-medium ${muted}`}>{Math.round(lockedResult.confidence * 100)}%</span>
-                </motion.div>
-              </AnimatePresence>
+              <div
+                className={`flex items-center justify-between px-4 py-2.5 rounded-xl border flex-1 ${isDark ? "bg-[#1a1a1a] border-[#2a2a2a]" : "bg-[#FFF5F0] border-[#FFDDD2]"}`}
+              >
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-[#FF6B35] animate-pulse" />
+                  <span className="text-sm font-bold text-[#FF6B35] uppercase tracking-wide">{lockedResult.mood}</span>
+                </div>
+                <span className={`text-sm font-medium ${muted}`}>{Math.round(lockedResult.confidence * 100)}%</span>
+              </div>
             </div>
           )}
 
@@ -322,7 +362,7 @@ export default function HomePage() {
               disabled={isDetecting || status === "connecting"}
               className="w-full py-2.5 rounded-xl bg-[#FF6B35] hover:bg-[#e85d2a] disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors flex items-center justify-center gap-2"
             >
-              🎥 {status === "connecting" ? "Connecting..." : isDetecting ? `Detecting... ${countdown}s` : "Start"}
+              <Camera size={16} /> {status === "connecting" ? "Connecting..." : isDetecting ? `Detecting... ${countdown}s` : "Start"}
             </button>
           )}
 
@@ -347,7 +387,7 @@ export default function HomePage() {
                   return (
                     <button
                       key={lang}
-                      onClick={() => setSelectedLangs(prev => checked ? prev.filter(l => l !== lang) : [...prev, lang])}
+                      onClick={() => setSelectedLangs(checked ? selectedLangs.filter(l => l !== lang) : [...selectedLangs, lang])}
                       className={`w-full px-4 py-2.5 text-sm text-left flex items-center gap-3 transition-colors ${checked ? "text-[#FF6B35]" : isDark ? "text-[#ccc] hover:bg-[#1a1a1a]" : "text-[#7A6055] hover:bg-[#FFF5F0]"}`}
                     >
                       <span className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${checked ? "bg-[#FF6B35] border-[#FF6B35]" : isDark ? "border-[#555]" : "border-[#ccc]"}`}>
@@ -375,7 +415,13 @@ export default function HomePage() {
             >
               <p className={`text-xl font-bold mb-4 flex-shrink-0 ${isDark ? "text-white" : "text-[#3a2a20]"}`}>Trendings</p>
               <div className="grid grid-cols-5 gap-3 app-scroll overflow-y-auto flex-1 content-start">
-                {recommendedTracks.map(track => (
+                {recommendedTracks.length === 0 ? (
+                  // Loading skeletons
+                  Array.from({ length: 10 }).map((_, i) => (
+                    <TrendingCardSkeleton key={i} isDark={isDark} />
+                  ))
+                ) : (
+                  recommendedTracks.map(track => (
                   <div
                     key={track.id}
                     className={`relative flex flex-col gap-2 cursor-pointer group rounded-xl p-2 transition-colors ${activeTrack?.id === track.id ? isDark ? "bg-[#1a1a1a]" : "bg-[#FFF5F0]" : isDark ? "hover:bg-[#1a1a1a]" : "hover:bg-[#FFF5F0]"}`}
@@ -404,7 +450,8 @@ export default function HomePage() {
                       <MoreHorizontal size={14} />
                     </button>
                   </div>
-                ))}
+                ))
+                )}
               </div>
               {recContextMenu && typeof document !== "undefined" && createPortal(
                 <div ref={recMenuRef} style={{ position: "fixed", top: recContextMenu.y, left: recContextMenu.x, zIndex: 9999 }}>
@@ -423,7 +470,7 @@ export default function HomePage() {
         ) : (
           <AnimatePresence mode="wait">
             <motion.div
-              key={(lockedResult?.mood ?? "album") + (queueSource?.name ?? "")}
+              key={lockedResult?.mood ?? "album"}
               initial={{ opacity: 0, x: 30 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -30 }}
               transition={{ duration: 0.35, ease: "easeOut" }}
               className="h-full"
@@ -440,7 +487,8 @@ export default function HomePage() {
                   onTrackSelect={(track) => setActiveTrack(track)} onTogglePlay={handleTogglePlay}
                   onLike={handleLike} onAddToPlaylist={handleAddToPlaylist}
                   onCreatePlaylist={handleCreatePlaylist}
-                  onGoToAlbum={handleGoToAlbum} queueSource={queueSource}
+                  onGoToAlbum={handleGoToAlbum}
+                  onRefresh={handleRefreshQueue}
                 />
               )}
             </motion.div>

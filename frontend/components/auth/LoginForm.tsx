@@ -1,15 +1,16 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
-import { useRouter } from "next/navigation";
 import { Eye, EyeOff } from "lucide-react";
+import { toast } from "sonner";
 
 export default function LoginForm() {
+  const router = useRouter();
   const { signInWithEmail } = useAuth();
   const { theme } = useTheme();
-  const router = useRouter();
   const isDark = theme === "dark";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -19,14 +20,35 @@ export default function LoginForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading) return; // Prevent double submission
+    
     setError("");
     setLoading(true);
     try {
       await signInWithEmail(email, password);
-      router.push("/home");
-    } catch {
+      // Use Next.js router for client-side navigation to preserve sessionStorage
+      await router.push("/home");
+      
+      // Show welcome toast after navigation
+      setTimeout(() => {
+        const authFlag = sessionStorage.getItem('moodify-auth-action');
+        if (authFlag === 'true') {
+          sessionStorage.removeItem('moodify-auth-action');
+          
+          // Get user info from the form
+          const displayName = email.split("@")[0];
+          const hour = new Date().getHours();
+          const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+          
+          toast.success(`${greeting}, ${displayName}! 🎵`, {
+            description: `Welcome to MoodiFy! We're excited to help you discover music that matches your mood. Start by detecting your current vibe, or explore trending tracks to get inspired. Let the music journey begin!`,
+            duration: 6000,
+          });
+        }
+      }, 1000);
+    } catch (err: unknown) {
+      console.error("Login error:", err);
       setError("Invalid email or password. Please try again.");
-    } finally {
       setLoading(false);
     }
   };

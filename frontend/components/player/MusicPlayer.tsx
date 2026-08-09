@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import {
   Play, Pause, SkipBack, SkipForward, Volume2, VolumeX,
-  Shuffle, Repeat, Heart, Disc3, ExternalLink,
+  Shuffle, Repeat, Heart, Disc3, ListOrdered, ExternalLink,
 } from "lucide-react";
 import { usePlayer } from "@/context/PlayerContext";
 import { useArtistAlbum } from "@/context/ArtistAlbumContext";
@@ -23,8 +23,11 @@ export default function MusicPlayer() {
   const {
     activeTrack, currentQueue, isPlaying, setIsPlaying,
     setActiveTrack, togglePlayRef, notifyTrackPlayed,
-    likedTrackIds, toggleLike, shuffle, setShuffle,
+    likedTrackIds, toggleLike, shuffle, setShuffle, albumSource, albumQueue,
   } = usePlayer();
+
+  // Navigation uses album queue when album is active, mood queue otherwise
+  const activeQueue = albumSource ? albumQueue : currentQueue;
 
   const { isPremium } = useSpotify();
   const { openAlbum } = useArtistAlbum();
@@ -70,12 +73,14 @@ export default function MusicPlayer() {
   const activeTrackRef = useRef(activeTrack);  // always points to latest activeTrack
   useEffect(() => { activeTrackRef.current = activeTrack; }, [activeTrack]);
 
-  // When SDK becomes ready, play whatever track is already active
+  // When SDK becomes ready, DON'T auto-play - let track change effect handle it
+  // This prevents playing stale tracks when user signs in
   useEffect(() => {
     sdkOnReady(() => {
-      if (activeTrackRef.current) sdkPlay(activeTrackRef.current);
+      // SDK is ready, but don't auto-play here
+      // The track change effect will handle playback when a track is actually set
     });
-  }, [sdkOnReady, sdkPlay]);
+  }, [sdkOnReady]);
 
   // ── Shuffle / Repeat state ──
   const [repeat, setRepeat] = useState<"off" | "one" | "all">("off");
@@ -98,16 +103,16 @@ export default function MusicPlayer() {
   }, []);
 
   // ── Derived ──
-  const trackIdx = activeTrack ? currentQueue.findIndex(t => t.id === activeTrack.id) : -1;
+  const trackIdx = activeTrack ? activeQueue.findIndex(t => t.id === activeTrack.id) : -1;
   const hasPrev = trackIdx > 0;
-  const hasNext = shuffle || repeat !== "off" || trackIdx < currentQueue.length - 1;
+  const hasNext = shuffle || repeat !== "off" || trackIdx < activeQueue.length - 1;
   const isLiked = activeTrack ? likedTrackIds.has(activeTrack.id) : false;
 
   // ── Handle next / prev ──
   const handleNextRef = useRef<() => void>(() => {});
-  const currentQueueRef = useRef(currentQueue);
+  const currentQueueRef = useRef(activeQueue);
   const trackIdxRef = useRef(trackIdx);
-  useEffect(() => { currentQueueRef.current = currentQueue; }, [currentQueue]);
+  useEffect(() => { currentQueueRef.current = activeQueue; }, [activeQueue]);
   useEffect(() => { trackIdxRef.current = trackIdx; }, [trackIdx]);
 
   const handleNext = useCallback(() => {
@@ -140,7 +145,7 @@ export default function MusicPlayer() {
   }, [isPremium, sdkSeekAndResume, setActiveTrack]);
   handleNextRef.current = handleNext;
 
-const handlePrev = useCallback(() => {
+  const handlePrev = useCallback(() => {
     if (isPremium) {
       if (sdk.position > 3000) { sdkSeek(0); return; }
     } else {
@@ -148,8 +153,8 @@ const handlePrev = useCallback(() => {
         audioRef.current.currentTime = 0; return;
       }
     }
-    if (hasPrev) setActiveTrack(currentQueue[trackIdx - 1]);
-  }, [hasPrev, trackIdx, currentQueue, setActiveTrack, isPremium, sdk.position, sdkSeek]);
+    if (hasPrev) setActiveTrack(activeQueue[trackIdx - 1]);
+  }, [hasPrev, trackIdx, activeQueue, setActiveTrack, isPremium, sdk.position, sdkSeek]);
 
   // Sync audio.loop for free users — browser handles repeat-one natively, no glitch
   useEffect(() => {
@@ -259,9 +264,7 @@ const handlePrev = useCallback(() => {
 
   return (
     <>
-
       <div className={`flex-shrink-0 mx-4 mb-3 h-[80px] rounded-2xl border flex items-center px-4 gap-3 transition-colors duration-300 ${bg}`}>
-
         {!activeTrack ? (
           /* ── Placeholder ── */
           <div className="flex-1 flex items-center justify-center gap-3">
@@ -373,8 +376,16 @@ const handlePrev = useCallback(() => {
 
             {/* ── RIGHT: Volume + actions ── */}
             <div className="flex items-center gap-3 w-[220px] flex-shrink-0 justify-end">
-              {/* Go to Album */}
-              {activeTrack.albumId && (
+              {/* Album / Queue icon */}
+              {albumSource ? (
+                <button
+                  onClick={() => openAlbum(albumSource.id)}
+                  className={`${textMuted} hover:text-[#FF6B35] transition-colors`}
+                  title="Back to Album"
+                >
+                  <ListOrdered size={16} />
+                </button>
+              ) : activeTrack?.albumId ? (
                 <button
                   onClick={() => openAlbum(activeTrack.albumId!)}
                   className={`${textMuted} hover:text-[#FF6B35] transition-colors`}
@@ -382,7 +393,7 @@ const handlePrev = useCallback(() => {
                 >
                   <Disc3 size={16} />
                 </button>
-              )}
+              ) : null}
               {/* Open in Spotify */}
               <a
                 href={activeTrack.spotifyUrl}

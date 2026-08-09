@@ -213,13 +213,12 @@ async def get_recommendations(mood: str, access_token: str | None, languages: li
         all_tracks = []
         seen_ids: set = set()
 
-        # Fetch concurrently from all active language playlists
         import asyncio
         async def fetch_lang(lang: str) -> list:
             pid = _get_mood_playlist_id(mood, lang)
             tracks = await get_playlist_tracks(pid, owner_token, mood, fetch_limit=min(per_playlist * 2, 100))
             random.shuffle(tracks)
-            return tracks[:per_playlist]
+            return [t for t in tracks if t.get("albumArt")][:per_playlist]
 
         results = await asyncio.gather(*[fetch_lang(lang) for lang in active_langs], return_exceptions=True)
 

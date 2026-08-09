@@ -6,6 +6,7 @@ import { ThemeProvider } from "@/context/ThemeContext";
 import { ArtistAlbumProvider } from "@/context/ArtistAlbumContext";
 import { PlayerProvider } from "@/context/PlayerContext";
 import ModalRenderer from "@/components/ui/ModalRenderer";
+import { Toaster } from "sonner";
 
 const pacifico = Pacifico({
   weight: "400",
@@ -49,6 +50,13 @@ export default function RootLayout({
               <PlayerProvider>
                 {children}
                 <ModalRenderer />
+                <Toaster 
+                  position="bottom-right" 
+                  expand={false}
+                  richColors 
+                  closeButton
+                  duration={3000}
+                />
               </PlayerProvider>
             </ArtistAlbumProvider>
           </AuthProvider>

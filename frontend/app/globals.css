@@ -16,6 +16,7 @@ body {
   -webkit-font-smoothing: antialiased;
   scrollbar-width: thin;
   scrollbar-color: #FF6B35 #0a0a0a;
+  scroll-behavior: smooth;
 }
 
 body::-webkit-scrollbar {
@@ -126,4 +127,161 @@ a {
 @keyframes glitch-scan {
   0%   { background-position: 0 0; }
   100% { background-position: 0 8px; }
+}
+
+/* ── Sonner Toast Customization — MoodiFy Theme ── */
+[data-sonner-toaster] {
+  font-family: var(--font-comfortaa), sans-serif !important;
+}
+
+[data-sonner-toast] {
+  border-radius: 12px !important;
+  border: 1px solid transparent !important;
+  backdrop-filter: blur(12px) !important;
+  font-size: 14px !important;
+  padding: 16px 18px !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4) !important;
+}
+
+/* Dark theme toasts - Black background with orange accents */
+[data-theme="dark"] [data-sonner-toast] {
+  background: #111111 !important;
+  border-color: #2a2a2a !important;
+  color: #ffffff !important;
+}
+
+[data-theme="dark"] [data-sonner-toast][data-type="success"] {
+  background: #111111 !important;
+  border-color: #FF6B35 !important;
+}
+
+[data-theme="dark"] [data-sonner-toast][data-type="success"] [data-title] {
+  color: #FF6B35 !important;
+  font-weight: 600 !important;
+}
+
+[data-theme="dark"] [data-sonner-toast][data-type="success"] [data-description] {
+  color: #aaa !important;
+}
+
+[data-theme="dark"] [data-sonner-toast][data-type="error"] {
+  background: #111111 !important;
+  border-color: #ef4444 !important;
+}
+
+[data-theme="dark"] [data-sonner-toast][data-type="error"] [data-title] {
+  color: #f87171 !important;
+  font-weight: 600 !important;
+}
+
+[data-theme="dark"] [data-sonner-toast][data-type="error"] [data-description] {
+  color: #aaa !important;
+}
+
+[data-theme="dark"] [data-sonner-toast][data-type="warning"] {
+  background: #111111 !important;
+  border-color: #fb923c !important;
+}
+
+[data-theme="dark"] [data-sonner-toast][data-type="warning"] [data-title] {
+  color: #fdba74 !important;
+  font-weight: 600 !important;
+}
+
+[data-theme="dark"] [data-sonner-toast][data-type="info"] {
+  background: #111111 !important;
+  border-color: #3b82f6 !important;
+}
+
+[data-theme="dark"] [data-sonner-toast][data-type="info"] [data-title] {
+  color: #60a5fa !important;
+  font-weight: 600 !important;
+}
+
+/* Light theme toasts - Peach background with orange accents */
+[data-theme="light"] [data-sonner-toast] {
+  background: #FFF5F0 !important;
+  border-color: #FFDDD2 !important;
+  color: #3a2a20 !important;
+}
+
+[data-theme="light"] [data-sonner-toast][data-type="success"] {
+  background: #FFF5F0 !important;
+  border-color: #FF6B35 !important;
+}
+
+[data-theme="light"] [data-sonner-toast][data-type="success"] [data-title] {
+  color: #FF6B35 !important;
+  font-weight: 600 !important;
+}
+
+[data-theme="light"] [data-sonner-toast][data-type="success"] [data-description] {
+  color: #7A6055 !important;
+}
+
+[data-theme="light"] [data-sonner-toast][data-type="error"] {
+  background: #FFF5F0 !important;
+  border-color: #ef4444 !important;
+}
+
+[data-theme="light"] [data-sonner-toast][data-type="error"] [data-title] {
+  color: #dc2626 !important;
+  font-weight: 600 !important;
+}
+
+[data-theme="light"] [data-sonner-toast][data-type="error"] [data-description] {
+  color: #7A6055 !important;
+}
+
+[data-theme="light"] [data-sonner-toast][data-type="warning"] {
+  background: #FFF5F0 !important;
+  border-color: #fb923c !important;
+}
+
+[data-theme="light"] [data-sonner-toast][data-type="warning"] [data-title] {
+  color: #ea580c !important;
+  font-weight: 600 !important;
+}
+
+[data-theme="light"] [data-sonner-toast][data-type="info"] {
+  background: #FFF5F0 !important;
+  border-color: #3b82f6 !important;
+}
+
+[data-theme="light"] [data-sonner-toast][data-type="info"] [data-title] {
+  color: #2563eb !important;
+  font-weight: 600 !important;
+}
+
+/* Toast icons */
+[data-sonner-toast] [data-icon] {
+  margin-right: 10px !important;
+  color: #FF6B35 !important;
+}
+
+[data-sonner-toast][data-type="error"] [data-icon] {
+  color: #ef4444 !important;
+}
+
+/* Close button */
+[data-sonner-toast] [data-close-button] {
+  border: none !important;
+  background: transparent !important;
+  color: inherit !important;
+  opacity: 0.5 !important;
+  transition: opacity 0.2s !important;
+}
+
+[data-sonner-toast] [data-close-button]:hover {
+  opacity: 1 !important;
+  background: transparent !important;
+}
+
+/* Success icon override */
+[data-theme="dark"] [data-sonner-toast][data-type="success"] [data-icon] svg {
+  color: #FF6B35 !important;
+}
+
+[data-theme="light"] [data-sonner-toast][data-type="success"] [data-icon] svg {
+  color: #FF6B35 !important;
 }

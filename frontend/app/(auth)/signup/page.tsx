@@ -3,17 +3,18 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
-import { useRouter } from "next/navigation";
 import GoogleSignInButton from "@/components/auth/GoogleSignInButton";
 import ThemeToggle from "@/components/ui/ThemeToggle";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, ArrowLeft } from "lucide-react";
+import { toast } from "sonner";
 
 export default function SignupPage() {
+  const router = useRouter();
   const { signUpWithEmail } = useAuth();
   const { theme } = useTheme();
-  const router = useRouter();
   const isDark = theme === "dark";
 
   const [displayName, setDisplayName] = useState("");
@@ -25,14 +26,33 @@ export default function SignupPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading) return; // Prevent double submission
+    
     setError("");
     setLoading(true);
     try {
       await signUpWithEmail(email, password, displayName);
-      router.push("/home");
-    } catch {
+      // Use Next.js router for client-side navigation to preserve sessionStorage
+      await router.push("/home");
+      
+      // Show welcome toast after navigation
+      setTimeout(() => {
+        const authFlag = sessionStorage.getItem('moodify-auth-action');
+        if (authFlag === 'true') {
+          sessionStorage.removeItem('moodify-auth-action');
+          
+          const hour = new Date().getHours();
+          const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+          
+          toast.success(`${greeting}, ${displayName}! 🎵`, {
+            description: `Welcome to MoodiFy! We're excited to help you discover music that matches your mood. Start by detecting your current vibe, or explore trending tracks to get inspired. Let the music journey begin!`,
+            duration: 6000,
+          });
+        }
+      }, 1000);
+    } catch (err: unknown) {
+      console.error("Signup error:", err);
       setError("Could not create account. Try a stronger password or different email.");
-    } finally {
       setLoading(false);
     }
   };
@@ -45,7 +65,19 @@ export default function SignupPage() {
 
   return (
     <main className={`min-h-screen flex items-center justify-center px-4 transition-colors duration-300 ${isDark ? "bg-[#0a0a0a]" : "bg-gradient-to-br from-[#FFE8D6] to-[#FFF5F0]"}`}>
-      <div className="absolute top-4 right-4">
+      {/* Back to Landing + Theme Toggle */}
+      <div className="absolute top-4 right-4 flex items-center gap-3">
+        <Link
+          href="/"
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-colors ${
+            isDark
+              ? "border-[#2a2a2a] text-[#aaa] hover:text-white hover:border-[#FF6B35]"
+              : "border-[#FFDDD2] text-[#7A6055] hover:text-[#FF6B35] hover:border-[#FF6B35]"
+          }`}
+        >
+          <ArrowLeft size={16} />
+          <span className="text-sm font-medium">Back</span>
+        </Link>
         <ThemeToggle />
       </div>
 

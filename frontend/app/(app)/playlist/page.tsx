@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, MouseEvent } from "react";
 import { createPortal } from "react-dom";
-import { Play, Pause, Shuffle, MoreHorizontal, Clock } from "lucide-react";
+import { Play, Pause, Shuffle, MoreHorizontal, Clock, Heart, Music, Disc3, Link2, Trash2 } from "lucide-react";
 import ContextMenu from "@/components/ui/ContextMenu";
 import { useTheme } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
@@ -10,28 +10,111 @@ import type { SpotifyTrack, Playlist } from "@/types/index";
 import { motion } from "framer-motion";
 import { useArtistAlbum } from "@/context/ArtistAlbumContext";
 import { usePlayer } from "@/context/PlayerContext";
+import { toast } from "sonner";
+import { TrackRowSkeleton, AlbumCardSkeleton } from "@/components/ui/Skeleton";
 import {
   getUserPlaylists, saveUserPlaylist, deleteUserPlaylist,
   addTrackToPlaylist, getLikedTracks,
   getSavedAlbums, saveAlbumToFirestore, type SavedAlbumDoc,
 } from "@/lib/firestore";
+import { getMoodIcon, getMoodColor } from "@/utils/moodIcons";
+import type { LucideIcon } from "lucide-react";
 
 type SavedAlbum = SavedAlbumDoc;
 
-// ── Animated emoji — triggered by parent hovered state ──
-function AnimatedEmoji({ emoji, hovered, anim, className = "" }: { emoji: string; hovered: boolean; anim: object; className?: string }) {
+// ── Animated icon component ──
+function AnimatedIcon({ Icon, hovered, anim, className = "" }: { 
+  Icon: LucideIcon; 
+  hovered: boolean; 
+  anim: object; 
+  className?: string;
+}) {
   return (
-    <motion.span
-      className={`select-none ${className}`}
+    <motion.div
+      className={className}
       animate={hovered ? (anim as { animate: object }).animate : { scale: 1, rotate: 0, x: 0, y: 0 }}
       transition={hovered ? (anim as { transition: object }).transition : { duration: 0.2 }}
     >
-      {emoji}
-    </motion.span>
+      <Icon size={20} />
+    </motion.div>
   );
 }
 
-// ── Per-mood emoji animation variants ──
+// ── Playlist cover component: 2x2 collage for custom playlists ──
+function PlaylistCover({ playlist, size = "md", className = "" }: { 
+  playlist: Playlist; 
+  size?: "sm" | "md" | "lg"; 
+  className?: string;
+}) {
+  const isCustom = !playlist.id.startsWith("mood-") && playlist.id !== "liked";
+  const trackImages = playlist.tracks.slice(0, 4).map(t => t.albumArt).filter(Boolean);
+  
+  const sizeClasses = {
+    sm: "w-10 h-10",
+    md: "w-12 h-12",
+    lg: "w-32 h-32",
+  };
+
+  // Custom playlist with tracks: show 2x2 collage
+  if (isCustom && trackImages.length > 0) {
+    return (
+      <div className={`${sizeClasses[size]} rounded-lg overflow-hidden flex-shrink-0 ${className}`}>
+        <div className="grid grid-cols-2 gap-[1px] w-full h-full bg-black/20">
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className="relative w-full h-full">
+              {trackImages[i] ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img 
+                  src={trackImages[i]} 
+                  alt="" 
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full bg-gradient-to-br from-[#FF6B35]/20 to-[#FF6B35]/5" />
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // Liked songs: heart icon
+  if (playlist.id === "liked") {
+    return (
+      <div className={`${sizeClasses[size]} rounded-lg flex items-center justify-center flex-shrink-0 bg-gradient-to-br from-[#F06292] to-[#E91E63] ${className}`}>
+        <Heart size={size === "lg" ? 48 : size === "md" ? 24 : 20} className="text-white" fill="white" />
+      </div>
+    );
+  }
+
+  // Mood playlists: icon with gradient
+  if (playlist.id.startsWith("mood-")) {
+    const moodId = playlist.id.replace("mood-", "");
+    const Icon = getMoodIcon(moodId);
+    const color = getMoodColor(moodId);
+    
+    return (
+      <div 
+        className={`${sizeClasses[size]} rounded-lg flex items-center justify-center flex-shrink-0 ${className}`}
+        style={{ 
+          background: `linear-gradient(135deg, ${color} 0%, ${color}DD 100%)`,
+        }}
+      >
+        <Icon size={size === "lg" ? 48 : size === "md" ? 24 : 20} className="text-white" />
+      </div>
+    );
+  }
+
+  // Default fallback: music icon
+  return (
+    <div className={`${sizeClasses[size]} rounded-lg flex items-center justify-center flex-shrink-0 bg-gradient-to-br from-[#FF6B35] to-[#e85d2a] ${className}`}>
+      <Music size={size === "lg" ? 48 : size === "md" ? 24 : 20} className="text-white" />
+    </div>
+  );
+}
+
+// ── Per-mood icon animation variants ──
 const MOOD_ANIMATIONS: Record<string, object> = {
   happy:      { animate: { y: [0, -12, 0, -8, 0], rotate: [0, 8, -8, 4, 0], scale: [1, 1.2, 1, 1.1, 1] }, transition: { duration: 0.7, ease: "easeInOut" } },
   upbeat:     { animate: { rotate: [0, -15, 15, -10, 10, 0], scale: [1, 1.25, 1, 1.15, 1] },              transition: { duration: 0.6, ease: "easeInOut" } },
@@ -42,64 +125,72 @@ const MOOD_ANIMATIONS: Record<string, object> = {
   intense:    { animate: { scale: [1, 1.3, 0.9, 1.2, 1], rotate: [0, -12, 12, -6, 0] },                  transition: { duration: 0.55, ease: "easeInOut" } },
 };
 
-// ── Sidebar row item with hover-triggered emoji animation ──
-function SidebarRow({ emoji, label, isActive, isDark, muted, rowHover, moodId, indent = false, onClick }: {
-  emoji: string; label: string; isActive: boolean; isDark: boolean;
-  muted: string; rowHover: string; moodId?: string;
+// ── Sidebar row item with hover-triggered icon animation ──
+function SidebarRow({ moodId, label, isActive, isDark, muted, rowHover, indent = false, onClick }: {
+  moodId: string; label: string; isActive: boolean; isDark: boolean;
+  muted: string; rowHover: string;
   indent?: boolean; onClick: () => void;
 }) {
   const [hovered, setHovered] = useState(false);
-  const anim = moodId ? (MOOD_ANIMATIONS[moodId] ?? MOOD_ANIMATIONS.chill) : MOOD_ANIMATIONS.chill;
+  const Icon = getMoodIcon(moodId);
+  const anim = MOOD_ANIMATIONS[moodId] ?? MOOD_ANIMATIONS.chill;
+  const color = getMoodColor(moodId);
+  
   return (
-    <div
+    <motion.div
+      initial={{ opacity: 0, x: -10 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ duration: 0.3, ease: "easeOut" }}
       onClick={onClick}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
+      whileHover={{ scale: 1.02, x: 4 }}
+      whileTap={{ scale: 0.98 }}
       className={`flex items-center gap-3 ${indent ? "pl-8 pr-3" : "px-3"} py-2.5 rounded-xl cursor-pointer transition-colors ${
         isActive ? isDark ? "bg-[#1e1e2e]" : "bg-[#FFF0E8]" : rowHover
       }`}
     >
-      <AnimatedEmoji emoji={emoji} hovered={hovered} anim={anim} className={indent ? "text-lg flex-shrink-0" : "text-xl flex-shrink-0"} />
+      <div 
+        className={`flex-shrink-0 ${isActive ? "" : muted}`}
+        style={{ color: isActive ? color : undefined }}
+      >
+        <AnimatedIcon Icon={Icon} hovered={hovered} anim={anim} />
+      </div>
       <p className={`text-sm font-medium truncate capitalize ${isActive ? "text-[#FF6B35]" : muted}`}>{label}</p>
-    </div>
+    </motion.div>
   );
 }
 
-// ── Sidebar playlist row (with cover box) ──
+// ── Sidebar playlist row (with cover) ──
 function PlaylistRow({ p, isActive, isDark, muted, text, rowHover, onClick, children }: {
   p: Playlist; isActive: boolean; isDark: boolean; muted: string; text: string;
   rowHover: string; onClick: () => void; children?: React.ReactNode;
 }) {
-  const [hovered, setHovered] = useState(false);
-  const anim = MOOD_ANIMATIONS[p.id] ?? MOOD_ANIMATIONS.chill;
   return (
-    <div
+    <motion.div
+      initial={{ opacity: 0, x: -10 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ duration: 0.3, ease: "easeOut" }}
       onClick={onClick}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
+      whileHover={{ scale: 1.02 }}
+      whileTap={{ scale: 0.98 }}
       className={`group flex items-center gap-3 px-3 py-3 rounded-xl cursor-pointer transition-colors ${
         isActive ? isDark ? "bg-[#2a2a2a]" : "bg-[#FFF5F0]" : rowHover
       }`}
     >
-      {p.coverImage ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={p.coverImage} alt={p.name} className="w-10 h-10 rounded-lg object-cover flex-shrink-0" />
-      ) : (
-        <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
-          isDark ? "bg-[#1a1a1a]" : "bg-[#FFDDD2]"
-        }`}>
-          <AnimatedEmoji emoji={p.emoji ?? "🎵"} hovered={hovered} anim={anim} className="text-xl" />
-        </div>
-      )}
+      <PlaylistCover playlist={p} size="md" />
       <p className={`text-sm font-medium truncate ${isActive ? text : muted}`}>{p.name}</p>
       {children}
-    </div>
+    </motion.div>
   );
 }
-function MoodCard({ p, onClick, className }: { p: { id: string; emoji: string; tracks: SpotifyTrack[] }; onClick: () => void; className?: string }) {
+// ── Mood card with 3D hover effect ──
+function MoodCard({ p, onClick, className }: { p: { id: string; tracks: SpotifyTrack[] }; onClick: () => void; className?: string }) {
   const ref = useRef<HTMLDivElement>(null);
   const [hovered, setHovered] = useState(false);
   const anim = MOOD_ANIMATIONS[p.id] ?? MOOD_ANIMATIONS.chill;
+  const Icon = getMoodIcon(p.id);
+  const color = getMoodColor(p.id);
 
   function onMouseMove(e: MouseEvent<HTMLDivElement>) {
     const el = ref.current;
@@ -107,8 +198,8 @@ function MoodCard({ p, onClick, className }: { p: { id: string; emoji: string; t
     const { left, top, width, height } = el.getBoundingClientRect();
     const x = (e.clientX - left) / width - 0.5;
     const y = (e.clientY - top) / height - 0.5;
-    el.style.transform = `perspective(500px) rotateY(${x * 18}deg) rotateX(${-y * 18}deg) scale3d(1.06,1.06,1.06)`;
-    el.style.boxShadow = `${-x * 20}px ${y * 20}px 40px rgba(255,107,53,0.22)`;
+    el.style.transform = `perspective(500px) rotateY(${x * 12}deg) rotateX(${-y * 12}deg) scale3d(1.03,1.03,1.03)`;
+    el.style.boxShadow = `${-x * 15}px ${y * 15}px 30px rgba(255,107,53,0.15)`;
   }
 
   function onMouseLeave() {
@@ -120,43 +211,56 @@ function MoodCard({ p, onClick, className }: { p: { id: string; emoji: string; t
   }
 
   return (
-    <div
+    <motion.div
       ref={ref}
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, ease: "easeOut" }}
       onClick={onClick}
       onMouseMove={onMouseMove}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={onMouseLeave}
       className={className}
-      style={{ transition: "transform 0.15s ease, box-shadow 0.15s ease", willChange: "transform" }}
+      style={{ transition: "transform 0.2s ease, box-shadow 0.2s ease", willChange: "transform" }}
     >
-      <AnimatedEmoji emoji={p.emoji} hovered={hovered} anim={anim} className="text-4xl" />
+      <div 
+        className="w-16 h-16 rounded-2xl flex items-center justify-center mb-3"
+        style={{ background: `linear-gradient(135deg, ${color} 0%, ${color}DD 100%)` }}
+      >
+        <AnimatedIcon Icon={Icon} hovered={hovered} anim={anim} className="text-white text-3xl" />
+      </div>
       <p className="text-sm font-semibold capitalize mt-2">{p.id}</p>
       <p className="text-xs mt-0.5 opacity-60">{p.tracks.length} songs</p>
-    </div>
+    </motion.div>
   );
 }
 
-// ── Moods folder row (needs its own useState for hover) ──
+// ── Moods folder row ──
 function MoodsFolderRow({ isDark, moodView, muted, text, rowHover, onClick }: {
   isDark: boolean; moodView: string | null; muted: string; text: string; rowHover: string; onClick: () => void;
 }) {
   const [hovered, setHovered] = useState(false);
   return (
-    <div
+    <motion.div
+      initial={{ opacity: 0, x: -10 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ duration: 0.3, ease: "easeOut" }}
       onClick={onClick}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
+      whileHover={{ scale: 1.02 }}
+      whileTap={{ scale: 0.98 }}
       className={`flex items-center gap-3 px-3 py-3 rounded-xl cursor-pointer transition-colors ${
         moodView !== null ? isDark ? "bg-[#2a2a2a]" : "bg-[#FFF5F0]" : rowHover
       }`}
     >
       <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
-        isDark ? "bg-[#1a1a1a]" : "bg-[#FFDDD2]"
+        isDark ? "bg-gradient-to-br from-[#FF6B35] to-[#e85d2a]" : "bg-gradient-to-br from-[#FF6B35] to-[#e85d2a]"
       }`}>
-        <AnimatedEmoji emoji="🎭" hovered={hovered} anim={MOOD_ANIMATIONS.intense} className="text-xl" />
+        <AnimatedIcon Icon={Music} hovered={hovered} anim={MOOD_ANIMATIONS.intense} className="text-white" />
       </div>
       <p className={`text-sm font-medium truncate ${moodView !== null ? text : muted}`}>Moods Playlist</p>
-    </div>
+    </motion.div>
   );
 }
 
@@ -172,15 +276,16 @@ export default function PlaylistPage() {
   const { theme } = useTheme();
   const isDark = theme === "dark";
   const { user } = useAuth();
-  const { openAlbum, registerPlayHandler, registerSaveAlbumHandler } = useArtistAlbum();
-  const { activeTrack, isPlaying, likedTrackIds, currentQueue, setQueue, toggleLike, togglePlayRef, shuffle, setShuffle } = usePlayer();
+  const { openAlbum, registerPlayAlbumHandler, registerSaveAlbumHandler, registerRemoveAlbumHandler } = useArtistAlbum();
+  const { activeTrack, isPlaying, likedTrackIds, albumSource, toggleLike, togglePlayRef, shuffle, setShuffle, playAlbumTrack } = usePlayer();
 
   const MOOD_IDS = ["happy", "upbeat", "chill", "melancholy", "relaxing", "romantic", "intense"];
 
   const [savedAlbums, setSavedAlbums] = useState<SavedAlbum[]>([]);
   const [moodPlaylists, setMoodPlaylists] = useState<Playlist[]>([]);
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const [selectedId, setSelectedId] = useState<string>("liked");
   const [viewTab, setViewTab] = useState<SidebarTab>("Tracks");
   const [menuTrackId, setMenuTrackId] = useState<string | null>(null);
@@ -189,11 +294,12 @@ export default function PlaylistPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [newName, setNewName] = useState("");
   const pendingTrackRef = useRef<SpotifyTrack | null>(null);
-  const [activeQueue, setActiveQueue] = useState<SpotifyTrack[]>([]);
   const [playlistMenuId, setPlaylistMenuId] = useState<string | null>(null);
   // double-click tracking
   const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastClickedRef = useRef<string | null>(null);
+
+  useEffect(() => { setMounted(true); }, []);
 
   // Load all playlists + saved albums from Firestore on mount
   useEffect(() => {
@@ -208,7 +314,7 @@ export default function PlaylistPage() {
         const likedPlaylist: Playlist = {
           id: "liked",
           name: "Liked Songs",
-          emoji: "💖",
+          emoji: "liked",
           tracks: likedTracks.map(t => ({
             id: t.trackId,
             title: t.title,
@@ -249,12 +355,16 @@ export default function PlaylistPage() {
   }, [registerSaveAlbumHandler, user?.uid]);
 
   useEffect(() => {
-    registerPlayHandler((track, queue) => {
-      const source = { type: "album" as const, name: queue[0].album ?? "Album", art: queue[0].albumArt ?? "" };
-      setQueue(queue, track, source);
-      setActiveQueue(queue);
+    registerRemoveAlbumHandler((albumId) => {
+      setSavedAlbums(prev => prev.filter(a => a.id !== albumId));
     });
-  }, [registerPlayHandler, setQueue]);
+  }, [registerRemoveAlbumHandler]);
+
+  useEffect(() => {
+    registerPlayAlbumHandler((track, queue, source) => {
+      playAlbumTrack(track, queue, source);
+    });
+  }, [registerPlayAlbumHandler, playAlbumTrack]);
 
   const activeMoodPlaylist = moodView && moodView !== "moods"
     ? moodPlaylists.find((p) => p.id === moodView) ?? null
@@ -269,56 +379,111 @@ export default function PlaylistPage() {
   const durationLabel = totalHours > 0 ? `${totalHours} hr ${totalMins} min` : `${totalMins} min`;
 
   const card = isDark ? "bg-[#111111] border-[#2a2a2a]" : "bg-white border-[#FFDDD2]";
-  const heroBg = isDark ? "bg-[#0f0f1a]" : "bg-gradient-to-r from-[#1a1a2e] to-[#16213e]";
   const muted = isDark ? "text-[#aaa]" : "text-[#7A6055]";
   const text = isDark ? "text-white" : "text-[#3a2a20]";
   const border = isDark ? "border-[#2a2a2a]" : "border-[#FFDDD2]";
   const rowHover = isDark ? "hover:bg-[#1a1a1a]" : "hover:bg-[#FFF5F0]";
   const activeRow = isDark ? "bg-[#1e1e2e]" : "bg-[#FFF5F0]";
 
-  // True when this playlist's tracks are what's loaded in the player
-  const isThisQueueActive = queue.length > 0 && currentQueue.length > 0 && queue[0]?.id === currentQueue[0]?.id;
+  // Dynamic hero banner gradient based on playlist type
+  const getHeroBannerGradient = () => {
+    // Moods Playlist folder
+    if (moodView === "moods") {
+      return isDark 
+        ? "bg-gradient-to-br from-[#FF6B35] via-[#F7931E] to-[#FDC830]"
+        : "bg-gradient-to-br from-[#FF6B35] via-[#FF8C42] to-[#FFA652]";
+    }
+    
+    // Individual mood playlists
+    if (activeMoodPlaylist) {
+      const moodId = activeMoodPlaylist.id.replace("mood-", "");
+      const moodGradients: Record<string, { dark: string; light: string }> = {
+        happy: { 
+          dark: "bg-gradient-to-br from-[#FFD93D] via-[#FFC947] to-[#FFB84D]",
+          light: "bg-gradient-to-br from-[#FFE66D] via-[#FFD93D] to-[#FFC947]"
+        },
+        upbeat: { 
+          dark: "bg-gradient-to-br from-[#FF6B6B] via-[#FF8E53] to-[#FFB347]",
+          light: "bg-gradient-to-br from-[#FF8E53] via-[#FFA552] to-[#FFB347]"
+        },
+        chill: { 
+          dark: "bg-gradient-to-br from-[#4ECDC4] via-[#44A08D] to-[#3A7D7C]",
+          light: "bg-gradient-to-br from-[#6DD5ED] via-[#4ECDC4] to-[#44A08D]"
+        },
+        melancholy: { 
+          dark: "bg-gradient-to-br from-[#667EEA] via-[#7F7FD5] to-[#9370DB]",
+          light: "bg-gradient-to-br from-[#7F7FD5] via-[#8B7FE8] to-[#A18CD1]"
+        },
+        relaxing: { 
+          dark: "bg-gradient-to-br from-[#56CCF2] via-[#6DD5ED] to-[#2193B0]",
+          light: "bg-gradient-to-br from-[#89D4F7] via-[#6DD5ED] to-[#56CCF2]"
+        },
+        romantic: { 
+          dark: "bg-gradient-to-br from-[#F857A6] via-[#FF5E7E] to-[#FF6B9D]",
+          light: "bg-gradient-to-br from-[#FF9A9E] via-[#FAD0C4] to-[#FBC2EB]"
+        },
+        intense: { 
+          dark: "bg-gradient-to-br from-[#ED213A] via-[#D32F2F] to-[#C62828]",
+          light: "bg-gradient-to-br from-[#FF5F6D] via-[#ED213A] to-[#D32F2F]"
+        },
+      };
+      return moodGradients[moodId]?.[isDark ? "dark" : "light"] || 
+        (isDark ? "bg-gradient-to-br from-[#FF6B35] to-[#e85d2a]" : "bg-gradient-to-br from-[#FF8C42] to-[#FF6B35]");
+    }
+    
+    // Liked Songs - romantic pink gradient
+    if (selected?.id === "liked") {
+      return isDark
+        ? "bg-gradient-to-br from-[#E91E63] via-[#F06292] to-[#F48FB1]"
+        : "bg-gradient-to-br from-[#F06292] via-[#F48FB1] to-[#F8BBD0]";
+    }
+    
+    // Custom playlists - orange brand gradient
+    return isDark 
+      ? "bg-gradient-to-br from-[#FF6B35] via-[#e85d2a] to-[#d54d1f]"
+      : "bg-gradient-to-br from-[#FF8C42] via-[#FF6B35] to-[#F7931E]";
+  };
 
-  // Hero Play button — toggle if same queue, load+play if different
+// Playlist source — isolated from mood queue, uses albumSource/albumQueue slot
+  const playlistSource = selected ? { id: selected.id, name: selected.name, art: selected.coverImage ?? null } : null;
+  const isThisQueueActive = !!playlistSource && albumSource?.id === playlistSource.id;
+
   const handlePlayPause = () => {
-    if (queue.length === 0) return;
+    if (queue.length === 0 || !playlistSource) return;
     if (isThisQueueActive) {
       togglePlayRef.current?.();
     } else {
-      setQueue(queue, queue[0]);
+      playAlbumTrack(queue[0], queue, playlistSource);
       setShuffle(false);
     }
   };
 
-  // Hero Shuffle button — synced with PlayerContext shuffle
   const handleShuffle = () => {
-    if (queue.length === 0) return;
+    if (queue.length === 0 || !playlistSource) return;
     if (isThisQueueActive) {
       setShuffle(!shuffle);
     } else {
       const shuffled = [...queue].sort(() => Math.random() - 0.5);
-      setQueue(shuffled, shuffled[0]);
+      playAlbumTrack(shuffled[0], shuffled, playlistSource);
       setShuffle(true);
     }
   };
 
   const handleSelectPlaylist = (id: string) => {
     setSelectedId(id);
-    setActiveQueue([]);
     setViewTab("Tracks");
     setMoodView(null);
   };
 
   // Double-click to play a row; single click just highlights
   const handleRowClick = (track: SpotifyTrack) => {
+    if (!playlistSource) return;
     if (lastClickedRef.current === track.id && clickTimerRef.current) {
-      // Second click within 300ms — play
       clearTimeout(clickTimerRef.current);
       clickTimerRef.current = null;
       lastClickedRef.current = null;
-      setQueue(activeQueue.length ? activeQueue : queue, track);
+      playAlbumTrack(track, queue, playlistSource);
     } else {
-      // First click — just highlight, wait for possible second
       lastClickedRef.current = track.id;
       if (clickTimerRef.current) clearTimeout(clickTimerRef.current);
       clickTimerRef.current = setTimeout(() => {
@@ -336,26 +501,45 @@ export default function PlaylistPage() {
     const newPlaylist: Playlist = {
       id,
       name: newName.trim(),
-      emoji: "🎵",
+      emoji: "custom",
       tracks: [],
       createdAt: new Date().toISOString(),
     };
     setCreateOpen(false);
-    await saveUserPlaylist(user.uid, newPlaylist);
-    if (trackToAdd) {
-      await addTrackToPlaylist(user.uid, id, trackToAdd);
-      newPlaylist.tracks = [trackToAdd];
+    
+    try {
+      await saveUserPlaylist(user.uid, newPlaylist);
+      if (trackToAdd) {
+        await addTrackToPlaylist(user.uid, id, trackToAdd);
+        newPlaylist.tracks = [trackToAdd];
+      }
+      setPlaylists(prev => [...prev, newPlaylist]);
+      setSelectedId(id);
+      setNewName("");
+      toast.success("Playlist created", {
+        description: newPlaylist.name,
+      });
+    } catch {
+      toast.error("Failed to create playlist");
     }
-    setPlaylists(prev => [...prev, newPlaylist]);
-    setSelectedId(id);
-    setNewName("");
   }, [newName, user?.uid]);
 
   const handleLike = (track: SpotifyTrack) => toggleLike(track);
 
   const handleDeletePlaylist = useCallback((id: string) => {
     if (!user?.uid) return;
-    deleteUserPlaylist(user.uid, id).catch(() => {});
+    const playlist = playlists.find(p => p.id === id);
+    const playlistName = playlist?.name || "Playlist";
+    
+    toast.promise(
+      deleteUserPlaylist(user.uid, id),
+      {
+        loading: "Deleting playlist...",
+        success: `"${playlistName}" deleted`,
+        error: "Failed to delete playlist",
+      }
+    );
+    
     setPlaylists(prev => prev.filter(p => p.id !== id));
     if (selectedId === id) setSelectedId(playlists.find(p => p.id !== id)?.id ?? "liked");
     setPlaylistMenuId(null);
@@ -364,28 +548,70 @@ export default function PlaylistPage() {
   const handleSharePlaylist = (p: Playlist) => {
     const msg = `Check out my "${p.name}" playlist on MoodiFy!`;
     if (navigator.share) {
-      navigator.share({ title: p.name, text: msg }).catch(() => {});
+      navigator.share({ title: p.name, text: msg })
+        .then(() => toast.success("Shared successfully"))
+        .catch(() => {});
     } else {
       window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank");
+      toast.success("Opening WhatsApp to share");
     }
     setPlaylistMenuId(null);
   };
 
   const handleShare = (_track: SpotifyTrack) => {};  // eslint-disable-line @typescript-eslint/no-unused-vars
 
+  const handleRemoveFromPlaylist = useCallback(async (track: SpotifyTrack) => {
+    if (!user?.uid || !selected) return;
+    // Remove track from the current playlist
+    const updatedTracks = selected.tracks.filter(t => t.id !== track.id);
+    const updatedPlaylist = { ...selected, tracks: updatedTracks };
+    
+    try {
+      await saveUserPlaylist(user.uid, updatedPlaylist);
+      setPlaylists(prev => prev.map(p => p.id === selected.id ? updatedPlaylist : p));
+      toast.success("Removed from playlist");
+    } catch {
+      toast.error("Failed to remove track");
+    } finally {
+      setMenuTrackId(null);
+      setMenuPos(null);
+    }
+  }, [user?.uid, selected]);
+
   const handleAddToPlaylist = useCallback(async (track: SpotifyTrack, playlistId: string) => {
     if (!user?.uid) return;
-    await addTrackToPlaylist(user.uid, playlistId, track);
-    setPlaylists(prev => prev.map(p => p.id === playlistId && !p.tracks.find(t => t.id === track.id)
-      ? { ...p, tracks: [...p.tracks, track] } : p));
-  }, [user?.uid]);
+    
+    const playlist = playlists.find(p => p.id === playlistId);
+    const playlistName = playlist?.name || "playlist";
+    
+    toast.promise(
+      addTrackToPlaylist(user.uid, playlistId, track).then(() => {
+        setPlaylists(prev => prev.map(p => p.id === playlistId && !p.tracks.find(t => t.id === track.id)
+          ? { ...p, tracks: [...p.tracks, track] } : p));
+      }),
+      {
+        loading: "Adding to playlist...",
+        success: `Added to ${playlistName}`,
+        error: "Failed to add track",
+      }
+    );
+  }, [user?.uid, playlists]);
 
   return (
-    <>
-      <main className="flex gap-3 px-3 py-3 h-full min-h-0">
+    <motion.main 
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.4, ease: "easeOut" }}
+      className="flex gap-3 px-3 py-3 h-full min-h-0"
+    >
 
         {/* ── Left Column — Sidebar + Player ── */}
-        <div className="w-[400px] flex-shrink-0 flex flex-col gap-4 h-full">
+        <motion.div 
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.4, delay: 0.1, ease: "easeOut" }}
+          className="w-[400px] flex-shrink-0 flex flex-col gap-4 h-full"
+        >
 
           {/* Card 1 — Playlist Sidebar — shrinks when player is visible */}
           <div className={`rounded-2xl border flex flex-col transition-colors duration-300 flex-1 min-h-0 ${card}`}>
@@ -445,23 +671,23 @@ export default function PlaylistPage() {
                     </button>
                     {playlistMenuId === p.id && (
                       <div
-                        className={`absolute right-0 top-full mt-1 rounded-xl border shadow-xl z-50 overflow-hidden w-36 ${
+                        className={`absolute right-0 top-full mt-1 rounded-xl border shadow-xl z-[100] overflow-hidden w-40 ${
                           isDark ? "bg-[#111] border-[#2a2a2a]" : "bg-white border-[#FFDDD2]"
                         }`}
                       >
                         <button
                           onClick={() => handleSharePlaylist(p)}
-                          className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${
+                          className={`w-full text-left px-4 py-2.5 text-sm transition-colors flex items-center gap-2 ${
                             isDark ? "text-[#ccc] hover:bg-[#1a1a1a]" : "text-[#7A6055] hover:bg-[#FFF5F0]"
                           }`}
                         >
-                          🔗 Share
+                          <Link2 size={14} className="text-[#FF6B35]" /> Share
                         </button>
                         <button
                           onClick={() => handleDeletePlaylist(p.id)}
-                          className="w-full text-left px-4 py-2.5 text-sm text-red-400 hover:bg-red-500/10 transition-colors"
+                          className="w-full text-left px-4 py-2.5 text-sm text-red-400 hover:bg-red-500/10 transition-colors flex items-center gap-2"
                         >
-                          🗑️ Delete
+                          <Trash2 size={14} /> Delete
                         </button>
                       </div>
                     )}
@@ -486,15 +712,14 @@ export default function PlaylistPage() {
               return (
                 <SidebarRow
                   key={p.id}
-                  emoji={p.emoji}
+                  moodId={moodId}
                   label={moodId}
                   isActive={moodView === p.id}
                   isDark={isDark}
                   muted={muted}
                   rowHover={rowHover}
-                  moodId={moodId}
                   indent
-                  onClick={() => { setMoodView(p.id); setActiveQueue([]); }}
+                  onClick={() => { setMoodView(p.id); }}
                 />
               );
             })}
@@ -508,86 +733,107 @@ export default function PlaylistPage() {
 
 
 
-        </div>
+        </motion.div>
         {/* end left column */}
 
         {/* ── Card 2 — Playlist View ── */}
-        <div className={`flex-1 min-w-0 rounded-2xl border flex flex-col transition-colors duration-300 ${card}`}>
+        <motion.div 
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.4, delay: 0.15, ease: "easeOut" }}
+          className={`flex-1 min-w-0 rounded-2xl border flex flex-col transition-colors duration-300 ${card}`}
+        >
 
           {/* Hero banner */}
-          <div className={`flex-shrink-0 rounded-t-2xl ${heroBg}`}>
+          <div className={`flex-shrink-0 rounded-t-2xl ${getHeroBannerGradient()} shadow-lg relative overflow-hidden`}>
+            {/* Animated background pattern */}
+            <div className="absolute inset-0 opacity-10">
+              <div className="absolute inset-0" style={{
+                backgroundImage: 'radial-gradient(circle at 20% 50%, rgba(255,255,255,0.3) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(255,255,255,0.2) 0%, transparent 50%)',
+              }} />
+            </div>
             {/* Mood picker grid — shown when "Moods Playlist" folder is selected but no sub-mood yet */}
             {moodView === "moods" && (
-              <div className="flex items-end gap-6 px-8 pt-8 pb-6">
-                <div className="w-44 h-44 rounded-2xl flex items-center justify-center text-7xl flex-shrink-0 shadow-2xl bg-gradient-to-br from-[#FF6B35]/30 to-[#FF6B35]/10">
-                  🎭
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, ease: "easeOut" }}
+                className="flex items-end gap-6 px-8 pt-6 pb-5 relative z-10"
+              >
+                <div className="w-32 h-32 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-2xl bg-white/20 backdrop-blur-sm border-2 border-white/30">
+                  <Music size={48} className="text-white drop-shadow-lg" />
                 </div>
-                <div className="flex flex-col gap-2 pb-1">
-                  <p className="text-5xl font-bold text-white leading-tight">Moods Playlist</p>
-                  <p className="text-sm text-[#aaa]">{moodPlaylists.length} mood playlists</p>
+                <div className="flex flex-col gap-1.5 pb-1">
+                  <p className="text-3xl font-bold text-white leading-tight drop-shadow-md">Moods Playlist</p>
+                  <p className="text-sm text-white/90 drop-shadow">{moodPlaylists.length} mood playlists</p>
                 </div>
-              </div>
+              </motion.div>
             )}
 
             {viewTab === "Tracks" && selected && moodView !== "moods" ? (
               /* ── Playlist hero — Spotify-style ── */
-              <div className="flex items-end gap-6 px-8 pt-8 pb-6">
-                {/* Large cover art */}
-                {selected.coverImage ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={selected.coverImage}
-                    alt={selected.name}
-                    className="w-44 h-44 rounded-2xl object-cover flex-shrink-0 shadow-2xl"
-                  />
-                ) : (
-                  <div className="w-44 h-44 rounded-2xl flex items-center justify-center text-8xl flex-shrink-0 shadow-2xl bg-gradient-to-br from-[#FF6B35]/30 to-[#FF6B35]/10">
-                    {selected.emoji ?? "🎵"}
-                  </div>
-                )}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, ease: "easeOut" }}
+                className="flex items-end gap-6 px-8 pt-6 pb-5 relative z-10"
+              >
+                {/* Large cover art with enhanced shadow */}
+                <div className="shadow-2xl rounded-2xl">
+                  <PlaylistCover playlist={selected} size="lg" className="w-32 h-32 ring-4 ring-white/30" />
+                </div>
 
                 {/* Text + controls stacked */}
                 <div className="flex flex-col gap-2 pb-1 min-w-0">
-                  <p className="text-xs font-semibold uppercase tracking-widest text-[#FF6B35]">Playlist</p>
-                  <p className="text-5xl font-bold text-white leading-tight truncate">{selected.name}</p>
-                  <p className="text-sm text-[#aaa]">
+                  <p className="text-xs font-semibold uppercase tracking-widest text-white/90 drop-shadow">Playlist</p>
+                  <p className="text-3xl font-bold text-white leading-tight truncate drop-shadow-md">{selected.name}</p>
+                  <p className="text-sm text-white/90 drop-shadow">
                     {queue.length} songs{queue.length > 0 && ` · about ${durationLabel}`}
                   </p>
                   {/* Play + Shuffle */}
                   <div className="flex items-center gap-4 mt-2">
-                    <button
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
                       onClick={handlePlayPause}
-                      className="w-12 h-12 rounded-full bg-[#FF6B35] hover:bg-[#e85d2a] flex items-center justify-center shadow-lg transition-all hover:scale-105"
+                      className="w-12 h-12 rounded-full bg-white text-[#FF6B35] hover:scale-105 flex items-center justify-center shadow-xl transition-all"
                     >
                       {isThisQueueActive && isPlaying
-                        ? <Pause size={20} fill="white" className="text-white" />
-                        : <Play size={20} fill="white" className="text-white ml-0.5" />
+                        ? <Pause size={20} fill="#FF6B35" className="text-[#FF6B35]" />
+                        : <Play size={20} fill="#FF6B35" className="text-[#FF6B35] ml-0.5" />
                       }
-                    </button>
-                    <button
+                    </motion.button>
+                    <motion.button
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.95 }}
                       onClick={handleShuffle}
-                      className={`transition-all ${
+                      className={`transition-all drop-shadow ${
                         isThisQueueActive && shuffle
-                          ? "text-[#FF6B35] scale-110"
-                          : "text-[#aaa] hover:text-white"
+                          ? "text-white scale-110"
+                          : "text-white/80 hover:text-white"
                       }`}
                     >
                       <Shuffle size={isThisQueueActive && shuffle ? 24 : 22} />
-                    </button>
+                    </motion.button>
                   </div>
                 </div>
-              </div>
+              </motion.div>
             ) : viewTab === "Albums" ? (
               /* Albums hero */
-              <div className="flex items-end gap-6 px-8 pt-8 pb-6">
-                <div className="w-44 h-44 rounded-2xl flex items-center justify-center text-7xl flex-shrink-0 shadow-2xl bg-gradient-to-br from-[#FF6B35]/30 to-[#FF6B35]/10">
-                  💿
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, ease: "easeOut" }}
+                className="flex items-end gap-6 px-8 pt-6 pb-5 relative z-10"
+              >
+                <div className="w-32 h-32 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-2xl bg-white/20 backdrop-blur-sm border-2 border-white/30">
+                  <Disc3 size={48} className="text-white drop-shadow-lg" />
                 </div>
-                <div className="flex flex-col gap-2 pb-1">
-                  <p className="text-5xl font-bold text-white leading-tight">Saved Albums</p>
-                  <p className="text-sm text-[#aaa]">{savedAlbums.length} albums</p>
+                <div className="flex flex-col gap-1.5 pb-1">
+                  <p className="text-3xl font-bold text-white leading-tight drop-shadow-md">Saved Albums</p>
+                  <p className="text-sm text-white/90 drop-shadow">{savedAlbums.length} albums</p>
                 </div>
-              </div>
+              </motion.div>
             ) : null}
           </div>
 
@@ -595,7 +841,7 @@ export default function PlaylistPage() {
           <div className="app-scroll flex-1" style={{ overflowY: "auto" }}>
 
             {/* ── Mood picker grid ── */}
-            {moodView === "moods" && (
+            {mounted && moodView === "moods" && (
               <div className="p-6 grid grid-cols-4 gap-4">
                 {moodPlaylists.map((p) => (
                   <MoodCard
@@ -611,8 +857,26 @@ export default function PlaylistPage() {
             )}
 
             {/* ── Tracks tab ── */}
-            {viewTab === "Tracks" && moodView !== "moods" && (
-              queue.length > 0 ? (
+            {mounted && viewTab === "Tracks" && moodView !== "moods" && (
+              loading ? (
+                // Loading skeleton for tracks
+                <table className="w-full border-collapse">
+                  <thead className="sticky top-0 z-10">
+                    <tr className={`border-b ${border} text-xs ${muted} ${isDark ? "bg-[#111111]" : "bg-white"}`}>
+                      <th className="text-left px-5 py-3 w-10 font-medium">#</th>
+                      <th className="text-left px-3 py-3 font-medium">Title</th>
+                      <th className="text-left px-3 py-3 font-medium">Album</th>
+                      <th className="text-left px-3 py-3 font-medium">Date added</th>
+                      <th className="text-left px-5 py-3 w-24 font-medium"><Clock size={12} /></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Array.from({ length: 8 }).map((_, i) => (
+                      <TrackRowSkeleton key={i} isDark={isDark} />
+                    ))}
+                  </tbody>
+                </table>
+              ) : queue.length > 0 ? (
                 <table className="w-full border-collapse">
                   <thead className="sticky top-0 z-10">
                     <tr className={`border-b ${border} text-xs ${muted} ${isDark ? "bg-[#111111]" : "bg-white"}`}>
@@ -635,7 +899,7 @@ export default function PlaylistPage() {
                           }`}
                           title="Double-click to play"
                         >
-                          <td className="px-5 py-3 w-10" onClick={(e) => { e.stopPropagation(); if (isActive) { togglePlayRef.current?.(); } else { setQueue(activeQueue.length ? activeQueue : queue, track); } }}>
+                          <td className="px-5 py-3 w-10" onClick={(e) => { e.stopPropagation(); if (!playlistSource) return; if (isActive) { togglePlayRef.current?.(); } else { playAlbumTrack(track, queue, playlistSource); } }}>
                             <span className={`text-sm ${muted} flex items-center`}>
                               {isActive && isPlaying
                                 ? <Pause size={13} fill="#FF6B35" className="text-[#FF6B35]" />
@@ -686,43 +950,61 @@ export default function PlaylistPage() {
             )}
 
             {/* ── Albums tab ── */}
-            {viewTab === "Albums" && (
-              <div className="p-5 grid grid-cols-3 gap-4">
-                {savedAlbums.length === 0 ? (
-                  <div className="col-span-3 flex items-center justify-center py-16">
+            {mounted && viewTab === "Albums" && (
+              <div className="p-5 grid grid-cols-4 gap-3">
+                {loading ? (
+                  // Loading skeletons for albums
+                  Array.from({ length: 8 }).map((_, i) => (
+                    <AlbumCardSkeleton key={i} isDark={isDark} />
+                  ))
+                ) : savedAlbums.length === 0 ? (
+                  <div className="col-span-4 flex items-center justify-center py-16">
                     <p className={`text-sm ${muted}`}>No saved albums yet</p>
                   </div>
-                ) : savedAlbums.map(album => (
-                  <div
+                ) : savedAlbums.map((album, index) => (
+                  <motion.div
                     key={album.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.3, delay: index * 0.05, ease: "easeOut" }}
                     onClick={() => openAlbum(album.id)}
+                    whileHover={{ scale: 1.03, y: -4 }}
+                    whileTap={{ scale: 0.98 }}
                     className={`flex flex-col gap-2 cursor-pointer group rounded-xl p-2 transition-colors ${rowHover}`}
                   >
                     {album.albumArt ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={album.albumArt} alt={album.name} className="w-full aspect-square rounded-xl object-cover group-hover:scale-105 transition-transform duration-200" />
+                      <img src={album.albumArt} alt={album.name} className="w-full aspect-square rounded-lg object-cover transition-transform duration-200" />
                     ) : (
-                      <div className="w-full aspect-square rounded-xl bg-[#FF6B35]/10 flex items-center justify-center text-4xl">💿</div>
+                      <div className="w-full aspect-square rounded-lg bg-[#FF6B35]/10 flex items-center justify-center">
+                        <Disc3 size={40} className="text-[#FF6B35]/40" />
+                      </div>
                     )}
-                    <p className={`text-sm font-semibold truncate ${text}`}>{album.name}</p>
-                    <p className={`text-xs ${muted}`}>{album.artistName ?? ""}{album.releaseDate ? ` · ${album.releaseDate.slice(0, 4)}` : ""}</p>
-                  </div>
+                    <p className={`text-xs font-semibold truncate ${text}`}>{album.name}</p>
+                    <p className={`text-[10px] ${muted} truncate`}>{album.artistName ?? ""}{album.releaseDate ? ` · ${album.releaseDate.slice(0, 4)}` : ""}</p>
+                  </motion.div>
                 ))}
               </div>
             )}
 
           </div>
-        </div>
-
-      </main>
+        </motion.div>
 
       {/* ── Create Playlist Modal ── */}
       {createOpen && (
-        <div
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.2 }}
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
           onClick={() => { setCreateOpen(false); setNewName(""); }}
         >
-          <div
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+            transition={{ duration: 0.3, ease: "easeOut" }}
             className={`w-[360px] rounded-2xl border p-6 flex flex-col gap-5 shadow-2xl transition-colors ${
               isDark ? "bg-[#111111] border-[#2a2a2a]" : "bg-white border-[#FFDDD2]"
             }`}
@@ -769,8 +1051,8 @@ export default function PlaylistPage() {
                 Create
               </button>
             </div>
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
       )}
       {menuTrackId && menuPos && typeof document !== "undefined" && (() => {
         const t = queue.find(tr => tr.id === menuTrackId);
@@ -785,17 +1067,19 @@ export default function PlaylistPage() {
               track={t}
               playlists={playlists.filter(p => p.id !== "liked")}
               likedTrackIds={likedTrackIds}
+              currentPlaylistId={selected?.id}
               onClose={() => { setMenuTrackId(null); setMenuPos(null); }}
               onLike={handleLike}
               onAddToPlaylist={handleAddToPlaylist}
               onCreatePlaylist={(track) => { pendingTrackRef.current = track; setNewName(""); setCreateOpen(true); }}
               onGoToAlbum={(albumId) => openAlbum(albumId)}
               onShare={handleShare}
+              onRemoveFromPlaylist={handleRemoveFromPlaylist}
             />
           </div>,
           document.body
         );
       })()}
-    </>
+    </motion.main>
   );
 }

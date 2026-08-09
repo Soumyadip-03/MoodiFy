@@ -57,7 +57,7 @@ export function useFaceDetection() {
     }, "image/jpeg", 0.7);
   }, []);
 
-  const startDetection = useCallback(async () => {
+  const startDetection = useCallback(async (): Promise<boolean> => {
     setError(null);
     setStatus("connecting");
 
@@ -65,7 +65,7 @@ export function useFaceDetection() {
     if (!navigator?.mediaDevices?.getUserMedia) {
       setError("camera_not_supported");
       setStatus("error");
-      return;
+      return false;
     }
 
     try {
@@ -77,7 +77,7 @@ export function useFaceDetection() {
     } catch {
       setError("camera_denied");
       setStatus("error");
-      return;
+      return false;
     }
 
     const ws = new WebSocket(`${WS_URL}/ws/detect`);
@@ -114,6 +114,8 @@ export function useFaceDetection() {
     ws.onclose = () => {
       if (frameIntervalRef.current) clearInterval(frameIntervalRef.current);
     };
+
+    return true;
   }, [sendFrame, stopDetection]);
 
   useEffect(() => {

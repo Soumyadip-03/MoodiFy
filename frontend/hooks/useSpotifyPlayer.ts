@@ -48,9 +48,20 @@ export function useSpotifyPlayer(isPremium: boolean): UseSpotifyPlayerReturn {
     if (!user?.uid) return "";
     try {
       const res = await fetch(`${BACKEND}/api/spotify/refresh?uid=${encodeURIComponent(user.uid)}`);
+      if (!res.ok) {
+        console.error("Failed to refresh Spotify token:", res.status);
+        return "";
+      }
       const data = await res.json();
-      return data.access_token ?? data.accessToken ?? "";
-    } catch { return ""; }
+      const token = data.access_token ?? data.accessToken ?? "";
+      if (!token) {
+        console.error("No token in refresh response");
+      }
+      return token;
+    } catch (error) {
+      console.error("Error refreshing Spotify token:", error);
+      return "";
+    }
   }, [user?.uid]);
 
   // Load SDK script once
@@ -66,18 +77,45 @@ export function useSpotifyPlayer(isPremium: boolean): UseSpotifyPlayerReturn {
 
   // Init player once SDK is ready
   useEffect(() => {
-    if (!isPremium || !user?.uid) return;
+    if (!isPremium || !user?.uid) {
+      // Clear SDK state when user signs out
+      if (!user?.uid) {
+        // Disconnect and clean up player completely
+        if (playerRef.current) {
+          playerRef.current.disconnect();
+          playerRef.current = null;
+        }
+        deviceIdRef.current = null;
+        currentTrackIdRef.current = null;
+        hasAutoAdvancedRef.current = false;
+        endedCbRef.current = null;
+        onReadyCbRef.current = null;
+        setSdk({ isReady: false, isPlaying: false, position: 0, duration: 0 });
+      }
+      return;
+    }
 
     const init = () => {
+      // If player already exists, disconnect it first to ensure clean state
+      if (playerRef.current) {
+        playerRef.current.disconnect();
+        playerRef.current = null;
+        deviceIdRef.current = null;
+      }
+
       const player = new window.Spotify.Player({
         name: "MoodiFy Player",
-        getOAuthToken: async (cb: (token: string) => void) => { cb(await getToken()); },
+        getOAuthToken: async (cb: (token: string) => void) => { 
+          const token = await getToken();
+          cb(token);
+        },
         volume: 0.7,
       });
 
       player.addListener("ready", ({ device_id }: { device_id: string }) => {
         deviceIdRef.current = device_id;
         setSdk(s => ({ ...s, isReady: true }));
+        console.log("Spotify player ready with device_id:", device_id);
         onReadyCbRef.current?.();
       });
 
@@ -148,15 +186,39 @@ export function useSpotifyPlayer(isPremium: boolean): UseSpotifyPlayerReturn {
   }, [sdk.isPlaying]);
 
   const playTrack = useCallback(async (track: SpotifyTrack) => {
-    if (!deviceIdRef.current || !user?.uid) return;
+    if (!deviceIdRef.current || !user?.uid) {
+      console.warn("Cannot play track: player not ready or user not authenticated");
+      return;
+    }
     hasAutoAdvancedRef.current = false;
     currentTrackIdRef.current = track.id;
-    const token = await getToken();
-    await fetch(`https://api.spotify.com/v1/me/player/play?device_id=${deviceIdRef.current}`, {
-      method: "PUT",
-      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ uris: [`spotify:track:${track.id}`] }),
-    });
+    
+    try {
+      const token = await getToken();
+      if (!token) {
+        console.error("No Spotify token available");
+        return;
+      }
+      
+      const response = await fetch(`https://api.spotify.com/v1/me/player/play?device_id=${deviceIdRef.current}`, {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ uris: [`spotify:track:${track.id}`] }),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error("Spotify playback error:", response.status, errorData);
+        
+        // If 404 device not found, user needs to sign out and back in
+        // This clears stale player state via the hard reload in AuthContext
+        if (response.status === 404) {
+          console.warn("Device not found. Please sign out and sign back in to refresh your session.");
+        }
+      }
+    } catch (error) {
+      console.error("Failed to play track:", error);
+    }
   }, [user?.uid, getToken]);
 
   const togglePlay = useCallback(async () => {
@@ -169,6 +231,7 @@ export function useSpotifyPlayer(isPremium: boolean): UseSpotifyPlayerReturn {
   }, []);
 
   const seekAndResume = useCallback(async (ms: number) => {
+    hasAutoAdvancedRef.current = false;
     await playerRef.current?.seek(ms);
     await playerRef.current?.resume();
     setSdk(s => ({ ...s, position: ms }));

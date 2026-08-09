@@ -3,22 +3,21 @@
 import { createContext, useContext, useState, useRef, useCallback, useEffect } from "react";
 import type { SpotifyTrack } from "@/types/index";
 import { useAuth } from "@/context/AuthContext";
+import { toast } from "sonner";
 import {
   getLikedTracks, toggleLikedTrack,
   addPlayedTrackToHistory, saveTrackToMoodTracks,
-  getOrCreateTodayTrendingDoc,
+  getOrCreateTodayTrendingDoc, getUserSettings,
 } from "@/lib/firestore";
 
-interface QueueSource { type: "album"; name: string; art: string; }
-
 export interface LockedMoodResult { mood: string; confidence: number; }
+export type AlbumSource = { id: string; name: string; art: string | null };
 
 interface PlayerContextValue {
   activeTrack: SpotifyTrack | null;
   currentQueue: SpotifyTrack[];
   isPlaying: boolean;
   likedTrackIds: Set<string>;
-  queueSource: QueueSource | undefined;
   togglePlayRef: React.MutableRefObject<(() => void) | null>;
   lockedMood: LockedMoodResult | null;
   setLockedMood: (r: LockedMoodResult | null) => void;
@@ -26,11 +25,17 @@ interface PlayerContextValue {
   setCurrentMoodHistoryId: (id: string | null) => void;
   notifyTrackPlayed: (track: SpotifyTrack) => void;
   setActiveTrack: (track: SpotifyTrack) => void;
-  setQueue: (tracks: SpotifyTrack[], active?: SpotifyTrack, source?: QueueSource) => void;
+  setQueue: (tracks: SpotifyTrack[], active?: SpotifyTrack) => void;
   setIsPlaying: (v: boolean) => void;
   toggleLike: (track: SpotifyTrack) => void;
   shuffle: boolean;
   setShuffle: (v: boolean) => void;
+  selectedLangs: string[];
+  setSelectedLangs: React.Dispatch<React.SetStateAction<string[]>>;
+  albumSource: AlbumSource | null;
+  albumQueue: SpotifyTrack[];
+  playAlbumTrack: (track: SpotifyTrack, queue: SpotifyTrack[], source: AlbumSource) => void;
+  clearAlbumQueue: () => void;
 }
 
 const PlayerContext = createContext<PlayerContextValue | null>(null);
@@ -41,43 +46,63 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const [currentQueue, setCurrentQueue] = useState<SpotifyTrack[]>([]);
   const [isPlaying, setIsPlaying] = useState(false);
   const [likedTrackIds, setLikedTrackIds] = useState<Set<string>>(new Set());
-  const [queueSource, setQueueSource] = useState<QueueSource | undefined>(undefined);
   const [lockedMood, setLockedMood] = useState<LockedMoodResult | null>(null);
   const [shuffle, setShuffle] = useState(false);
+  const [selectedLangs, setSelectedLangs] = useState<string[]>([]);
+  const [albumSource, setAlbumSource] = useState<AlbumSource | null>(null);
+  const [albumQueue, setAlbumQueue] = useState<SpotifyTrack[]>([]);
   const currentMoodHistoryIdRef = useRef<string | null>(null);
   const [currentMoodHistoryId, setCurrentMoodHistoryIdState] = useState<string | null>(null);
   const togglePlayRef = useRef<(() => void) | null>(null);
-  // Trending: one doc per day, fetched lazily
   const trendingHistoryIdRef = useRef<string | null>(null);
   const trendingFetchingRef = useRef(false);
   const trendingPendingRef = useRef<string[]>([]);
+  const trackTrendingEnabledRef = useRef(true);
 
   const setCurrentMoodHistoryId = useCallback((id: string | null) => {
     currentMoodHistoryIdRef.current = id;
     setCurrentMoodHistoryIdState(id);
   }, []);
 
+  // Load user settings on mount
+  useEffect(() => {
+    if (!user?.uid) return;
+    getUserSettings(user.uid).then(settings => {
+      trackTrendingEnabledRef.current = settings.trackTrendingEnabled;
+    }).catch(() => {});
+    
+    // Listen for setting changes from profile page
+    const handleSettingChange = (e: CustomEvent<{ enabled: boolean }>) => {
+      trackTrendingEnabledRef.current = e.detail.enabled;
+      if (!e.detail.enabled) {
+        trendingHistoryIdRef.current = null;
+      }
+    };
+    
+    window.addEventListener("trackTrendingChanged", handleSettingChange as EventListener);
+    return () => {
+      window.removeEventListener("trackTrendingChanged", handleSettingChange as EventListener);
+    };
+  }, [user?.uid]);
+
   const notifyTrackPlayed = useCallback((track: SpotifyTrack) => {
     saveTrackToMoodTracks(track).catch(() => {});
-
     if (currentMoodHistoryIdRef.current) {
       addPlayedTrackToHistory(currentMoodHistoryIdRef.current, track.id).catch(() => {});
       return;
     }
-
-    if (!user?.uid) return;
-
+    // Only track trending if enabled
+    if (!trackTrendingEnabledRef.current || !user?.uid) return;
+    
     if (trendingHistoryIdRef.current) {
       addPlayedTrackToHistory(trendingHistoryIdRef.current, track.id).catch(() => {});
       return;
     }
-
     if (trendingFetchingRef.current) {
       trendingPendingRef.current.push(track.id);
       return;
     }
     trendingFetchingRef.current = true;
-
     getOrCreateTodayTrendingDoc(user.uid).then(id => {
       trendingHistoryIdRef.current = id;
       trendingFetchingRef.current = false;
@@ -91,13 +116,26 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   }, [user?.uid]);
 
   // Seed liked track IDs from Firestore on sign-in
+  // Clear ALL player state on sign-out
   useEffect(() => {
     if (!user?.uid) {
+      // Clear all state when user signs out
       setLikedTrackIds(new Set());
+      setActiveTrackState(null);
+      setCurrentQueue([]);
+      setIsPlaying(false);
+      setLockedMood(null);
+      setSelectedLangs([]);
+      setAlbumSource(null);
+      setAlbumQueue([]);
+      setShuffle(false);
+      currentMoodHistoryIdRef.current = null;
+      setCurrentMoodHistoryIdState(null);
+      trendingHistoryIdRef.current = null;
       return;
     }
-    getLikedTracks(user.uid).then((tracks) => {
-      setLikedTrackIds(new Set(tracks.map((t) => t.trackId)));
+    getLikedTracks(user.uid).then(tracks => {
+      setLikedTrackIds(new Set(tracks.map(t => t.trackId)));
     }).catch(() => {});
   }, [user?.uid]);
 
@@ -115,33 +153,66 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     setActiveTrackState(track);
   }, []);
 
-  const setQueue = useCallback((tracks: SpotifyTrack[], active?: SpotifyTrack, source?: QueueSource) => {
+  // Mood/trending queue — clears album context
+  const setQueue = useCallback((tracks: SpotifyTrack[], active?: SpotifyTrack) => {
     setCurrentQueue(tracks);
     if (active) setActiveTrackState(active);
-    setQueueSource(source);
+    setAlbumSource(null);
+    setAlbumQueue([]);
+  }, []);
+
+  // Album playback — stores album tracks separately, mood queue untouched
+  const playAlbumTrack = useCallback((track: SpotifyTrack, queue: SpotifyTrack[], source: AlbumSource) => {
+    setAlbumSource(source);
+    setAlbumQueue(queue);
+    setActiveTrackState(track);
+  }, []);
+
+  const clearAlbumQueue = useCallback(() => {
+    setAlbumSource(null);
+    setAlbumQueue([]);
   }, []);
 
   const toggleLike = useCallback((track: SpotifyTrack) => {
     if (!user?.uid) return;
+    
+    const isCurrentlyLiked = likedTrackIds.has(track.id);
+    
+    // Optimistic update
     setLikedTrackIds(prev => {
       const next = new Set(prev);
       if (next.has(track.id)) next.delete(track.id); else next.add(track.id);
       return next;
     });
+    
+    // Show toast immediately
+    if (isCurrentlyLiked) {
+      toast.success("Removed from Liked Songs");
+    } else {
+      toast.success("Added to Liked Songs", {
+        description: `${track.title} • ${track.artist}`,
+      });
+    }
+    
+    // Persist to Firestore
     toggleLikedTrack(user.uid, track).catch(() => {
+      // Revert on error
       setLikedTrackIds(prev => {
         const next = new Set(prev);
         if (next.has(track.id)) next.delete(track.id); else next.add(track.id);
         return next;
       });
+      toast.error("Failed to update Liked Songs");
     });
-  }, [user?.uid]);
+  }, [user?.uid, likedTrackIds]);
 
   return (
     <PlayerContext.Provider value={{
-      activeTrack, currentQueue, isPlaying, likedTrackIds, queueSource,
+      activeTrack, currentQueue, isPlaying, likedTrackIds,
       togglePlayRef, lockedMood, setLockedMood, currentMoodHistoryId, setCurrentMoodHistoryId, notifyTrackPlayed,
       setActiveTrack, setQueue, setIsPlaying, toggleLike, shuffle, setShuffle,
+      selectedLangs, setSelectedLangs,
+      albumSource, albumQueue, playAlbumTrack, clearAlbumQueue,
     }}>
       {children}
     </PlayerContext.Provider>

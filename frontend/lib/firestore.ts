@@ -20,6 +20,7 @@ export async function createUserProfile(user: User) {
       createdAt: serverTimestamp(),
       likedTracksCount: 0,
       moodStats: {},
+      trackTrendingEnabled: true,
     });
     await initUserPlaylists(user.uid);
   } else {
@@ -30,6 +31,7 @@ export async function createUserProfile(user: User) {
     const updates: Record<string, unknown> = {};
     if (data.likedTracksCount === undefined) updates.likedTracksCount = 0;
     if (data.moodStats === undefined) updates.moodStats = {};
+    if (data.trackTrendingEnabled === undefined) updates.trackTrendingEnabled = true;
     if (Object.keys(updates).length) await setDoc(ref, updates, { merge: true });
     await initUserPlaylists(user.uid);
   }
@@ -42,6 +44,21 @@ export async function getUserPhotoURL(uid: string): Promise<string | null> {
 
 export async function updateUserPhotoURL(uid: string, photoURL: string): Promise<void> {
   await setDoc(doc(db, "users", uid), { photoURL }, { merge: true });
+}
+
+export async function getUserSettings(uid: string): Promise<{ trackTrendingEnabled: boolean; moodStats: Record<string, number>; likedTracksCount: number }> {
+  const snap = await getDoc(doc(db, "users", uid));
+  if (!snap.exists()) return { trackTrendingEnabled: true, moodStats: {}, likedTracksCount: 0 };
+  const data = snap.data();
+  return {
+    trackTrendingEnabled: data.trackTrendingEnabled ?? true,
+    moodStats: data.moodStats ?? {},
+    likedTracksCount: data.likedTracksCount ?? 0,
+  };
+}
+
+export async function updateTrackTrendingEnabled(uid: string, enabled: boolean): Promise<void> {
+  await setDoc(doc(db, "users", uid), { trackTrendingEnabled: enabled }, { merge: true });
 }
 
 export async function saveSpotifyTokens(uid: string, tokens: SpotifyTokens) {
@@ -58,13 +75,13 @@ export async function getSpotifyTokens(uid: string): Promise<SpotifyTokens | nul
 // ─── Mood Playlist IDs ────────────────────────────────────────────────────────
 const MOOD_IDS = ["happy", "upbeat", "chill", "melancholy", "relaxing", "romantic", "intense"];
 const MOOD_META: Record<string, { name: string; emoji: string }> = {
-  happy:      { name: "Happy Playlist",      emoji: "😊" },
-  upbeat:     { name: "Upbeat Playlist",     emoji: "😍" },
-  chill:      { name: "Chill Playlist",      emoji: "😎" },
-  melancholy: { name: "Melancholy Playlist", emoji: "😔" },
-  relaxing:   { name: "Relaxing Playlist",   emoji: "😌" },
-  romantic:   { name: "Romantic Playlist",   emoji: "💕" },
-  intense:    { name: "Intense Playlist",    emoji: "😠" },
+  happy:      { name: "Happy Playlist",      emoji: "happy" },
+  upbeat:     { name: "Upbeat Playlist",     emoji: "upbeat" },
+  chill:      { name: "Chill Playlist",      emoji: "chill" },
+  melancholy: { name: "Melancholy Playlist", emoji: "melancholy" },
+  relaxing:   { name: "Relaxing Playlist",   emoji: "relaxing" },
+  romantic:   { name: "Romantic Playlist",   emoji: "romantic" },
+  intense:    { name: "Intense Playlist",    emoji: "intense" },
 };
 
 // ─── Init user playlists on first sign-in ─────────────────────────────────────

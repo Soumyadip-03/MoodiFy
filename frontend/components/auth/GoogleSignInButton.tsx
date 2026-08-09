@@ -4,6 +4,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { toast } from "sonner";
 
 export default function GoogleSignInButton() {
   const { signInWithGoogle } = useAuth();
@@ -18,11 +19,27 @@ export default function GoogleSignInButton() {
     setError("");
     try {
       await signInWithGoogle();
-      router.push("/home");
+      await router.push("/home");
+      
+      // Show welcome toast after navigation
+      setTimeout(() => {
+        const authFlag = sessionStorage.getItem('moodify-auth-action');
+        if (authFlag === 'true') {
+          sessionStorage.removeItem('moodify-auth-action');
+          
+          // We don't have displayName yet in this context, will be shown from auth state
+          const hour = new Date().getHours();
+          const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+          
+          toast.success(`${greeting}! 🎵`, {
+            description: `Welcome to MoodiFy! We're excited to help you discover music that matches your mood. Start by detecting your current vibe, or explore trending tracks to get inspired. Let the music journey begin!`,
+            duration: 6000,
+          });
+        }
+      }, 1000);
     } catch (err) {
       console.error(err);
       setError("Google sign-in failed. Please try again.");
-    } finally {
       setLoading(false);
     }
   };

@@ -4,9 +4,9 @@ import Link from "next/link";
 import Image from "next/image";
 import { useTheme } from "@/context/ThemeContext";
 import ThemeToggle from "@/components/ui/ThemeToggle";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { useRef, MouseEvent, useState, useEffect } from "react";
-import { GitFork, Link as LinkIcon, FolderOpen } from "lucide-react";
+import { GitFork, Link as LinkIcon, FolderOpen, Menu, X, Video, Brain, Music, Smile, Lock, Zap, Target, Globe, Crown, TrendingUp, MessageSquare } from "lucide-react";
 
 // ── Wave SVG divider ──────────────────────────────────────────────────────────
 function WaveDivider({ flip = false, isDark }: { flip?: boolean; isDark: boolean }) {
@@ -86,19 +86,19 @@ const MOODS = [
 
 const STEPS = [
   {
-    icon: "🎥",
+    icon: Video,
     step: "01",
     title: "Allow Camera",
     desc: "One-click camera access. MoodiFy never stores your video — detection happens entirely on-device in real time.",
   },
   {
-    icon: "🧠",
+    icon: Brain,
     step: "02",
     title: "AI Reads Your Face",
     desc: "deepface analyzes micro-expressions frame by frame and maps them to one of 7 emotional states in under a second.",
   },
   {
-    icon: "🎵",
+    icon: Music,
     step: "03",
     title: "Music Starts Playing",
     desc: "Spotify serves a personalized playlist blended with your listening history — perfectly tuned to how you feel right now.",
@@ -106,12 +106,12 @@ const STEPS = [
 ];
 
 const FEATURES = [
-  { icon: "🔒", title: "Privacy First",       desc: "Your camera feed never leaves your device. Zero video storage, ever." },
-  { icon: "⚡", title: "Under 1 Second",      desc: "Mood detected and playlist loaded before you can blink." },
-  { icon: "🎯", title: "Personalized",        desc: "Blends your Spotify listening history with real-time mood for spot-on picks." },
-  { icon: "🌍", title: "6 Languages",         desc: "Filter tracks by English, Hindi, Spanish, French, Japanese, or Korean." },
-  { icon: "👑", title: "Premium Streaming",   desc: "Spotify Premium users get full-song playback directly inside MoodiFy." },
-  { icon: "📊", title: "Mood History",        desc: "Track your emotional patterns over time with a weekly mood chart." },
+  { icon: Lock, title: "Privacy First",       desc: "Your camera feed never leaves your device. Zero video storage, ever." },
+  { icon: Zap, title: "Under 1 Second",      desc: "Mood detected and playlist loaded before you can blink." },
+  { icon: Target, title: "Personalized",        desc: "Blends your Spotify listening history with real-time mood for spot-on picks." },
+  { icon: Globe, title: "6 Languages",         desc: "Filter tracks by English, Hindi, Spanish, French, Japanese, or Korean." },
+  { icon: Crown, title: "Premium Streaming",   desc: "Spotify Premium users get full-song playback directly inside MoodiFy." },
+  { icon: TrendingUp, title: "Mood History",        desc: "Track your emotional patterns over time with a weekly mood chart." },
 ];
 
 const STATS = [
@@ -268,7 +268,7 @@ function CreditsSection({ isDark, card, text, muted, border }: { isDark: boolean
 
         {/* Team cards — reveal sweep */}
         <motion.div variants={stagger} initial="hidden" whileInView="show" viewport={{ once: true }}
-          className="grid grid-cols-2 gap-6 max-w-2xl mx-auto">
+          className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-2xl mx-auto">
           {TEAM.map((member) => (
             <motion.div key={member.name} variants={fadeUp} className="h-full">
               <SweepCard
@@ -279,6 +279,7 @@ function CreditsSection({ isDark, card, text, muted, border }: { isDark: boolean
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img src={member.avatar} alt={member.name}
                         className="w-12 h-12 rounded-full object-cover flex-shrink-0 ring-2 ring-[#FF6B35]/40"
+                        loading="lazy"
                         onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
                       />
                       <div>
@@ -294,6 +295,7 @@ function CreditsSection({ isDark, card, text, muted, border }: { isDark: boolean
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={member.avatar} alt={member.name}
                       className="w-11 h-11 rounded-full object-cover ring-4 ring-white/40 shadow-lg flex-shrink-0"
+                      loading="lazy"
                       onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
                     />
                     <div className="text-center">
@@ -341,7 +343,7 @@ function CreditsSection({ isDark, card, text, muted, border }: { isDark: boolean
                 initial="hidden"
                 animate="show"
                 exit="exit"
-                className="grid grid-cols-4 gap-4 max-w-5xl mx-auto mt-10"
+                className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 max-w-5xl mx-auto mt-10"
               >
                 {CREDITS_IMAGES.map((img, i) => (
                   <motion.div key={img.src} variants={cardSlide}
@@ -351,7 +353,7 @@ function CreditsSection({ isDark, card, text, muted, border }: { isDark: boolean
                   >
                     <div className={`relative rounded-2xl border overflow-hidden aspect-[4/3] shadow-lg group-hover:shadow-[#FF6B35]/25 group-hover:border-[#FF6B35]/60 transition-all duration-300 ${border}`}>
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={img.src} alt={img.label} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                      <img src={img.src} alt={img.label} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" loading="lazy" />
                       <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-3">
                         <p className="text-white text-xs font-semibold">{img.label}</p>
                       </div>
@@ -381,6 +383,15 @@ function CreditsSection({ isDark, card, text, muted, border }: { isDark: boolean
 export default function LandingPage() {
   const { theme } = useTheme();
   const isDark = theme === "dark";
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+  const prefersReducedMotion = useReducedMotion();
+
+  useEffect(() => {
+    const handleScroll = () => setScrolled(window.scrollY > 20);
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
 
   const bg     = isDark ? "bg-[#0a0a0a]"                      : "bg-gradient-to-br from-[#FFE8D6] to-[#FFF5F0]";
   const card   = isDark ? "bg-[#111111] border-[#2a2a2a]"     : "bg-white/80 border-[#FFDDD2]";
@@ -394,12 +405,16 @@ export default function LandingPage() {
     <div className={`min-h-screen w-full flex flex-col transition-colors duration-300 ${bg}`}>
 
       {/* ── Navbar ── */}
-      <header className={`sticky top-0 z-50 w-screen left-0 border-b transition-colors duration-300 backdrop-blur-md ${isDark ? "bg-[#0a0a0a]/80 border-[#2a2a2a]" : "bg-white/60 border-[#FFDDD2]"}`}>
+      <header className={`sticky top-0 z-50 w-screen left-0 border-b transition-all duration-300 backdrop-blur-md ${
+        isDark ? "bg-[#0a0a0a]/80 border-[#2a2a2a]" : "bg-white/60 border-[#FFDDD2]"
+      } ${scrolled ? "shadow-lg shadow-black/10" : ""}`}>
         <div className="w-full px-[4vw] py-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Image src="/logo.png" alt="MoodiFy" width={36} height={36} className="rounded-full" />
             <span className="text-xl font-pacifico text-[#FF6B35]">MoodiFy</span>
           </div>
+          
+          {/* Desktop Nav */}
           <nav className="hidden md:flex items-center gap-8">
             {["How It Works", "Moods", "Features", "Credits"].map((label) => (
               <a key={label} href={`#${label.toLowerCase().replace(/ /g, "-")}`}
@@ -408,16 +423,75 @@ export default function LandingPage() {
               </a>
             ))}
           </nav>
+          
           <div className="flex items-center gap-3">
             <ThemeToggle />
-            <Link href="/login" className={`text-sm font-medium px-4 py-2 rounded-full border transition-colors ${isDark ? "border-[#2a2a2a] text-[#aaa] hover:text-white hover:border-[#FF6B35]" : "border-[#FFDDD2] text-[#7A6055] hover:text-[#FF6B35] hover:border-[#FF6B35]"}`}>
-              Sign In
-            </Link>
-            <Link href="/signup" className="text-sm font-semibold px-4 py-2 rounded-full bg-[#FF6B35] hover:bg-[#e85d2a] text-white transition-all hover:scale-105 shadow-md shadow-[#FF6B35]/30">
-              Get Started
-            </Link>
+            
+            {/* Desktop Auth Buttons */}
+            <div className="hidden md:flex items-center gap-3">
+              <Link href="/login" className={`text-sm font-medium px-4 py-2 rounded-full border transition-colors ${isDark ? "border-[#2a2a2a] text-[#aaa] hover:text-white hover:border-[#FF6B35]" : "border-[#FFDDD2] text-[#7A6055] hover:text-[#FF6B35] hover:border-[#FF6B35]"}`}>
+                Sign In
+              </Link>
+              <Link href="/signup" className="text-sm font-semibold px-4 py-2 rounded-full bg-[#FF6B35] hover:bg-[#e85d2a] text-white transition-all hover:scale-105 shadow-md shadow-[#FF6B35]/30">
+                Get Started
+              </Link>
+            </div>
+            
+            {/* Mobile Menu Button */}
+            <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className={`md:hidden p-2 rounded-lg transition-colors ${isDark ? "hover:bg-[#1a1a1a]" : "hover:bg-[#FFF5F0]"}`}
+              aria-label="Toggle menu"
+            >
+              {mobileMenuOpen ? <X size={24} className={text} /> : <Menu size={24} className={text} />}
+            </button>
           </div>
         </div>
+
+        {/* Mobile Menu Dropdown */}
+        <AnimatePresence>
+          {mobileMenuOpen && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.2 }}
+              className={`md:hidden border-t overflow-hidden ${isDark ? "border-[#2a2a2a] bg-[#0a0a0a]/95" : "border-[#FFDDD2] bg-white/95"}`}
+            >
+              <nav className="flex flex-col px-[4vw] py-4 gap-1">
+                {["How It Works", "Moods", "Features", "Credits"].map((label) => (
+                  <a
+                    key={label}
+                    href={`#${label.toLowerCase().replace(/ /g, "-")}`}
+                    onClick={() => setMobileMenuOpen(false)}
+                    className={`text-sm font-medium px-4 py-3 rounded-lg transition-colors ${
+                      isDark ? "hover:bg-[#1a1a1a] text-[#ddd]" : "hover:bg-[#FFF5F0] text-[#5a3e2b]"
+                    }`}
+                  >
+                    {label}
+                  </a>
+                ))}
+                <div className={`h-px my-2 ${isDark ? "bg-[#2a2a2a]" : "bg-[#FFDDD2]"}`} />
+                <Link
+                  href="/login"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={`text-sm font-medium px-4 py-3 rounded-lg transition-colors text-center ${
+                    isDark ? "hover:bg-[#1a1a1a] text-[#ddd]" : "hover:bg-[#FFF5F0] text-[#5a3e2b]"
+                  }`}
+                >
+                  Sign In
+                </Link>
+                <Link
+                  href="/signup"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="text-sm font-semibold px-4 py-3 rounded-lg bg-[#FF6B35] hover:bg-[#e85d2a] text-white transition-colors text-center"
+                >
+                  Get Started
+                </Link>
+              </nav>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </header>
 
       <main className="flex-1">
@@ -461,35 +535,40 @@ export default function LandingPage() {
 
           {/* Animated gradient mesh */}
           <div className="pointer-events-none absolute inset-0 overflow-hidden">
-            <motion.div
-              className={`absolute -top-32 -left-32 w-[520px] h-[520px] rounded-full blur-3xl ${isDark ? "opacity-[0.18]" : "opacity-[0.22]"} bg-[#FF6B35]`}
-              animate={{ x: [0, 60, -30, 0], y: [0, -40, 60, 0], scale: [1, 1.15, 0.95, 1] }}
-              transition={{ duration: 18, repeat: Infinity, ease: "easeInOut" }}
-            />
-            <motion.div
-              className={`absolute top-1/2 -right-40 w-[440px] h-[440px] rounded-full blur-3xl ${isDark ? "opacity-[0.14]" : "opacity-[0.18]"} bg-orange-400`}
-              animate={{ x: [0, -70, 40, 0], y: [0, 50, -60, 0], scale: [1, 0.9, 1.2, 1] }}
-              transition={{ duration: 22, repeat: Infinity, ease: "easeInOut", delay: 3 }}
-            />
-            <motion.div
-              className={`absolute -bottom-20 left-1/3 w-[380px] h-[380px] rounded-full blur-3xl ${isDark ? "opacity-[0.12]" : "opacity-[0.15]"} bg-rose-400`}
-              animate={{ x: [0, 80, -50, 0], y: [0, -30, 40, 0], scale: [1, 1.1, 0.92, 1] }}
-              transition={{ duration: 26, repeat: Infinity, ease: "easeInOut", delay: 6 }}
-            />
-            <motion.div
-              className={`absolute top-10 right-1/4 w-[280px] h-[280px] rounded-full blur-3xl ${isDark ? "opacity-[0.10]" : "opacity-[0.12]"} bg-amber-300`}
-              animate={{ x: [0, -40, 60, 0], y: [0, 60, -30, 0], scale: [1, 1.2, 0.88, 1] }}
-              transition={{ duration: 20, repeat: Infinity, ease: "easeInOut", delay: 9 }}
-            />
+            {!prefersReducedMotion && (
+              <>
+                <motion.div
+                  className={`absolute -top-32 -left-32 w-[520px] h-[520px] rounded-full blur-3xl ${isDark ? "opacity-[0.18]" : "opacity-[0.22]"} bg-[#FF6B35]`}
+                  animate={{ x: [0, 60, -30, 0], y: [0, -40, 60, 0], scale: [1, 1.15, 0.95, 1] }}
+                  transition={{ duration: 18, repeat: Infinity, ease: "easeInOut" }}
+                />
+                <motion.div
+                  className={`absolute top-1/2 -right-40 w-[440px] h-[440px] rounded-full blur-3xl ${isDark ? "opacity-[0.14]" : "opacity-[0.18]"} bg-orange-400`}
+                  animate={{ x: [0, -70, 40, 0], y: [0, 50, -60, 0], scale: [1, 0.9, 1.2, 1] }}
+                  transition={{ duration: 22, repeat: Infinity, ease: "easeInOut", delay: 3 }}
+                />
+                <motion.div
+                  className={`absolute -bottom-20 left-1/3 w-[380px] h-[380px] rounded-full blur-3xl ${isDark ? "opacity-[0.12]" : "opacity-[0.15]"} bg-rose-400`}
+                  animate={{ x: [0, 80, -50, 0], y: [0, -30, 40, 0], scale: [1, 1.1, 0.92, 1] }}
+                  transition={{ duration: 26, repeat: Infinity, ease: "easeInOut", delay: 6 }}
+                />
+                <motion.div
+                  className={`absolute top-10 right-1/4 w-[280px] h-[280px] rounded-full blur-3xl ${isDark ? "opacity-[0.10]" : "opacity-[0.12]"} bg-amber-300`}
+                  animate={{ x: [0, -40, 60, 0], y: [0, 60, -30, 0], scale: [1, 1.2, 0.88, 1] }}
+                  transition={{ duration: 20, repeat: Infinity, ease: "easeInOut", delay: 9 }}
+                />
+              </>
+            )}
           </div>
 
           <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.4 }}
             className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border text-xs font-semibold text-[#FF6B35] border-[#FF6B35]/40 bg-[#FF6B35]/10">
-            ✨ Powered by deepface + Spotify Web API
+            <Brain size={14} className="text-[#FF6B35]" />
+            <span>Powered by deepface + Spotify Web API</span>
           </motion.div>
 
           <motion.h1 variants={fadeUp} initial="hidden" animate="show"
-            className={`text-6xl md:text-7xl font-bold leading-[1.1] max-w-3xl tracking-tight ${text}`}>
+            className={`text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold leading-[1.1] max-w-3xl tracking-tight ${text}`}>
             Your face picks<br />
             <span className="font-pacifico text-[#FF6B35]">
               {typed}{!typeDone && <span className="animate-pulse">|</span>}
@@ -502,7 +581,7 @@ export default function LandingPage() {
           </motion.p>
 
           <motion.div variants={fadeUp} initial="hidden" animate="show" transition={{ delay: 0.2 }}
-            className="flex items-center gap-4 mt-1">
+            className="flex flex-col sm:flex-row items-center gap-4 mt-1">
             <Link href="/signup"
               className="px-9 py-3.5 rounded-full bg-[#FF6B35] hover:bg-[#e85d2a] text-white font-semibold text-sm transition-all hover:scale-105 shadow-xl shadow-[#FF6B35]/30 animate-pulse-ring">
               Try It Free →
@@ -515,10 +594,26 @@ export default function LandingPage() {
 
           {/* Pipeline pill */}
           <motion.div variants={fadeUp} initial="hidden" animate="show" transition={{ delay: 0.3 }}
-            className={`mt-6 flex items-center gap-2 px-6 py-3.5 rounded-2xl border text-sm font-medium flex-wrap justify-center shadow-sm ${card}`}>
-            {["📷 Webcam", "→", "🧠 deepface", "→", "😊 Mood", "→", "🎵 Spotify"].map((item, i) => (
-              <span key={i} className={item === "→" ? `${muted} text-base px-1` : `${text} font-semibold`}>{item}</span>
-            ))}
+            className={`mt-6 flex items-center gap-3 px-6 py-3.5 rounded-2xl border text-xs sm:text-sm font-medium flex-wrap justify-center shadow-sm ${card}`}>
+            <div className="flex items-center gap-2">
+              <Video size={16} className="text-[#FF6B35]" />
+              <span className={`${text} font-semibold`}>Webcam</span>
+            </div>
+            <span className={`${muted} text-base`}>→</span>
+            <div className="flex items-center gap-2">
+              <Brain size={16} className="text-[#FF6B35]" />
+              <span className={`${text} font-semibold`}>deepface</span>
+            </div>
+            <span className={`${muted} text-base`}>→</span>
+            <div className="flex items-center gap-2">
+              <Smile size={16} className="text-[#FF6B35]" />
+              <span className={`${text} font-semibold`}>Mood</span>
+            </div>
+            <span className={`${muted} text-base`}>→</span>
+            <div className="flex items-center gap-2">
+              <Music size={16} className="text-[#FF6B35]" />
+              <span className={`${text} font-semibold`}>Spotify</span>
+            </div>
           </motion.div>
         </section>
 
@@ -541,7 +636,7 @@ export default function LandingPage() {
         <WaveDivider isDark={isDark} />
         <section className={`py-10 transition-colors duration-300 ${isDark ? "bg-[#111111]" : "bg-[#fff8f4]"}`}>
           <motion.div variants={stagger} initial="hidden" whileInView="show" viewport={{ once: true }}
-            className="w-full px-[4vw] grid grid-cols-4 gap-4">
+            className="w-full px-[4vw] grid grid-cols-2 md:grid-cols-4 gap-4">
             {STATS.map(({ value, display, prefix, suffix, label }) => (
               <motion.div key={label} variants={fadeUp}>
                 <TiltCard className={`rounded-2xl border p-5 flex flex-col items-center gap-1 ${statBg}`}>
@@ -599,13 +694,13 @@ export default function LandingPage() {
             </motion.div>
 
             <motion.div variants={stagger} initial="hidden" whileInView="show" viewport={{ once: true }}
-              className="grid grid-cols-3 gap-6">
+              className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {STEPS.map((step, i) => (
                 <motion.div key={i} variants={fadeUp}>
                   <TiltCard className={`relative rounded-2xl border p-8 flex flex-col gap-5 hover:border-[#FF6B35]/50 ${card}`}>
                     <span className="absolute top-6 right-6 text-5xl font-black text-[#FF6B35]/10 select-none">{step.step}</span>
-                    <div className="w-14 h-14 rounded-2xl bg-[#FF6B35]/15 flex items-center justify-center text-3xl">
-                      {step.icon}
+                    <div className="w-14 h-14 rounded-2xl bg-[#FF6B35]/15 flex items-center justify-center">
+                      <step.icon size={28} className="text-[#FF6B35]" strokeWidth={2} />
                     </div>
                     <div>
                       <p className={`text-lg font-bold mb-2 ${text}`}>{step.title}</p>
@@ -629,7 +724,7 @@ export default function LandingPage() {
             </motion.div>
 
             <motion.div variants={stagger} initial="hidden" whileInView="show" viewport={{ once: true }}
-              className="grid grid-cols-7 gap-3">
+              className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-3">
               {MOODS.map(({ emoji, mood, genres, color, ring }) => (
                 <motion.div key={mood} variants={fadeUp}>
                   <TiltCard className={`rounded-2xl border p-5 flex flex-col items-center gap-3 text-center ring-2 ring-transparent ${ring} cursor-default bg-gradient-to-br ${color} ${border} group`}>
@@ -657,12 +752,12 @@ export default function LandingPage() {
           </motion.div>
 
           <motion.div variants={stagger} initial="hidden" whileInView="show" viewport={{ once: true }}
-            className="grid grid-cols-3 gap-5">
-            {FEATURES.map(({ icon, title, desc }) => (
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            {FEATURES.map(({ icon: Icon, title, desc }) => (
               <motion.div key={title} variants={fadeUp}>
                 <TiltCard className={`rounded-2xl border p-6 flex gap-4 items-start hover:border-[#FF6B35]/50 ${card}`}>
-                  <div className="w-11 h-11 rounded-xl bg-[#FF6B35]/15 flex items-center justify-center text-2xl flex-shrink-0">
-                    {icon}
+                  <div className="w-11 h-11 rounded-xl bg-[#FF6B35]/15 flex items-center justify-center flex-shrink-0">
+                    <Icon size={20} className="text-[#FF6B35]" strokeWidth={2} />
                   </div>
                   <div>
                     <p className={`font-bold text-sm mb-1 ${text}`}>{title}</p>
@@ -696,7 +791,7 @@ export default function LandingPage() {
             <div className="pointer-events-none absolute -top-16 -left-16 w-72 h-72 rounded-full bg-white/10 blur-3xl" />
             <div className="pointer-events-none absolute -bottom-20 -right-20 w-80 h-80 rounded-full bg-[#c94a10]/60 blur-3xl" />
 
-            <div className="relative z-10 grid grid-cols-2 items-center gap-0">
+            <div className="relative z-10 grid grid-cols-1 lg:grid-cols-2 items-center gap-0">
 
               {/* Left — text + buttons */}
               <div className="flex flex-col gap-6 p-14">
@@ -761,14 +856,77 @@ export default function LandingPage() {
 
       {/* ── Footer ── */}
       <WaveDivider isDark={isDark} />
-      <footer className={`w-screen left-0 py-5 transition-colors duration-300 ${isDark ? "bg-[#111111]" : "bg-[#fff8f4]"}`}>
-        <div className="w-full px-[4vw] flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Image src="/logo.png" alt="MoodiFy" width={28} height={28} className="rounded-full" />
-            <span className="font-pacifico text-[#FF6B35] text-base">MoodiFy</span>
-            <span className={`text-xs ${muted}`}>— AI Mood-Based Music Player</span>
+      <footer className={`w-screen left-0 py-10 transition-colors duration-300 ${isDark ? "bg-[#111111]" : "bg-[#fff8f4]"}`}>
+        <div className="w-full px-[4vw] max-w-6xl mx-auto">
+          {/* Main Footer Content */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
+            
+            {/* Brand Section */}
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center gap-2">
+                <Image src="/logo.png" alt="MoodiFy" width={32} height={32} className="rounded-full" />
+                <span className="font-pacifico text-[#FF6B35] text-lg">MoodiFy</span>
+              </div>
+              <p className={`text-xs leading-relaxed max-w-xs ${muted}`}>
+                AI-powered mood detection that instantly serves the perfect playlist. Your face picks tonight&apos;s music.
+              </p>
+            </div>
+
+            {/* Quick Links */}
+            <div className="flex flex-col gap-3">
+              <h4 className={`text-sm font-bold ${text}`}>Quick Links</h4>
+              <div className="flex flex-col gap-2">
+                {["How It Works", "Moods", "Features", "Credits"].map((label) => (
+                  <a
+                    key={label}
+                    href={`#${label.toLowerCase().replace(/ /g, "-")}`}
+                    className={`text-xs transition-colors hover:text-[#FF6B35] ${muted}`}
+                  >
+                    {label}
+                  </a>
+                ))}
+              </div>
+            </div>
+
+            {/* Contact Section */}
+            <div className="flex flex-col gap-3">
+              <h4 className={`text-sm font-bold ${text}`}>Get In Touch</h4>
+              <div className="flex flex-col gap-2">
+                <a
+                  href="mailto:contact@moodify.app"
+                  className={`flex items-center gap-2 text-xs transition-colors hover:text-[#FF6B35] ${muted}`}
+                >
+                  <MessageSquare size={14} />
+                  <span>contact@moodify.app</span>
+                </a>
+                <p className={`text-xs leading-relaxed ${muted}`}>
+                  Have questions or feedback? We&apos;d love to hear from you.
+                </p>
+              </div>
+            </div>
+
           </div>
-          <span className={`text-xs ${muted}`}>© 2026 Soumyadip Khan Sarkar</span>
+
+          {/* Bottom Bar */}
+          <div className={`pt-6 border-t flex flex-col sm:flex-row items-center justify-between gap-3 ${isDark ? "border-[#2a2a2a]" : "border-[#FFDDD2]"}`}>
+            <p className={`text-xs ${muted}`}>
+              © 2026 Soumyadip Khan Sarkar. All rights reserved.
+            </p>
+            <div className="flex items-center gap-4">
+              <a href="https://github.com/Soumyadip-03/MoodiFy" target="_blank" rel="noopener noreferrer"
+                className={`text-xs transition-colors hover:text-[#FF6B35] ${muted}`}>
+                GitHub
+              </a>
+              <span className={`${muted}`}>·</span>
+              <Link href="/login" className={`text-xs transition-colors hover:text-[#FF6B35] ${muted}`}>
+                Sign In
+              </Link>
+              <span className={`${muted}`}>·</span>
+              <Link href="/signup" className={`text-xs transition-colors hover:text-[#FF6B35] ${muted}`}>
+                Get Started
+              </Link>
+            </div>
+          </div>
         </div>
       </footer>
 
