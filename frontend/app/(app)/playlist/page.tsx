@@ -277,7 +277,7 @@ export default function PlaylistPage() {
   const isDark = theme === "dark";
   const { user } = useAuth();
   const { openAlbum, registerPlayAlbumHandler, registerSaveAlbumHandler, registerRemoveAlbumHandler } = useArtistAlbum();
-  const { activeTrack, isPlaying, likedTrackIds, albumSource, toggleLike, togglePlayRef, shuffle, setShuffle, playAlbumTrack } = usePlayer();
+  const { activeTrack, isPlaying, likedTrackIds, playlistSource: playerPlaylistSource, toggleLike, togglePlayRef, shuffle, setShuffle, playAlbumTrack, playPlaylistTrack } = usePlayer();
 
   const MOOD_IDS = ["happy", "upbeat", "chill", "melancholy", "relaxing", "romantic", "intense"];
 
@@ -444,16 +444,16 @@ export default function PlaylistPage() {
       : "bg-gradient-to-br from-[#FF8C42] via-[#FF6B35] to-[#F7931E]";
   };
 
-// Playlist source — isolated from mood queue, uses albumSource/albumQueue slot
-  const playlistSource = selected ? { id: selected.id, name: selected.name, art: selected.coverImage ?? null } : null;
-  const isThisQueueActive = !!playlistSource && albumSource?.id === playlistSource.id;
+// Playlist source — string for playlist tracking
+  const playlistSource = selected ? selected.name : null;
+  const isThisQueueActive = !!playlistSource && playerPlaylistSource === playlistSource;
 
   const handlePlayPause = () => {
     if (queue.length === 0 || !playlistSource) return;
     if (isThisQueueActive) {
       togglePlayRef.current?.();
     } else {
-      playAlbumTrack(queue[0], queue, playlistSource);
+      playPlaylistTrack(queue[0], queue, playlistSource);
       setShuffle(false);
     }
   };
@@ -464,7 +464,7 @@ export default function PlaylistPage() {
       setShuffle(!shuffle);
     } else {
       const shuffled = [...queue].sort(() => Math.random() - 0.5);
-      playAlbumTrack(shuffled[0], shuffled, playlistSource);
+      playPlaylistTrack(shuffled[0], shuffled, playlistSource);
       setShuffle(true);
     }
   };
@@ -482,7 +482,7 @@ export default function PlaylistPage() {
       clearTimeout(clickTimerRef.current);
       clickTimerRef.current = null;
       lastClickedRef.current = null;
-      playAlbumTrack(track, queue, playlistSource);
+      playPlaylistTrack(track, queue, playlistSource);
     } else {
       lastClickedRef.current = track.id;
       if (clickTimerRef.current) clearTimeout(clickTimerRef.current);
@@ -899,7 +899,7 @@ export default function PlaylistPage() {
                           }`}
                           title="Double-click to play"
                         >
-                          <td className="px-5 py-3 w-10" onClick={(e) => { e.stopPropagation(); if (!playlistSource) return; if (isActive) { togglePlayRef.current?.(); } else { playAlbumTrack(track, queue, playlistSource); } }}>
+                          <td className="px-5 py-3 w-10" onClick={(e) => { e.stopPropagation(); if (!playlistSource) return; if (isActive) { togglePlayRef.current?.(); } else { playPlaylistTrack(track, queue, playlistSource); } }}>
                             <span className={`text-sm ${muted} flex items-center`}>
                               {isActive && isPlaying
                                 ? <Pause size={13} fill="#FF6B35" className="text-[#FF6B35]" />

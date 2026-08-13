@@ -50,13 +50,13 @@ export default function Header() {
   return (
     <header
       className={`relative z-50 w-full transition-colors duration-300 ${
-        isDark ? "bg-[#0a0a0a]" : "bg-white/60 backdrop-blur-sm"
+        isDark ? "bg-[#000000]" : "bg-[#FFE8D6] backdrop-blur-sm"
       }`}
     >
-      <div className="mx-auto px-6 pt-2 pb-1 flex items-center justify-between">
+      <div className="mx-auto px-4 pt-3 pb-0 flex items-center justify-between">
       {/* Logo */}
       <div className="flex items-center gap-2">
-        <Image src="/logo.png" alt="MoodiFy logo" width={40} height={40} className="rounded-full" />
+        <Image src="/MoodiFy.svg" alt="MoodiFy logo" width={44} height={44} className="p-0" />
         <span className="text-2xl font-pacifico text-[#FF6B35] select-none">MoodiFy</span>
       </div>
 
@@ -64,7 +64,7 @@ export default function Header() {
       <nav
         style={{ visibility: (pathname.startsWith("/profile") || pathname.startsWith("/mood-room")) ? "hidden" : "visible" }}
         className={`flex items-center rounded-full border px-1 py-1 ${
-          isDark ? "bg-[#1A1A1A] border-[#3a3a3a]" : "bg-[#FFE8D6] border-[#FFDDD2]"
+          isDark ? "bg-[#1A1A1A] border-[#3a3a3a]" : "bg-[#ffffff] border-[#e2beb1]"
         }`}
       >
         {NAV_LINKS.map(({ label, href }, i) => {

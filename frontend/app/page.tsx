@@ -6,7 +6,7 @@ import { useTheme } from "@/context/ThemeContext";
 import ThemeToggle from "@/components/ui/ThemeToggle";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { useRef, MouseEvent, useState, useEffect } from "react";
-import { GitFork, Link as LinkIcon, FolderOpen, Menu, X, Video, Brain, Music, Smile, Lock, Zap, Target, Globe, Crown, TrendingUp, MessageSquare } from "lucide-react";
+import { GitFork, Link as LinkIcon, FolderOpen, Menu, X, Video, Brain, Music, Lock, Zap, Target, Globe, Crown, TrendingUp, MessageSquare, Smile } from "lucide-react";
 
 // ── Wave SVG divider ──────────────────────────────────────────────────────────
 function WaveDivider({ flip = false, isDark }: { flip?: boolean; isDark: boolean }) {
@@ -176,10 +176,12 @@ const stagger = {
 };
 
 const CREDITS_IMAGES = [
-  { src: "/credits/Home.jpeg",     label: "Home — Mood Detection" },
-  { src: "/credits/PlayList.jpeg", label: "Playlist Page" },
-  { src: "/credits/History.jpeg",  label: "History Page" },
-  { src: "/credits/Logo.jpeg",     label: "Brand Logo" },
+  { src: "/credits/Home.jpeg",              label: "Home — Mood Detection" },
+  { src: "/credits/Playlist.jpeg",          label: "Playlist Page" },
+  { src: "/credits/History.jpeg",           label: "History Page" },
+  { src: "/credits/MoodRoom.jpeg",         label: "Mood Room" },
+  { src: "/credits/Logo.svg",              label: "Brand Logo" },
+  { src: "/credits/OneGraph.svg",  label: "OneGraph Integration" },
 ];
 
 const TEAM = [
@@ -247,16 +249,33 @@ function SweepCard({
 
 function CreditsSection({ isDark, card, text, muted, border }: { isDark: boolean; card: string; text: string; muted: string; border: string }) {
   const [showDesigns, setShowDesigns] = useState(false);
+  const [currentSlide, setCurrentSlide] = useState(0);
 
-  const cardStagger = {
-    hidden: {},
-    show: { transition: { staggerChildren: 0.08 } },
+  const nextSlide = () => {
+    setCurrentSlide((prev) => (prev + 1) % CREDITS_IMAGES.length);
   };
-  const cardSlide = {
-    hidden: { opacity: 0, y: 40, scale: 0.95 },
-    show:   { opacity: 1, y: 0,  scale: 1, transition: { type: "spring" as const, stiffness: 260, damping: 22 } },
-    exit:   { opacity: 0, y: 20, scale: 0.95, transition: { duration: 0.2 } },
+
+  const prevSlide = () => {
+    setCurrentSlide((prev) => (prev - 1 + CREDITS_IMAGES.length) % CREDITS_IMAGES.length);
   };
+
+  const goToSlide = (index: number) => {
+    setCurrentSlide(index);
+  };
+
+  // Keyboard navigation
+  useEffect(() => {
+    if (!showDesigns) return;
+    
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "ArrowLeft") prevSlide();
+      if (e.key === "ArrowRight") nextSlide();
+      if (e.key === "Escape") setShowDesigns(false);
+    };
+    
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [showDesigns]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <section id="credits" className={`py-24 transition-colors duration-300 ${isDark ? "bg-[#111111]" : "bg-[#fff8f4]"}`}>
@@ -338,39 +357,97 @@ function CreditsSection({ isDark, card, text, muted, border }: { isDark: boolean
               transition={{ duration: 0.45, ease: "easeInOut" }}
               className="overflow-hidden"
             >
-              <motion.div
-                variants={cardStagger}
-                initial="hidden"
-                animate="show"
-                exit="exit"
-                className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 max-w-5xl mx-auto mt-10"
-              >
-                {CREDITS_IMAGES.map((img, i) => (
-                  <motion.div key={img.src} variants={cardSlide}
-                    whileHover={{ scale: 1.04, rotate: i % 2 === 0 ? 1 : -1 }}
-                    transition={{ type: "spring", stiffness: 300, damping: 20 }}
-                    className="cursor-pointer group"
+              <div className="max-w-4xl mx-auto mt-10 relative">
+                {/* Slider Container */}
+                <div className="relative rounded-2xl overflow-hidden">
+                  {/* Main Image Display */}
+                  <motion.div
+                    key={currentSlide}
+                    initial={{ opacity: 0, x: 100 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -100 }}
+                    transition={{ duration: 0.4, ease: "easeInOut" }}
+                    className={`relative aspect-[16/10] rounded-2xl border overflow-hidden shadow-2xl ${border}`}
                   >
-                    <div className={`relative rounded-2xl border overflow-hidden aspect-[4/3] shadow-lg group-hover:shadow-[#FF6B35]/25 group-hover:border-[#FF6B35]/60 transition-all duration-300 ${border}`}>
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={img.src} alt={img.label} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" loading="lazy" />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-3">
-                        <p className="text-white text-xs font-semibold">{img.label}</p>
-                      </div>
-                      <a
-                        href={img.src}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={e => e.stopPropagation()}
-                        className="absolute top-2 right-2 w-7 h-7 rounded-full bg-[#FF6B35] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-200 hover:scale-110 shadow-lg"
-                      >
-                        <span className="text-white text-xs font-bold leading-none">&#8599;</span>
-                      </a>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img 
+                      src={CREDITS_IMAGES[currentSlide].src} 
+                      alt={CREDITS_IMAGES[currentSlide].label} 
+                      className="w-full h-full object-contain bg-gradient-to-br from-black/5 to-black/10"
+                      loading="lazy" 
+                    />
+                    
+                    {/* Label Overlay */}
+                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 via-black/50 to-transparent p-6">
+                      <p className="text-white text-lg font-bold drop-shadow-lg">
+                        {CREDITS_IMAGES[currentSlide].label}
+                      </p>
+                      <p className="text-white/70 text-sm mt-1">
+                        {currentSlide + 1} / {CREDITS_IMAGES.length}
+                      </p>
                     </div>
-                    <p className={`text-xs text-center mt-2 font-medium ${muted}`}>{img.label}</p>
+
+                    {/* Full Screen Link */}
+                    <a
+                      href={CREDITS_IMAGES[currentSlide].src}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="absolute top-4 right-4 w-10 h-10 rounded-full bg-[#FF6B35] hover:bg-[#e85d2a] flex items-center justify-center transition-all duration-200 hover:scale-110 shadow-xl"
+                    >
+                      <span className="text-white text-sm font-bold leading-none">&#8599;</span>
+                    </a>
                   </motion.div>
-                ))}
-              </motion.div>
+
+                  {/* Navigation Arrows */}
+                  <button
+                    onClick={prevSlide}
+                    className={`absolute left-4 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full flex items-center justify-center transition-all duration-200 hover:scale-110 shadow-xl ${
+                      isDark ? "bg-white/10 hover:bg-white/20 backdrop-blur-sm" : "bg-black/10 hover:bg-black/20 backdrop-blur-sm"
+                    }`}
+                  >
+                    <span className={`text-2xl font-bold ${isDark ? "text-white" : "text-black"}`}>‹</span>
+                  </button>
+                  
+                  <button
+                    onClick={nextSlide}
+                    className={`absolute right-4 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full flex items-center justify-center transition-all duration-200 hover:scale-110 shadow-xl ${
+                      isDark ? "bg-white/10 hover:bg-white/20 backdrop-blur-sm" : "bg-black/10 hover:bg-black/20 backdrop-blur-sm"
+                    }`}
+                  >
+                    <span className={`text-2xl font-bold ${isDark ? "text-white" : "text-black"}`}>›</span>
+                  </button>
+                </div>
+
+                {/* Thumbnail Navigation */}
+                <div className="flex gap-3 justify-center mt-6 flex-wrap">
+                  {CREDITS_IMAGES.map((img, idx) => (
+                    <button
+                      key={img.src}
+                      onClick={() => goToSlide(idx)}
+                      className={`relative rounded-lg overflow-hidden transition-all duration-300 border-2 ${
+                        idx === currentSlide 
+                          ? "border-[#FF6B35] scale-110 shadow-lg shadow-[#FF6B35]/30" 
+                          : isDark ? "border-transparent hover:border-white/30" : "border-transparent hover:border-black/30"
+                      }`}
+                    >
+                      <div className="w-20 h-14 sm:w-24 sm:h-16">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img 
+                          src={img.src} 
+                          alt={img.label} 
+                          className={`w-full h-full object-cover transition-all duration-300 ${
+                            idx === currentSlide ? "opacity-100" : "opacity-50 hover:opacity-80"
+                          }`}
+                          loading="lazy"
+                        />
+                      </div>
+                      {idx === currentSlide && (
+                        <div className="absolute inset-0 ring-2 ring-[#FF6B35] ring-inset rounded-lg pointer-events-none" />
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
@@ -410,7 +487,7 @@ export default function LandingPage() {
       } ${scrolled ? "shadow-lg shadow-black/10" : ""}`}>
         <div className="w-full px-[4vw] py-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Image src="/logo.png" alt="MoodiFy" width={36} height={36} className="rounded-full" />
+            <Image src="/MoodiFy.svg" alt="MoodiFy" width={44} height={44} className="p-1" />
             <span className="text-xl font-pacifico text-[#FF6B35]">MoodiFy</span>
           </div>
           
@@ -844,7 +921,7 @@ export default function LandingPage() {
 
                 {/* Centre logo */}
                 <div className="relative z-10 w-20 h-20 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center shadow-xl border border-white/30">
-                  <Image src="/logo.png" alt="MoodiFy" width={44} height={44} className="rounded-full" />
+                  <Image src="/MoodiFy.svg" alt="MoodiFy" width={56} height={56} className="p-1" />
                 </div>
               </div>
 
@@ -864,7 +941,7 @@ export default function LandingPage() {
             {/* Brand Section */}
             <div className="flex flex-col gap-3">
               <div className="flex items-center gap-2">
-                <Image src="/logo.png" alt="MoodiFy" width={32} height={32} className="rounded-full" />
+                <Image src="/MoodiFy.svg" alt="MoodiFy" width={40} height={40} className="p-1" />
                 <span className="font-pacifico text-[#FF6B35] text-lg">MoodiFy</span>
               </div>
               <p className={`text-xs leading-relaxed max-w-xs ${muted}`}>

@@ -46,12 +46,23 @@ export async function updateUserPhotoURL(uid: string, photoURL: string): Promise
   await setDoc(doc(db, "users", uid), { photoURL }, { merge: true });
 }
 
-export async function getUserSettings(uid: string): Promise<{ trackTrendingEnabled: boolean; moodStats: Record<string, number>; likedTracksCount: number }> {
+export async function getUserSettings(uid: string): Promise<{ 
+  trackTrendingEnabled: boolean; 
+  trackPlaylistEnabled: boolean;
+  moodStats: Record<string, number>; 
+  likedTracksCount: number 
+}> {
   const snap = await getDoc(doc(db, "users", uid));
-  if (!snap.exists()) return { trackTrendingEnabled: true, moodStats: {}, likedTracksCount: 0 };
+  if (!snap.exists()) return { 
+    trackTrendingEnabled: true, 
+    trackPlaylistEnabled: true,
+    moodStats: {}, 
+    likedTracksCount: 0 
+  };
   const data = snap.data();
   return {
     trackTrendingEnabled: data.trackTrendingEnabled ?? true,
+    trackPlaylistEnabled: data.trackPlaylistEnabled ?? true,
     moodStats: data.moodStats ?? {},
     likedTracksCount: data.likedTracksCount ?? 0,
   };
@@ -247,6 +258,36 @@ export async function getOrCreateTodayTrendingDoc(uid: string): Promise<string> 
   return ref.id;
 }
 
+// Get or create today's playlist history document
+export async function getOrCreateTodayPlaylistDoc(uid: string): Promise<string> {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const q = query(
+    collection(db, "moodHistory"),
+    where("userId", "==", uid),
+    where("mood", "==", "playlist"),
+    limit(20)
+  );
+  const snap = await getDocs(q);
+  const todayDoc = snap.docs.find(d => {
+    const ts = d.data().timestamp?.toDate?.();
+    return ts && ts >= today;
+  });
+  if (todayDoc) return todayDoc.id;
+
+  const ref = await addDoc(collection(db, "moodHistory"), {
+    userId: uid,
+    mood: "playlist",
+    confidence: 1,
+    timestamp: serverTimestamp(),
+    tracksServed: [],
+    tracksPlayed: [],
+    source: "playlist",
+  });
+  return ref.id;
+}
+
 export async function saveMoodHistory(
   uid: string,
   mood: string,
@@ -268,7 +309,13 @@ export async function updateMoodHistoryTracks(docId: string, trackIds: string[])
 }
 
 export async function addPlayedTrackToHistory(docId: string, trackId: string): Promise<void> {
-  await updateDoc(doc(db, "moodHistory", docId), { tracksPlayed: arrayUnion(trackId) });
+  const playedEntry = {
+    trackId,
+    playedAt: new Date().toISOString(),
+  };
+  await updateDoc(doc(db, "moodHistory", docId), { 
+    tracksPlayed: arrayUnion(playedEntry) 
+  });
 }
 
 export async function getMoodHistoryByDate(
@@ -291,6 +338,17 @@ export async function getMoodHistoryByDate(
   const snap = await getDocs(q);
   return snap.docs.map((d) => {
     const data = d.data();
+    
+    // Handle both old format (string[]) and new format (PlayedTrackEntry[])
+    let tracksPlayed = data.tracksPlayed ?? [];
+    if (tracksPlayed.length > 0 && typeof tracksPlayed[0] === 'string') {
+      // Old format: convert string[] to PlayedTrackEntry[]
+      tracksPlayed = tracksPlayed.map((trackId: string) => ({
+        trackId,
+        playedAt: data.timestamp?.toDate?.()?.toISOString() ?? new Date().toISOString(),
+      }));
+    }
+    
     return {
       id: d.id,
       userId: data.userId,
@@ -298,7 +356,7 @@ export async function getMoodHistoryByDate(
       confidence: data.confidence,
       timestamp: data.timestamp?.toDate?.()?.toISOString() ?? new Date().toISOString(),
       tracksServed: data.tracksServed ?? [],
-      tracksPlayed: data.tracksPlayed ?? [],
+      tracksPlayed,
     } as MoodHistoryEntry;
   });
 }
@@ -321,6 +379,17 @@ export async function getMoodHistoryLast7Days(
   const snap = await getDocs(q);
   return snap.docs.map((d) => {
     const data = d.data();
+    
+    // Handle both old format (string[]) and new format (PlayedTrackEntry[])
+    let tracksPlayed = data.tracksPlayed ?? [];
+    if (tracksPlayed.length > 0 && typeof tracksPlayed[0] === 'string') {
+      // Old format: convert string[] to PlayedTrackEntry[]
+      tracksPlayed = tracksPlayed.map((trackId: string) => ({
+        trackId,
+        playedAt: data.timestamp?.toDate?.()?.toISOString() ?? new Date().toISOString(),
+      }));
+    }
+    
     return {
       id: d.id,
       userId: data.userId,
@@ -328,7 +397,7 @@ export async function getMoodHistoryLast7Days(
       confidence: data.confidence,
       timestamp: data.timestamp?.toDate?.()?.toISOString() ?? new Date().toISOString(),
       tracksServed: data.tracksServed ?? [],
-      tracksPlayed: data.tracksPlayed ?? [],
+      tracksPlayed,
     } as MoodHistoryEntry;
   });
 }

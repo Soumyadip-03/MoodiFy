@@ -3,11 +3,12 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useTheme } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
+import { usePlayer } from "@/context/PlayerContext";
 import { Calendar, ChevronDown, ChevronRight, Music } from "lucide-react";
 import { getMoodHistoryByDate, getMoodHistoryLast7Days } from "@/lib/firestore";
 import { getDoc, doc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import type { MoodHistoryEntry } from "@/types/index";
+import type { MoodHistoryEntry, HistorySource } from "@/types/index";
 import { motion, AnimatePresence } from "framer-motion";
 import { MOOD_COLORS } from "@/utils/moodIcons";
 import { HistoryCardSkeleton } from "@/components/ui/Skeleton";
@@ -26,7 +27,183 @@ function getFirstDayOfMonth(year: number, month: number) {
   return new Date(year, month, 1).getDay();
 }
 
-interface TrackPreview { id: string; title: string; artist: string; albumArt: string; }
+interface TrackPreview { 
+  id: string; 
+  title: string; 
+  artist: string; 
+  albumArt: string;
+  playedAt?: string;
+}
+
+// Trending Card - Always shows songs in a permanent list
+function TrendingCard({ entry, isDark, muted, index }: {
+  entry: MoodHistoryEntry; isDark: boolean; muted: string; index: number;
+}) {
+  const [tracks, setTracks] = useState<TrackPreview[]>([]);
+  const [loadingTracks, setLoadingTracks] = useState(false);
+  const fetched = useRef(false);
+
+  // Auto-load ALL tracks on mount (no limit)
+  useEffect(() => {
+    if (fetched.current || entry.tracksPlayed.length === 0) return;
+    fetched.current = true;
+    setLoadingTracks(true);
+    
+    Promise.all(
+      entry.tracksPlayed.map(async (playedEntry) => {
+        const snap = await getDoc(doc(db, "moodTracks", playedEntry.trackId));
+        if (!snap.exists()) return null;
+        const d = snap.data();
+        return { 
+          id: playedEntry.trackId, 
+          title: d.title ?? "Unknown", 
+          artist: d.artist ?? "", 
+          albumArt: d.albumArt ?? "",
+          playedAt: playedEntry.playedAt,
+        } as TrackPreview;
+      })
+    ).then(results => {
+      setTracks(results.filter(Boolean) as TrackPreview[]);
+      setLoadingTracks(false);
+    }).catch(() => {
+      setLoadingTracks(false);
+    });
+  }, [entry.tracksPlayed]);
+
+  const color = getMoodColorSafe("trending");
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35, delay: index * 0.05, ease: "easeOut" }}
+      className={`rounded-2xl border overflow-hidden transition-colors flex flex-col ${isDark ? "bg-[#111111] border-[#2a2a2a]" : "bg-white border-[#FFDDD2]"}`}
+      style={{ borderLeft: `3px solid ${color}`, minHeight: "400px" }}
+    >
+      {/* Songs List - No header, directly show songs, fills available space */}
+      <div className="px-5 py-4 flex-1 flex flex-col min-h-0">
+        {loadingTracks && <p className={`text-xs ${muted}`}>Loading...</p>}
+        {!loadingTracks && tracks.length === 0 && (
+          <p className={`text-xs ${muted}`}>No track data available</p>
+        )}
+        {!loadingTracks && tracks.length > 0 && (
+          <div className="flex flex-col gap-0.5 flex-1 overflow-y-auto app-scroll pr-1">
+            {tracks.map((t, i) => {
+              const playTime = t.playedAt 
+                ? new Date(t.playedAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })
+                : "";
+              
+              return (
+                <motion.div
+                  key={`${t.id}-${i}`}
+                  initial={{ opacity: 0, x: -8 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: i * 0.04, duration: 0.2 }}
+                  className="flex items-center gap-3 py-1.5 flex-shrink-0"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={t.albumArt} alt={t.title} className="w-8 h-8 rounded-lg object-cover flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-sm font-medium truncate ${isDark ? "text-white" : "text-[#3a2a20]"}`}>{t.title}</p>
+                    <p className={`text-xs truncate ${muted}`}>{t.artist}</p>
+                  </div>
+                  {playTime && (
+                    <span className={`text-xs flex-shrink-0 ${muted}`}>{playTime}</span>
+                  )}
+                </motion.div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </motion.div>
+  );
+}
+
+// Library Card - Same as Trending Card, permanent list display
+function LibraryCard({ entry, isDark, muted, index }: {
+  entry: MoodHistoryEntry; isDark: boolean; muted: string; index: number;
+}) {
+  const [tracks, setTracks] = useState<TrackPreview[]>([]);
+  const [loadingTracks, setLoadingTracks] = useState(false);
+  const fetched = useRef(false);
+
+  // Auto-load ALL tracks on mount (no limit)
+  useEffect(() => {
+    if (fetched.current || entry.tracksPlayed.length === 0) return;
+    fetched.current = true;
+    setLoadingTracks(true);
+    
+    Promise.all(
+      entry.tracksPlayed.map(async (playedEntry) => {
+        const snap = await getDoc(doc(db, "moodTracks", playedEntry.trackId));
+        if (!snap.exists()) return null;
+        const d = snap.data();
+        return { 
+          id: playedEntry.trackId, 
+          title: d.title ?? "Unknown", 
+          artist: d.artist ?? "", 
+          albumArt: d.albumArt ?? "",
+          playedAt: playedEntry.playedAt,
+        } as TrackPreview;
+      })
+    ).then(results => {
+      setTracks(results.filter(Boolean) as TrackPreview[]);
+      setLoadingTracks(false);
+    }).catch(() => {
+      setLoadingTracks(false);
+    });
+  }, [entry.tracksPlayed]);
+
+  const color = getMoodColorSafe("playlist");
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35, delay: index * 0.05, ease: "easeOut" }}
+      className={`rounded-2xl border overflow-hidden transition-colors flex flex-col ${isDark ? "bg-[#111111] border-[#2a2a2a]" : "bg-white border-[#FFDDD2]"}`}
+      style={{ borderLeft: `3px solid ${color}`, minHeight: "400px" }}
+    >
+      {/* Songs List - No header, directly show songs, fills available space */}
+      <div className="px-5 py-4 flex-1 flex flex-col min-h-0">
+        {loadingTracks && <p className={`text-xs ${muted}`}>Loading...</p>}
+        {!loadingTracks && tracks.length === 0 && (
+          <p className={`text-xs ${muted}`}>No track data available</p>
+        )}
+        {!loadingTracks && tracks.length > 0 && (
+          <div className="flex flex-col gap-0.5 flex-1 overflow-y-auto app-scroll pr-1">
+            {tracks.map((t, i) => {
+              const playTime = t.playedAt 
+                ? new Date(t.playedAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })
+                : "";
+              
+              return (
+                <motion.div
+                  key={`${t.id}-${i}`}
+                  initial={{ opacity: 0, x: -8 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: i * 0.04, duration: 0.2 }}
+                  className="flex items-center gap-3 py-1.5 flex-shrink-0"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={t.albumArt} alt={t.title} className="w-8 h-8 rounded-lg object-cover flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-sm font-medium truncate ${isDark ? "text-white" : "text-[#3a2a20]"}`}>{t.title}</p>
+                    <p className={`text-xs truncate ${muted}`}>{t.artist}</p>
+                  </div>
+                  {playTime && (
+                    <span className={`text-xs flex-shrink-0 ${muted}`}>{playTime}</span>
+                  )}
+                </motion.div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </motion.div>
+  );
+}
 
 function EntryCard({ entry, isDark, muted, index }: {
   entry: MoodHistoryEntry; isDark: boolean; muted: string; index: number;
@@ -37,7 +214,12 @@ function EntryCard({ entry, isDark, muted, index }: {
   const fetched = useRef(false);
   const hasPlayed = entry.tracksPlayed.length > 0;
 
-  const time = new Date(entry.timestamp).toLocaleTimeString("en-US", {
+  // Use the latest played time for the card header
+  const latestPlayTime = hasPlayed && entry.tracksPlayed.length > 0
+    ? entry.tracksPlayed[entry.tracksPlayed.length - 1].playedAt
+    : entry.timestamp;
+
+  const time = new Date(latestPlayTime).toLocaleTimeString("en-US", {
     hour: "numeric", minute: "2-digit", hour12: true,
   });
 
@@ -49,11 +231,17 @@ function EntryCard({ entry, isDark, muted, index }: {
     setLoadingTracks(true);
     try {
       const results = await Promise.all(
-        entry.tracksPlayed.slice(0, 20).map(async (id) => {
-          const snap = await getDoc(doc(db, "moodTracks", id));
+        entry.tracksPlayed.map(async (playedEntry) => {
+          const snap = await getDoc(doc(db, "moodTracks", playedEntry.trackId));
           if (!snap.exists()) return null;
           const d = snap.data();
-          return { id, title: d.title ?? "Unknown", artist: d.artist ?? "", albumArt: d.albumArt ?? "" } as TrackPreview;
+          return { 
+            id: playedEntry.trackId, 
+            title: d.title ?? "Unknown", 
+            artist: d.artist ?? "", 
+            albumArt: d.albumArt ?? "",
+            playedAt: playedEntry.playedAt,
+          } as TrackPreview;
         })
       );
       setTracks(results.filter(Boolean) as TrackPreview[]);
@@ -62,7 +250,7 @@ function EntryCard({ entry, isDark, muted, index }: {
   }, [entry.tracksPlayed, hasPlayed]);
 
   const color = getMoodColorSafe(entry.mood);
-  const label = entry.mood === "trending" ? "Trending" : entry.mood;
+  const label = entry.mood === "trending" ? "Trending" : entry.mood === "playlist" ? "Library" : entry.mood;
 
   return (
     <motion.div
@@ -85,7 +273,7 @@ function EntryCard({ entry, isDark, muted, index }: {
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            {entry.mood !== "trending" && (
+            {entry.mood !== "trending" && entry.mood !== "playlist" && (
               <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: `${color}22`, color }}>
                 {Math.round(entry.confidence * 100)}% confidence
               </span>
@@ -124,22 +312,31 @@ function EntryCard({ entry, isDark, muted, index }: {
               )}
               {!loadingTracks && tracks.length > 0 && (
                 <div className="flex flex-col gap-0.5 max-h-48 overflow-y-auto app-scroll pr-1">
-                  {tracks.map((t, i) => (
-                    <motion.div
-                      key={t.id}
-                      initial={{ opacity: 0, x: -8 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: i * 0.04, duration: 0.2 }}
-                      className="flex items-center gap-3 py-1.5"
-                    >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={t.albumArt} alt={t.title} className="w-8 h-8 rounded-lg object-cover flex-shrink-0" />
-                      <div className="min-w-0">
-                        <p className={`text-sm font-medium truncate ${isDark ? "text-white" : "text-[#3a2a20]"}`}>{t.title}</p>
-                        <p className={`text-xs truncate ${muted}`}>{t.artist}</p>
-                      </div>
-                    </motion.div>
-                  ))}
+                  {tracks.map((t, i) => {
+                    const playTime = t.playedAt 
+                      ? new Date(t.playedAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })
+                      : "";
+                    
+                    return (
+                      <motion.div
+                        key={`${t.id}-${i}`}
+                        initial={{ opacity: 0, x: -8 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: i * 0.04, duration: 0.2 }}
+                        className="flex items-center gap-3 py-1.5"
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={t.albumArt} alt={t.title} className="w-8 h-8 rounded-lg object-cover flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-sm font-medium truncate ${isDark ? "text-white" : "text-[#3a2a20]"}`}>{t.title}</p>
+                          <p className={`text-xs truncate ${muted}`}>{t.artist}</p>
+                        </div>
+                        {playTime && (
+                          <span className={`text-xs flex-shrink-0 ${muted}`}>{playTime}</span>
+                        )}
+                      </motion.div>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -176,7 +373,7 @@ function WeeklyChart({ entries, isDark, muted, text }: {
     return d;
   });
   const labels = days.map(d => d.toLocaleDateString("en-US", { weekday: "short" }));
-  const moodEntries = entries.filter(e => e.mood !== "trending");
+  const moodEntries = entries.filter(e => e.mood !== "trending" && e.mood !== "playlist");
 
   const dayData = days.map(day => {
     const dayEntries = moodEntries.filter(e => {
@@ -286,6 +483,7 @@ export default function HistoryPage() {
   const { theme } = useTheme();
   const isDark = theme === "dark";
   const { user } = useAuth();
+  const { activeTrack, isPlaying } = usePlayer(); // For real-time updates
 
   const today = new Date();
   const [selectedDate, setSelectedDate] = useState(today);
@@ -293,10 +491,18 @@ export default function HistoryPage() {
   const [calMonth, setCalMonth] = useState(today.getMonth());
   const [calYear, setCalYear] = useState(today.getFullYear());
   const calRef = useRef<HTMLDivElement>(null);
+  const tabRef = useRef<HTMLDivElement>(null);
 
   const [entries, setEntries] = useState<MoodHistoryEntry[]>([]);
   const [weekEntries, setWeekEntries] = useState<MoodHistoryEntry[]>([]);
   const [loading, setLoading] = useState(false);
+  
+  // Tab state: "mood" | "trending" | "library"
+  const [activeTab, setActiveTab] = useState<HistorySource>("mood");
+  const [tabOpen, setTabOpen] = useState(false);
+  
+  // Ref to track last update
+  const lastUpdateRef = useRef<number>(Date.now());
 
   useEffect(() => {
     if (!user?.uid) return;
@@ -306,6 +512,26 @@ export default function HistoryPage() {
       .catch(() => setEntries([]))
       .finally(() => setLoading(false));
   }, [user?.uid, selectedDate]);
+
+  // Real-time update: refresh when a song plays
+  useEffect(() => {
+    if (!user?.uid || !activeTrack || !isPlaying) return;
+    
+    // Debounce: only update once every 2 seconds
+    const now = Date.now();
+    if (now - lastUpdateRef.current < 2000) return;
+    lastUpdateRef.current = now;
+    
+    // Refresh current date entries
+    getMoodHistoryByDate(user.uid, selectedDate)
+      .then(setEntries)
+      .catch(() => {});
+      
+    // Refresh week entries
+    getMoodHistoryLast7Days(user.uid)
+      .then(setWeekEntries)
+      .catch(() => {});
+  }, [user?.uid, activeTrack, isPlaying, selectedDate]);
 
   useEffect(() => {
     if (!user?.uid) return;
@@ -320,6 +546,15 @@ export default function HistoryPage() {
     const t = setTimeout(() => document.addEventListener("mousedown", handler), 0);
     return () => { clearTimeout(t); document.removeEventListener("mousedown", handler); };
   }, [calOpen]);
+
+  useEffect(() => {
+    if (!tabOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (tabRef.current && !tabRef.current.contains(e.target as Node)) setTabOpen(false);
+    };
+    const t = setTimeout(() => document.addEventListener("mousedown", handler), 0);
+    return () => { clearTimeout(t); document.removeEventListener("mousedown", handler); };
+  }, [tabOpen]);
 
   const daysInMonth = getDaysInMonth(calYear, calMonth);
   const firstDay = getFirstDayOfMonth(calYear, calMonth);
@@ -338,7 +573,18 @@ export default function HistoryPage() {
   const muted = isDark ? "text-[#aaa]" : "text-[#7A6055]";
   const text = isDark ? "text-white" : "text-[#3a2a20]";
 
-  const moodDetectionCount = entries.filter(e => e.mood !== "trending").length;
+  // Filter entries based on active tab
+  const filteredEntries = entries.filter(e => {
+    if (activeTab === "mood") return e.mood !== "trending" && e.mood !== "playlist";
+    if (activeTab === "trending") return e.mood === "trending";
+    if (activeTab === "library") return e.mood === "playlist"; // Library includes playlist history
+    return false;
+  });
+
+  // Calculate total songs for the active tab
+  const totalSongs = filteredEntries.reduce((sum, entry) => sum + entry.tracksPlayed.length, 0);
+
+  const moodDetectionCount = entries.filter(e => e.mood !== "trending" && e.mood !== "playlist").length;
 
   const dateKey = selectedDate.toDateString();
 
@@ -471,51 +717,141 @@ export default function HistoryPage() {
         initial={{ opacity: 0, x: 20 }}
         animate={{ opacity: 1, x: 0 }}
         transition={{ duration: 0.4, delay: 0.15, ease: "easeOut" }}
-        className="flex-1 min-w-0 lg:h-full lg:overflow-y-auto app-scroll"
+        className="flex-1 min-w-0 lg:h-full flex flex-col gap-3"
       >
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={dateKey}
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -20 }}
-            transition={{ duration: 0.25, ease: "easeOut" }}
-            className="flex flex-col gap-3 pb-3"
-          >
-            {loading ? (
-              /* Loading skeletons */
-              Array.from({ length: 3 }).map((_, i) => (
-                <HistoryCardSkeleton key={i} isDark={isDark} />
-              ))
-            ) : entries.length === 0 ? (
-              <motion.div
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3 }}
-                className={`rounded-2xl border flex flex-col items-center justify-center py-12 sm:py-24 gap-4 ${card}`}
-              >
-                <motion.div
-                  animate={{ scale: [1, 1.08, 1] }}
-                  transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
-                  className="w-16 h-16 rounded-full flex items-center justify-center"
-                  style={{ background: "rgba(255,107,53,0.12)" }}
-                >
-                  <Music size={28} className="text-[#FF6B35]" />
-                </motion.div>
-                <div className="text-center">
-                  <p className={`text-base font-semibold ${isDark ? "text-white" : "text-[#3a2a20]"}`}>No history yet</p>
-                  <p className={`text-sm mt-1 max-w-xs ${muted}`}>
-                    Your mood detections and songs played will appear here.
-                  </p>
-                </div>
+        {/* Category Dropdown */}
+        <div className={`rounded-2xl border p-2 flex-shrink-0 transition-colors ${card}`} ref={tabRef}>
+          <div className="relative">
+            <motion.button
+              onClick={() => setTabOpen(o => !o)}
+              whileTap={{ scale: 0.97 }}
+              className={`w-full flex items-center justify-between px-3 py-2 rounded-xl border text-sm font-medium transition-colors ${
+                isDark ? "bg-[#1a1a1a] border-[#2a2a2a] text-white hover:border-[#FF6B35]" : "bg-[#FFF5F0] border-[#FFDDD2] text-[#3a2a20] hover:border-[#FF6B35]"
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <Music size={14} className="text-[#FF6B35]" />
+                <span>{activeTab === "mood" ? "Mood Detected" : activeTab === "trending" ? "Trending" : "Library"}</span>
+                {totalSongs > 0 && (
+                  <span className={`ml-1 ${muted}`}>• {totalSongs} song{totalSongs !== 1 ? "s" : ""}</span>
+                )}
+              </div>
+              <motion.div animate={{ rotate: tabOpen ? 180 : 0 }} transition={{ duration: 0.2 }}>
+                <ChevronDown size={13} className="text-[#FF6B35]" />
               </motion.div>
-            ) : (
-              entries.map((entry, i) => (
-                <EntryCard key={entry.id} entry={entry} isDark={isDark} muted={muted} index={i} />
-              ))
-            )}
-          </motion.div>
-        </AnimatePresence>
+            </motion.button>
+
+            <AnimatePresence>
+              {tabOpen && (
+                <motion.div
+                  initial={{ opacity: 0, y: -6, scaleY: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scaleY: 1 }}
+                  exit={{ opacity: 0, y: -4, scaleY: 0.97 }}
+                  transition={{ duration: 0.15, ease: "easeOut" }}
+                  style={{ transformOrigin: "top" }}
+                  className={`absolute top-full left-0 right-0 mt-1 rounded-xl border shadow-2xl z-50 overflow-hidden ${
+                    isDark ? "bg-[#111] border-[#2a2a2a]" : "bg-white border-[#FFDDD2]"
+                  }`}
+                >
+                  {[
+                    { id: "mood" as HistorySource, label: "Mood Detected" },
+                    { id: "trending" as HistorySource, label: "Trending" },
+                    { id: "library" as HistorySource, label: "Library" },
+                  ].map((tab) => (
+                    <button
+                      key={tab.id}
+                      onClick={() => { setActiveTab(tab.id); setTabOpen(false); }}
+                      className={`w-full px-4 py-2.5 text-sm text-left transition-colors ${
+                        activeTab === tab.id
+                          ? "bg-[#FF6B35] text-white font-semibold"
+                          : isDark
+                          ? "text-[#ccc] hover:bg-[#1a1a1a]"
+                          : "text-[#7A6055] hover:bg-[#FFF5F0]"
+                      }`}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        </div>
+
+        {/* Tab Content */}
+        <div className="flex-1 min-h-0 lg:overflow-y-auto app-scroll">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={`${dateKey}-${activeTab}`}
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              transition={{ duration: 0.25, ease: "easeOut" }}
+              className="flex flex-col gap-3 pb-3"
+            >
+              {loading ? (
+                /* Loading skeletons */
+                Array.from({ length: 3 }).map((_, i) => (
+                  <HistoryCardSkeleton key={i} isDark={isDark} />
+                ))
+              ) : filteredEntries.length === 0 ? (
+                <motion.div
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3 }}
+                  className={`rounded-2xl border flex flex-col items-center justify-center py-12 sm:py-24 gap-4 ${card}`}
+                >
+                  <motion.div
+                    animate={{ scale: [1, 1.08, 1] }}
+                    transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
+                    className="w-16 h-16 rounded-full flex items-center justify-center"
+                    style={{ background: "rgba(255,107,53,0.12)" }}
+                  >
+                    <Music size={28} className="text-[#FF6B35]" />
+                  </motion.div>
+                  <div className="text-center">
+                    <p className={`text-base font-semibold ${isDark ? "text-white" : "text-[#3a2a20]"}`}>
+                      No {activeTab === "mood" ? "mood detections" : activeTab === "trending" ? "trending songs" : "library songs"} yet
+                    </p>
+                    <p className={`text-sm mt-1 max-w-xs ${muted}`}>
+                      {activeTab === "mood" && "Your mood detections and songs will appear here."}
+                      {activeTab === "trending" && "Songs played outside mood detection will appear here."}
+                      {activeTab === "library" && "Songs played from your library (playlists, albums, liked songs) will appear here."}
+                    </p>
+                  </div>
+                </motion.div>
+              ) : (
+                filteredEntries.map((entry, i) => (
+                  entry.mood === "trending" ? (
+                    <TrendingCard 
+                      key={entry.id} 
+                      entry={entry} 
+                      isDark={isDark} 
+                      muted={muted} 
+                      index={i}
+                    />
+                  ) : entry.mood === "playlist" ? (
+                    <LibraryCard 
+                      key={entry.id} 
+                      entry={entry} 
+                      isDark={isDark} 
+                      muted={muted} 
+                      index={i}
+                    />
+                  ) : (
+                    <EntryCard 
+                      key={entry.id} 
+                      entry={entry} 
+                      isDark={isDark} 
+                      muted={muted} 
+                      index={i}
+                    />
+                  )
+                ))
+              )}
+            </motion.div>
+          </AnimatePresence>
+        </div>
       </motion.div>
 
     </motion.main>

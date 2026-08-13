@@ -9,6 +9,8 @@ import { useSpotify } from "@/hooks/useSpotify";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { toast } from "sonner";
 import { updateUserPhotoURL, getUserSettings, updateTrackTrendingEnabled, getMoodHistoryLast7Days } from "@/lib/firestore";
+import { updateDoc, doc } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 import { ProfileStatsSkeleton } from "@/components/ui/Skeleton";
 
 function ProfileContent() {
@@ -36,7 +38,9 @@ function ProfileContent() {
 
   // User stats and settings
   const [trackTrendingEnabled, setTrackTrendingEnabled] = useState(true);
+  const [trackPlaylistEnabled, setTrackPlaylistEnabled] = useState(true);
   const [updatingTrending, setUpdatingTrending] = useState(false);
+  const [updatingPlaylist, setUpdatingPlaylist] = useState(false);
   const [statsLoading, setStatsLoading] = useState(true);
   const [stats, setStats] = useState({
     totalLikes: 0,
@@ -76,6 +80,7 @@ function ProfileContent() {
         ]);
         
         setTrackTrendingEnabled(settings.trackTrendingEnabled);
+        setTrackPlaylistEnabled(settings.trackPlaylistEnabled ?? true);
         
         // Calculate stats
         const moodDetections = history.filter(h => h.mood !== "trending");
@@ -206,6 +211,37 @@ function ProfileContent() {
       toast.error("Failed to update setting");
     } finally {
       setUpdatingTrending(false);
+    }
+  };
+
+  const handleTogglePlaylist = async () => {
+    if (!user?.uid || updatingPlaylist) return;
+    
+    setUpdatingPlaylist(true);
+    const newValue = !trackPlaylistEnabled;
+    
+    try {
+      await updateDoc(doc(db, "users", user.uid), { trackPlaylistEnabled: newValue });
+      setTrackPlaylistEnabled(newValue);
+      
+      // Update PlayerContext immediately
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("trackPlaylistChanged", { detail: { enabled: newValue } }));
+      }
+      
+      toast.success(
+        newValue ? "Playlist tracking enabled" : "Playlist tracking disabled",
+        {
+          description: newValue 
+            ? "Songs played from playlists will be logged" 
+            : "Playlist plays won't be tracked",
+        }
+      );
+    } catch (error) {
+      console.error("Failed to update playlist setting:", error);
+      toast.error("Failed to update setting");
+    } finally {
+      setUpdatingPlaylist(false);
     }
   };
 
@@ -526,6 +562,36 @@ function ProfileContent() {
                         ${trackTrendingEnabled ? "bg-white" : isDark ? "bg-[#555]" : "bg-white"}`}
                     >
                       {updatingTrending && (
+                        <Loader2 size={12} className="animate-spin absolute inset-0 m-auto text-[#FF6B35]" />
+                      )}
+                    </motion.div>
+                  </motion.button>
+                </div>
+              </div>
+
+              {/* Track Playlist Toggle */}
+              <div className={`rounded-xl border p-4 ${isDark ? "border-[#2a2a2a]" : "border-[#FFDDD2]"}`}>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex-1">
+                    <h4 className={`text-sm font-semibold ${text}`}>Track Playlist Plays</h4>
+                    <p className={`text-xs mt-1 ${muted}`}>
+                      Automatically log songs played from playlists in your history.
+                    </p>
+                  </div>
+                  <motion.button
+                    onClick={handleTogglePlaylist}
+                    disabled={updatingPlaylist}
+                    whileTap={{ scale: 0.95 }}
+                    className={`relative flex-shrink-0 w-11 h-6 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed
+                      ${trackPlaylistEnabled ? "bg-[#FF6B35]" : isDark ? "bg-[#2a2a2a]" : "bg-gray-300"}`}
+                  >
+                    <motion.div
+                      animate={{ x: trackPlaylistEnabled ? 22 : 2 }}
+                      transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                      className={`w-5 h-5 rounded-full absolute top-0.5 shadow-md
+                        ${trackPlaylistEnabled ? "bg-white" : isDark ? "bg-[#555]" : "bg-white"}`}
+                    >
+                      {updatingPlaylist && (
                         <Loader2 size={12} className="animate-spin absolute inset-0 m-auto text-[#FF6B35]" />
                       )}
                     </motion.div>

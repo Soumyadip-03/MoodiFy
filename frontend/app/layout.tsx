@@ -24,8 +24,11 @@ export const metadata: Metadata = {
   title: "MoodiFy",
   description: "AI Mood-Based Music Player",
   icons: {
-    icon: "/logo.png",
-    apple: "/logo.png",
+    icon: [
+      { url: "/MoodiFy.svg", type: "image/svg+xml" },
+      { url: "/MoodiFy.svg", sizes: "any" },
+    ],
+    apple: "/MoodiFy.svg",
   },
 };
 

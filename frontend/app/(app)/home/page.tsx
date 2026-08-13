@@ -424,7 +424,7 @@ export default function HomePage() {
                   recommendedTracks.map(track => (
                   <div
                     key={track.id}
-                    className={`relative flex flex-col gap-2 cursor-pointer group rounded-xl p-2 transition-colors ${activeTrack?.id === track.id ? isDark ? "bg-[#1a1a1a]" : "bg-[#FFF5F0]" : isDark ? "hover:bg-[#1a1a1a]" : "hover:bg-[#FFF5F0]"}`}
+                    className={`relative flex flex-col gap-2 cursor-pointer group rounded-xl p-2 transition-colors ${activeTrack?.id === track.id ? isDark ? "bg-[#1a1a1a]" : "bg-[#feebe1]" : isDark ? "hover:bg-[#1a1a1a]" : "hover:bg-[#FFF5F0]"}`}
                     onClick={() => handleRecommendedPlay(track)}
                   >
                     <div className="relative aspect-square rounded-xl overflow-hidden bg-[#1a1a1a]">

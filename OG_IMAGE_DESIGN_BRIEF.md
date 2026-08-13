@@ -1,7 +1,7 @@
 # MoodiFy — OG Image Design Brief
 
 **Designer:** Sulagna  
-**Date:** January 2025  
+**Date:** August 2026
 **Project:** MoodiFy Social Media Share Images
 
 ---
