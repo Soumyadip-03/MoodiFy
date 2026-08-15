@@ -23,24 +23,20 @@ import { doc, updateDoc, increment } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
 const LANGUAGES = ["ENGLISH", "HINDI", "BENGALI", "KOREAN"];
-const DETECT_SECONDS = 5;
 
 export default function HomePage() {
   const { user } = useAuth();
   const { theme } = useTheme();
   const isDark = theme === "dark";
 
-  const { videoRef, canvasRef, status, result, error, startDetection, stopDetection } = useFaceDetection();
+  const { videoRef, canvasRef, status, result, error, analyzingStatus, startDetection, stopDetection } = useFaceDetection();
   const { fetchRecommendations, fetchTopTracks } = useSpotify();
   const { openAlbum, registerPlayAlbumHandler } = useArtistAlbum();
   const { activeTrack, currentQueue, isPlaying, likedTrackIds, togglePlayRef, setQueue, setActiveTrack, toggleLike, lockedMood, setLockedMood, setCurrentMoodHistoryId, selectedLangs, setSelectedLangs, playAlbumTrack } = usePlayer();
   const [langOpen, setLangOpen] = useState(false);
-  const [countdown, setCountdown] = useState<number | null>(null);
   const [lockedResult, setLockedResult] = useState<typeof result>(lockedMood as typeof result);
   const [detectCount, setDetectCount] = useState(0);
-  const countdownRef = useRef<NodeJS.Timeout | null>(null);
   const langRef = useRef<HTMLDivElement>(null);
-  const latestResultRef = useRef<typeof result>(null);
   const [recommendedTracks, setRecommendedTracks] = useState<SpotifyTrack[]>([]);
   const [loadingTracks, setLoadingTracks] = useState(false);
   const recMenuRef = useRef<HTMLDivElement>(null);
@@ -132,7 +128,37 @@ export default function HomePage() {
     });
   }, [user?.uid]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => { latestResultRef.current = result; }, [result]);
+  // Handle detection result and save to Firestore
+  useEffect(() => {
+    if (!result || !user?.uid) return;
+    
+    // Lock the result and save
+    setLockedResult(result);
+    setLockedMood(result);
+    setDetectCount(c => c + 1);
+    
+    // Stop detection after result
+    stopDetection();
+    
+    // Show mood detected toast
+    toast.success("Mood detected!", {
+      description: `You're feeling ${result.mood.toUpperCase()} with ${Math.round(result.confidence * 100)}% confidence`,
+      duration: 3000,
+    });
+    
+    // Save mood history entry
+    saveMoodHistory(user.uid, result.mood, result.confidence)
+      .then(docId => {
+        moodHistoryDocIdRef.current = docId;
+        setCurrentMoodHistoryId(docId);
+      })
+      .catch(() => {});
+    
+    // Increment moodStats on user doc
+    updateDoc(doc(db, "users", user.uid), {
+      [`moodStats.${result.mood}`]: increment(1),
+    }).catch(() => {});
+  }, [result, user?.uid, setLockedMood, setCurrentMoodHistoryId, stopDetection]);
 
   // Fetch mood tracks on every detection (re-shuffles even if same mood)
   useEffect(() => {
@@ -161,55 +187,23 @@ export default function HomePage() {
   }, []);
 
   useEffect(() => {
-    return () => { if (countdownRef.current) clearInterval(countdownRef.current); };
+    return () => { /* Cleanup handled by hook */ };
   }, []);
 
   const handleStart = useCallback(async () => {
-    if (countdownRef.current) clearInterval(countdownRef.current);
-    setCountdown(null);
-    
     toast.info("Starting face detection...", {
       description: "Please look at the camera",
       duration: 2000,
     });
     
-    await startDetection();
-    setCountdown(DETECT_SECONDS);
-    let remaining = DETECT_SECONDS;
-    countdownRef.current = setInterval(() => {
-      remaining -= 1;
-      setCountdown(remaining);
-      if (remaining <= 0) {
-        clearInterval(countdownRef.current!);
-        countdownRef.current = null;
-        setCountdown(null);
-        setTimeout(async () => {
-          const final = latestResultRef.current;
-          if (final && user?.uid) {
-            setLockedResult(final);
-            setLockedMood(final);
-            setDetectCount(c => c + 1);
-            
-            // Show mood detected toast
-            toast.success("Mood detected!", {
-              description: `You're feeling ${final.mood.toUpperCase()} with ${Math.round(final.confidence * 100)}% confidence`,
-              duration: 3000,
-            });
-            
-            // Save mood history entry
-            const docId = await saveMoodHistory(user.uid, final.mood, final.confidence).catch(() => null);
-            moodHistoryDocIdRef.current = docId;
-            setCurrentMoodHistoryId(docId);
-            // Increment moodStats on user doc
-            updateDoc(doc(db, "users", user.uid), {
-              [`moodStats.${final.mood}`]: increment(1),
-            }).catch(() => {});
-          }
-          stopDetection();
-        }, 900);
-      }
-    }, 1000);
-  }, [startDetection, stopDetection, user?.uid, setLockedMood, setCurrentMoodHistoryId]);
+    const success = await startDetection();
+    if (!success) {
+      toast.error("Failed to start detection", {
+        description: error || "Please check camera permissions",
+        duration: 3000,
+      });
+    }
+  }, [startDetection, error]);
 
   const handleTogglePlay = useCallback(() => { togglePlayRef.current?.(); }, [togglePlayRef]);
   const handleGoToAlbum = useCallback((albumId: string) => openAlbum(albumId), [openAlbum]);
@@ -297,7 +291,8 @@ export default function HomePage() {
   const muted = isDark ? "text-[#aaa]" : "text-[#7A6055]";
   const isCameraError = error === "camera_denied" || error === "camera_not_supported";
   const cameraErrorMsg = error === "camera_not_supported" ? "Camera not supported in this browser" : "Please allow camera access and try again";
-  const isDetecting = countdown !== null && !isCameraError;
+  const isDetecting = status === "detecting" || status === "analyzing";
+  const showAnalyzingProgress = status === "analyzing" && analyzingStatus;
 
   return (
     <>
@@ -326,13 +321,33 @@ export default function HomePage() {
             {isDetecting && (
               <div className="absolute top-2 right-2 flex items-center gap-1.5 bg-black/50 px-2.5 py-1 rounded-full">
                 <span className="w-2 h-2 rounded-full bg-[#FF6B35] animate-pulse" />
-                <span className="text-xs text-white">{countdown}s</span>
+                <span className="text-xs text-white">
+                  {status === "analyzing" && analyzingStatus 
+                    ? `${analyzingStatus.frames_collected}/${analyzingStatus.max_frames}`
+                    : "Live"}
+                </span>
               </div>
             )}
           </div>
 
           {!lockedResult && !isDetecting && (
-            <p className={`text-xs text-center ${muted}`}>{isCameraError ? cameraErrorMsg : "Click Start to detect mood"}</p>
+            <p className={`text-xs text-center ${muted}`}>
+              {isCameraError ? cameraErrorMsg : "Click Start to detect mood"}
+            </p>
+          )}
+          
+          {showAnalyzingProgress && (
+            <div className="flex flex-col gap-1">
+              <p className={`text-xs text-center ${muted}`}>
+                Analyzing... {analyzingStatus.current_emotion} ({Math.round(analyzingStatus.current_confidence * 100)}%)
+              </p>
+              <div className={`w-full h-1.5 rounded-full overflow-hidden ${isDark ? "bg-[#2a2a2a]" : "bg-[#FFDDD2]"}`}>
+                <div 
+                  className="h-full bg-[#FF6B35] transition-all duration-300"
+                  style={{ width: `${(analyzingStatus.frames_collected / analyzingStatus.max_frames) * 100}%` }}
+                />
+              </div>
+            </div>
           )}
 
           {lockedResult && (
@@ -342,7 +357,7 @@ export default function HomePage() {
                 disabled={isDetecting || status === "connecting"}
                 className="flex-shrink-0 py-2.5 px-4 rounded-xl bg-[#FF6B35] hover:bg-[#e85d2a] disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors flex items-center justify-center gap-2"
               >
-                <Camera size={16} /> {status === "connecting" ? "Connecting..." : isDetecting ? `${countdown}s` : "Re-detect"}
+                <Camera size={16} /> {status === "connecting" ? "Connecting..." : status === "analyzing" ? "Analyzing..." : "Re-detect"}
               </button>
               <div
                 className={`flex items-center justify-between px-4 py-2.5 rounded-xl border flex-1 ${isDark ? "bg-[#1a1a1a] border-[#2a2a2a]" : "bg-[#FFF5F0] border-[#FFDDD2]"}`}
@@ -362,7 +377,7 @@ export default function HomePage() {
               disabled={isDetecting || status === "connecting"}
               className="w-full py-2.5 rounded-xl bg-[#FF6B35] hover:bg-[#e85d2a] disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors flex items-center justify-center gap-2"
             >
-              <Camera size={16} /> {status === "connecting" ? "Connecting..." : isDetecting ? `Detecting... ${countdown}s` : "Start"}
+              <Camera size={16} /> {status === "connecting" ? "Connecting..." : status === "analyzing" ? "Analyzing..." : "Start"}
             </button>
           )}
 
