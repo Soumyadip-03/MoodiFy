@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
+import { toast } from "sonner";
 import type { Mood } from "@/utils/moodUtils";
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
@@ -107,6 +108,10 @@ export function useFaceDetection() {
     if (!navigator?.mediaDevices?.getUserMedia) {
       setError("camera_not_supported");
       setStatus("error");
+      toast.error("Camera Not Supported", {
+        description: "Your browser doesn't support camera access. Please try a modern browser like Chrome, Firefox, or Safari",
+        duration: 4000,
+      });
       return false;
     }
 
@@ -119,6 +124,10 @@ export function useFaceDetection() {
     } catch {
       setError("camera_denied");
       setStatus("error");
+      toast.error("Camera Access Denied", {
+        description: "Please allow camera access in your browser settings to use mood detection",
+        duration: 4000,
+      });
       return false;
     }
 
@@ -195,7 +204,7 @@ export function useFaceDetection() {
           });
         }, DEBOUNCE_MS);
       } catch {
-        // malformed JSON from backend — ignore frame
+        // malformed JSON from backend - ignore frame
       }
     };
 

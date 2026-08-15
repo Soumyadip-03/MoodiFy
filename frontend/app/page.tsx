@@ -76,7 +76,7 @@ const STACK = [
 
 const MOODS = [
   { emoji: "😊", mood: "Happy",      genres: "Pop · Dance",        color: "from-yellow-400/20 to-orange-400/10",  ring: "hover:ring-yellow-400/50" },
-  { emoji: "😍", mood: "Upbeat",     genres: "Dance · Electronic",  color: "from-pink-400/20 to-rose-400/10",     ring: "hover:ring-pink-400/50" },
+  { emoji: "🤩", mood: "Upbeat",     genres: "Dance · Electronic",  color: "from-pink-400/20 to-rose-400/10",     ring: "hover:ring-pink-400/50" },
   { emoji: "😎", mood: "Chill",      genres: "Ambient · Lo-fi",     color: "from-blue-400/20 to-cyan-400/10",     ring: "hover:ring-blue-400/50" },
   { emoji: "😔", mood: "Melancholy", genres: "Indie · Sad",         color: "from-purple-400/20 to-violet-400/10", ring: "hover:ring-purple-400/50" },
   { emoji: "😌", mood: "Relaxing",   genres: "Acoustic · Sleep",    color: "from-green-400/20 to-teal-400/10",    ring: "hover:ring-green-400/50" },
@@ -471,7 +471,7 @@ export default function LandingPage() {
   }, []);
 
   const bg     = isDark ? "bg-[#0a0a0a]"                      : "bg-gradient-to-br from-[#FFE8D6] to-[#FFF5F0]";
-  const card   = isDark ? "bg-[#111111] border-[#2a2a2a]"     : "bg-white/80 border-[#FFDDD2]";
+  const card   = isDark ? "bg-[#111111] border-[#2a2a2a]"     : "bg-white/100 border-[#FFDDD2]";
   const text   = isDark ? "text-white"                         : "text-[#3a2a20]";
   const muted  = isDark ? "text-[#aaa]"                        : "text-[#7A6055]";
   const border = isDark ? "border-[#2a2a2a]"                   : "border-[#FFDDD2]";
@@ -593,7 +593,7 @@ export default function LandingPage() {
               { e: "😔", left: "20%", delay: "2.5s",  dur: "12s", size: "1.3rem" },
               { e: "⚡", left: "35%", delay: "1s",    dur: "8s",  size: "1.5rem" },
               { e: "😎", left: "52%", delay: "4s",    dur: "11s", size: "1.4rem" },
-              { e: "😍", left: "67%", delay: "0.5s",  dur: "10s", size: "1.6rem" },
+              { e: "🤩", left: "67%", delay: "0.5s",  dur: "10s", size: "1.6rem" },
               { e: "😌", left: "80%", delay: "3s",    dur: "13s", size: "1.2rem" },
               { e: "😠", left: "92%", delay: "1.8s",  dur: "9.5s",size: "1.5rem" },
             ].map(({ e, left, delay, dur, size }) => (
@@ -689,13 +689,13 @@ export default function LandingPage() {
             <span className={`${muted} text-base`}>→</span>
             <div className="flex items-center gap-2">
               <Music size={16} className="text-[#FF6B35]" />
-              <span className={`${text} font-semibold`}>Spotify</span>
+              <span className={`${text} font-semibold`}>Spotify API</span>
             </div>
           </motion.div>
         </section>
 
         {/* ── Marquee Tech Stack ── */}
-        <div className={`w-full overflow-hidden py-4 transition-colors duration-300 ${isDark ? "bg-[#0a0a0a]" : "bg-transparent"}`}>
+        <div className={`w-full overflow-hidden py-4 transition-colors duration-100 ${isDark ? "bg-[#0a0a0a]" : "bg-transparent"}`}>
           <div className="flex animate-marquee whitespace-nowrap w-max">
             {[...STACK, ...STACK].map((item, i) => (
               <span
@@ -805,11 +805,7 @@ export default function LandingPage() {
               {MOODS.map(({ emoji, mood, genres, color, ring }) => (
                 <motion.div key={mood} variants={fadeUp}>
                   <TiltCard className={`rounded-2xl border p-5 flex flex-col items-center gap-3 text-center ring-2 ring-transparent ${ring} cursor-default bg-gradient-to-br ${color} ${border} group`}>
-                    <motion.span
-                      className="text-4xl inline-block"
-                      whileHover={{ scale: 1.4, y: -6 }}
-                      transition={{ type: "spring", stiffness: 400, damping: 12 }}
-                    >{emoji}</motion.span>
+                    <span className="text-4xl inline-block transition-transform duration-300 group-hover:scale-[1.4] group-hover:-translate-y-1.5">{emoji}</span>
                     <p className={`text-sm font-bold ${text}`}>{mood}</p>
                     <p className={`text-[10px] leading-relaxed ${muted}`}>{genres}</p>
                   </TiltCard>
