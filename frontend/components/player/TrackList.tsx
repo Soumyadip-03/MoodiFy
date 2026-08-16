@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { MoreHorizontal, CheckCircle2, Play, Pause } from "lucide-react";
+import { MoreHorizontal, CheckCircle2, Play, Pause, RefreshCw } from "lucide-react";
 import { useTheme } from "@/context/ThemeContext";
 import ContextMenu from "@/components/ui/ContextMenu";
 import type { SpotifyTrack, Playlist } from "@/types/index";
@@ -19,7 +19,7 @@ interface TrackListProps {
   onAddToPlaylist: (track: SpotifyTrack, playlistId: string) => void;
   onCreatePlaylist: (track: SpotifyTrack) => void;
   onGoToAlbum: (albumId: string) => void;
-  queueSource?: { type: "album"; name: string; art: string };
+  onRefresh?: () => void;
 }
 
 function formatDuration(s: number) {
@@ -31,7 +31,7 @@ function formatDuration(s: number) {
 export default function TrackList({
   tracks, activeTrack, isPlaying, likedTrackIds, playlists,
   onTrackSelect, onTogglePlay, onLike, onAddToPlaylist,
-  onCreatePlaylist, onGoToAlbum, queueSource,
+  onCreatePlaylist, onGoToAlbum, onRefresh,
 }: TrackListProps) {
   const { theme } = useTheme();
   const isDark = theme === "dark";
@@ -72,15 +72,16 @@ export default function TrackList({
       <div className={`rounded-2xl border flex flex-col h-full overflow-hidden transition-colors duration-300 ${card}`}>
         {/* Header */}
         <div className="px-5 pt-5 pb-3 flex-shrink-0">
-          <div className="flex items-center gap-2 min-w-0">
+          <div className="flex items-center justify-between min-w-0">
             <p className={`text-xl font-bold flex-shrink-0 ${isDark ? "text-white" : "text-[#3a2a20]"}`}>Up Next</p>
-            {queueSource && (
-              <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
-                <span className={`text-xl font-bold flex-shrink-0 ${muted}`}>·</span>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={queueSource.art} alt={queueSource.name} className="w-5 h-5 object-cover flex-shrink-0 rounded" />
-                <p className={`text-sm font-medium truncate ${muted}`}>{queueSource.name}</p>
-              </div>
+            {onRefresh && (
+              <button
+                onClick={onRefresh}
+                title="Refresh playlist"
+                className={`p-1.5 rounded-lg transition-colors ${isDark ? "hover:bg-[#2a2a2a] text-[#aaa] hover:text-white" : "hover:bg-[#FFF5F0] text-[#7A6055] hover:text-[#FF6B35]"}`}
+              >
+                <RefreshCw size={15} />
+              </button>
             )}
           </div>
           <p className={`text-xs ${muted}`}>{tracks.length} Tracks</p>

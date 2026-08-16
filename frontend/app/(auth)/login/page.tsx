@@ -6,6 +6,7 @@ import { useTheme } from "@/context/ThemeContext";
 import GoogleSignInButton from "@/components/auth/GoogleSignInButton";
 import LoginForm from "@/components/auth/LoginForm";
 import ThemeToggle from "@/components/ui/ThemeToggle";
+import { ArrowLeft } from "lucide-react";
 
 export default function LoginPage() {
   const { theme } = useTheme();
@@ -13,7 +14,19 @@ export default function LoginPage() {
 
   return (
     <main className={`min-h-screen flex items-center justify-center px-4 transition-colors duration-300 ${isDark ? "bg-[#0a0a0a]" : "bg-gradient-to-br from-[#FFE8D6] to-[#FFF5F0]"}`}>
-      <div className="absolute top-4 right-4">
+      {/* Back to Landing + Theme Toggle */}
+      <div className="absolute top-4 right-4 flex items-center gap-3">
+        <Link
+          href="/"
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-colors ${
+            isDark
+              ? "border-[#2a2a2a] text-[#aaa] hover:text-white hover:border-[#FF6B35]"
+              : "border-[#FFDDD2] text-[#7A6055] hover:text-[#FF6B35] hover:border-[#FF6B35]"
+          }`}
+        >
+          <ArrowLeft size={16} />
+          <span className="text-sm font-medium">Back</span>
+        </Link>
         <ThemeToggle />
       </div>
 

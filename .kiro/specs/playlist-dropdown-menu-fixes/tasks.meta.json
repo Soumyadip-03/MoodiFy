@@ -1,0 +1,57 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "3. Checkpoint - Verify all changes and styling": [
+      {
+        "executionId": "ec7d771b-868d-4d60-8618-6c2505372f42",
+        "chatSessionId": "sess_213f9555-335d-4c98-a5c4-9ff590dd4d70",
+        "timestamp": 1786206400976
+      }
+    ],
+    "1. Update ContextMenu width to 240px": [
+      {
+        "executionId": "ec7d771b-868d-4d60-8618-6c2505372f42",
+        "chatSessionId": "sess_213f9555-335d-4c98-a5c4-9ff590dd4d70",
+        "timestamp": 1786206418362
+      },
+      {
+        "executionId": "ec7d771b-868d-4d60-8618-6c2505372f42",
+        "chatSessionId": "sess_213f9555-335d-4c98-a5c4-9ff590dd4d70",
+        "timestamp": 1786206473765
+      }
+    ],
+    "2. Update remove button visibility logic": [
+      {
+        "executionId": "ec7d771b-868d-4d60-8618-6c2505372f42",
+        "chatSessionId": "sess_213f9555-335d-4c98-a5c4-9ff590dd4d70",
+        "timestamp": 1786206423102
+      },
+      {
+        "executionId": "ec7d771b-868d-4d60-8618-6c2505372f42",
+        "chatSessionId": "sess_213f9555-335d-4c98-a5c4-9ff590dd4d70",
+        "timestamp": 1786206479100
+      }
+    ],
+    "1.1 Write property test for menu width consistency": [
+      {
+        "executionId": "ec7d771b-868d-4d60-8618-6c2505372f42",
+        "chatSessionId": "sess_213f9555-335d-4c98-a5c4-9ff590dd4d70",
+        "timestamp": 1786206428184
+      }
+    ],
+    "2.1 Write property test for remove button visibility rule": [
+      {
+        "executionId": "ec7d771b-868d-4d60-8618-6c2505372f42",
+        "chatSessionId": "sess_213f9555-335d-4c98-a5c4-9ff590dd4d70",
+        "timestamp": 1786206433163
+      }
+    ],
+    "2.2 Write unit tests for remove button visibility scenarios": [
+      {
+        "executionId": "ec7d771b-868d-4d60-8618-6c2505372f42",
+        "chatSessionId": "sess_213f9555-335d-4c98-a5c4-9ff590dd4d70",
+        "timestamp": 1786206438725
+      }
+    ]
+  }
+}

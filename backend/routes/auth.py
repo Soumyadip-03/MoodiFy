@@ -1,7 +1,7 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Header
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import firebase_admin
-from firebase_admin import auth, credentials
+from firebase_admin import auth, credentials, firestore
 import os
 
 router = APIRouter()
@@ -35,6 +35,55 @@ def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)) 
         raise HTTPException(status_code=401, detail="Invalid or expired token")
 
 
+def verify_admin_token(authorization: str = Header(None)) -> bool:
+    """Verify admin authentication"""
+    if not authorization:
+        raise HTTPException(status_code=401, detail="Authorization header missing")
+    
+    token = authorization.replace("Bearer ", "")
+    admin_secret = os.getenv("ADMIN_SECRET")
+    
+    if token != admin_secret:
+        raise HTTPException(status_code=403, detail="Invalid admin token")
+    
+    return True
+
+
 @router.get("/api/auth/me")
 def get_me(user: dict = Depends(verify_token)):
     return {"uid": user["uid"], "email": user.get("email")}
+
+
+@router.get("/api/auth/users/all")
+def get_all_users(authorization: str = Header(None)):
+    """
+    Get all registered users (Admin only)
+    
+    Requires admin authentication via Authorization header:
+    Authorization: Bearer YOUR_ADMIN_SECRET
+    """
+    verify_admin_token(authorization)
+    
+    try:
+        db = firestore.client()
+        users_ref = db.collection("users")
+        users = users_ref.stream()
+        
+        user_list = []
+        for user_doc in users:
+            user_data = user_doc.to_dict()
+            user_list.append({
+                "uid": user_doc.id,
+                "email": user_data.get("email"),
+                "displayName": user_data.get("displayName"),
+                "createdAt": user_data.get("createdAt")
+            })
+        
+        return {
+            "users": user_list,
+            "total": len(user_list)
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch users: {str(e)}")
+

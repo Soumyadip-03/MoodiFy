@@ -7,7 +7,7 @@ import MusicPlayer from "@/components/player/MusicPlayer";
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { theme } = useTheme();
   const isDark = theme === "dark";
-  const bg = isDark ? "bg-[#0a0a0a]" : "bg-gradient-to-br from-[#FFE8D6] to-[#FFF5F0]";
+  const bg = isDark ? "bg-[#0a0a0a]" : "bg-[#FFE8D6]";
 
   return (
     <div className={`h-dvh flex flex-col overflow-hidden transition-colors duration-300 ${bg}`}>

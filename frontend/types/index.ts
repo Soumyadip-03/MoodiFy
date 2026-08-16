@@ -58,6 +58,13 @@ export interface LikedTrack {
 }
 
 // Mood History Types
+export interface PlayedTrackEntry {
+  trackId: string;
+  playedAt: string;
+}
+
+export type HistorySource = "mood" | "trending" | "library";
+
 export interface MoodHistoryEntry {
   id: string;
   userId: string;
@@ -65,7 +72,8 @@ export interface MoodHistoryEntry {
   confidence: number;
   timestamp: string;
   tracksServed: string[];
-  tracksPlayed: string[];
+  tracksPlayed: PlayedTrackEntry[];
+  source?: HistorySource; // New field to distinguish between mood/trending/playlist
 }
 
 // Mood Room Types

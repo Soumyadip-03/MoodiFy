@@ -2,27 +2,69 @@
 
 import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { useState } from "react";
+import { toast } from "sonner";
+import { sendSignInNotification, sendWelcomeEmail } from "@/lib/emailNotifications";
 
 export default function GoogleSignInButton() {
-  const { signInWithGoogle } = useAuth();
+  const { signInWithGoogle, user } = useAuth();
   const { theme } = useTheme();
   const router = useRouter();
+  const pathname = usePathname();
   const isDark = theme === "dark";
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  
+  // Detect if we're on signup or login page
+  const isSignupPage = pathname?.includes('/signup');
 
   const handleClick = async () => {
     setLoading(true);
     setError("");
     try {
       await signInWithGoogle();
-      router.push("/home");
+      
+      // Send appropriate notification after sign in completes
+      // Wait a moment for auth state to update
+      setTimeout(() => {
+        if (user?.email) {
+          const userName = user.displayName || user.email.split("@")[0];
+          
+          if (isSignupPage) {
+            // Send welcome email for new signups
+            sendWelcomeEmail(user.email, userName).catch(err => 
+              console.error("Welcome email failed:", err)
+            );
+          } else {
+            // Send sign-in notification for returning users
+            sendSignInNotification(user.email, userName).catch(err => 
+              console.error("Sign-in notification failed:", err)
+            );
+          }
+        }
+      }, 500);
+      
+      await router.push("/home");
+      
+      // Show welcome toast after navigation
+      setTimeout(() => {
+        const authFlag = sessionStorage.getItem('moodify-auth-action');
+        if (authFlag === 'true') {
+          sessionStorage.removeItem('moodify-auth-action');
+          
+          const hour = new Date().getHours();
+          const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+          
+          toast.success(`${greeting}! 🎵`, {
+            description: `Welcome to MoodiFy! We're excited to help you discover music that matches your mood. Start by detecting your current vibe, or explore trending tracks to get inspired. Let the music journey begin!`,
+            duration: 6000,
+          });
+        }
+      }, 1000);
     } catch (err) {
       console.error(err);
       setError("Google sign-in failed. Please try again.");
-    } finally {
       setLoading(false);
     }
   };
@@ -46,3 +88,4 @@ export default function GoogleSignInButton() {
     </div>
   );
 }
+

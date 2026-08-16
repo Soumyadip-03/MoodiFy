@@ -6,6 +6,7 @@ import { ThemeProvider } from "@/context/ThemeContext";
 import { ArtistAlbumProvider } from "@/context/ArtistAlbumContext";
 import { PlayerProvider } from "@/context/PlayerContext";
 import ModalRenderer from "@/components/ui/ModalRenderer";
+import { Toaster } from "sonner";
 
 const pacifico = Pacifico({
   weight: "400",
@@ -23,8 +24,11 @@ export const metadata: Metadata = {
   title: "MoodiFy",
   description: "AI Mood-Based Music Player",
   icons: {
-    icon: "/logo.png",
-    apple: "/logo.png",
+    icon: [
+      { url: "/MoodiFy.svg", type: "image/svg+xml" },
+      { url: "/MoodiFy.svg", sizes: "any" },
+    ],
+    apple: "/MoodiFy.svg",
   },
 };
 
@@ -49,6 +53,13 @@ export default function RootLayout({
               <PlayerProvider>
                 {children}
                 <ModalRenderer />
+                <Toaster 
+                  position="bottom-right" 
+                  expand={false}
+                  richColors 
+                  closeButton
+                  duration={3000}
+                />
               </PlayerProvider>
             </ArtistAlbumProvider>
           </AuthProvider>

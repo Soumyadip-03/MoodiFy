@@ -7,6 +7,11 @@ __pycache__/
 *.pyd
 .Python
 backend/.env
+backend/.env.production
+backend/.env.local
+
+# Admin Panel (sensitive)
+backend/Admin/
 
 # Node
 frontend/node_modules/
@@ -22,6 +27,10 @@ frontend/coverage/
 # Firebase
 serviceAccountKey.json
 *.json.key
+
+# Deployment credentials (contains secrets)
+DEPLOYMENT_CREDENTIALS.md
+TODO.md
 
 # OS
 .DS_Store

@@ -6,15 +6,12 @@ from services.spotify_service import (
     exchange_code,
     refresh_access_token,
     get_recommendations,
-    get_trending_tracks,
     save_tokens,
     get_tokens,
     save_tracks_to_firestore,
     check_premium,
     ensure_fresh_token,
     _format_track,
-    _get_client_credentials_token,
-    search_tracks_by_mood,
     SPOTIFY_API_BASE,
 )
 import httpx
@@ -59,27 +56,54 @@ async def spotify_callback(code: str = None, error: str = None, state: str = Non
 
 
 @router.get("/top-tracks")
-async def top_tracks(uid: str = None):
-    """Always returns trending owner playlist — same for all users."""
+async def top_tracks(uid: str):
+    """Get trending tracks from user's Spotify account. Requires Premium."""
+    if not uid or not uid.strip():
+        raise HTTPException(status_code=401, detail="Authentication required")
     try:
-        tracks = await get_trending_tracks()
-        if not tracks:
-            token = await _get_client_credentials_token()
-            tracks = await search_tracks_by_mood("chill", token)
+        access_token = await ensure_fresh_token(uid)
+        if not access_token:
+            raise HTTPException(status_code=401, detail="Spotify not connected")
+        
+        # Get user's top tracks from Spotify
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                f"{SPOTIFY_API_BASE}/me/top/tracks",
+                headers={"Authorization": f"Bearer {access_token}"},
+                params={"limit": 50, "time_range": "short_term"}
+            )
+        
+        if not resp.is_success:
+            raise HTTPException(status_code=resp.status_code, detail="Failed to fetch tracks")
+        
+        items = resp.json().get("items", [])
+        tracks = [_format_track(t, "mixed") for t in items if t]
+        
         return {"tracks": tracks}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/recommendations")
-async def recommendations(mood: str, uid: str = None, languages: str = None):
+async def recommendations(mood: str, uid: str, languages: str = None):
+    """Get mood-based recommendations. Requires authenticated user with Premium Spotify."""
+    if not uid or not uid.strip():
+        raise HTTPException(status_code=401, detail="Authentication required")
+    
     try:
-        access_token = await ensure_fresh_token(uid) if uid and uid.strip() else None
+        access_token = await ensure_fresh_token(uid)
+        if not access_token:
+            raise HTTPException(status_code=401, detail="Spotify not connected")
+        
         lang_list = [l.strip().upper() for l in languages.split(",") if l.strip()] if languages else []
         tracks = await get_recommendations(mood, access_token, lang_list)
         if tracks:
             await save_tracks_to_firestore(tracks, mood)
         return {"tracks": tracks}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -128,11 +152,16 @@ async def spotify_status(uid: str):
 
 
 @router.get("/artist/{artist_id}")
-async def get_artist(artist_id: str, uid: str = None):
+async def get_artist(artist_id: str, uid: str):
+    """Get artist details. Requires authenticated user."""
+    if not uid or not uid.strip():
+        raise HTTPException(status_code=401, detail="Authentication required")
+    
     try:
-        token = await ensure_fresh_token(uid) if uid and uid.strip() else None
+        token = await ensure_fresh_token(uid)
         if not token:
-            token = await _get_client_credentials_token()
+            raise HTTPException(status_code=401, detail="Spotify not connected")
+        
         headers = {"Authorization": f"Bearer {token}"}
         async with httpx.AsyncClient() as client:
             artist_res, top_tracks_res, albums_res = await asyncio.gather(
@@ -181,11 +210,16 @@ async def get_artist(artist_id: str, uid: str = None):
 
 
 @router.get("/album/{album_id}")
-async def get_album(album_id: str, uid: str = None):
+async def get_album(album_id: str, uid: str):
+    """Get album details. Requires authenticated user."""
+    if not uid or not uid.strip():
+        raise HTTPException(status_code=401, detail="Authentication required")
+    
     try:
-        token = await ensure_fresh_token(uid) if uid and uid.strip() else None
+        token = await ensure_fresh_token(uid)
         if not token:
-            token = await _get_client_credentials_token()
+            raise HTTPException(status_code=401, detail="Spotify not connected")
+        
         headers = {"Authorization": f"Bearer {token}"}
         async with httpx.AsyncClient() as client:
             resp = await client.get(f"{SPOTIFY_API_BASE}/albums/{album_id}", headers=headers)

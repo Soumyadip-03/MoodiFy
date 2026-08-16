@@ -1,13 +1,15 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Play, Pause, ChevronDown, AlertCircle, MoreHorizontal } from "lucide-react";
+import { Play, Pause, ChevronDown, AlertCircle, MoreHorizontal, Camera } from "lucide-react";
 import { createPortal } from "react-dom";
+import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
 import { useFaceDetection } from "@/hooks/useFaceDetection";
 import TrackList from "@/components/player/TrackList";
 import ContextMenu from "@/components/ui/ContextMenu";
+import { TrendingCardSkeleton } from "@/components/ui/Skeleton";
 import { motion, AnimatePresence } from "framer-motion";
 import type { SpotifyTrack, Playlist } from "@/types/index";
 import { useSpotify } from "@/hooks/useSpotify";
@@ -19,29 +21,23 @@ import {
 } from "@/lib/firestore";
 import { doc, updateDoc, increment } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { PLAYLIST_ICONS } from "@/utils/moodIcons";
 
 const LANGUAGES = ["ENGLISH", "HINDI", "BENGALI", "KOREAN"];
-const DETECT_SECONDS = 5;
 
 export default function HomePage() {
   const { user } = useAuth();
   const { theme } = useTheme();
   const isDark = theme === "dark";
 
-  const { videoRef, canvasRef, status, result, error, startDetection, stopDetection } = useFaceDetection();
-  const { fetchRecommendations, fetchTopTracks } = useSpotify();
-  const { openAlbum, registerPlayHandler } = useArtistAlbum();
-  const { activeTrack, currentQueue, isPlaying, likedTrackIds, queueSource, togglePlayRef, setQueue, setActiveTrack, toggleLike, lockedMood, setLockedMood, setCurrentMoodHistoryId } = usePlayer();
-
-  const [selectedLangs, setSelectedLangs] = useState<string[]>([]);
+  const { videoRef, canvasRef, status, result, error, analyzingStatus, startDetection, stopDetection } = useFaceDetection();
+  const { fetchRecommendations, fetchTopTracks, connected } = useSpotify();
+  const { openAlbum, registerPlayAlbumHandler } = useArtistAlbum();
+  const { activeTrack, currentQueue, isPlaying, likedTrackIds, togglePlayRef, setQueue, setActiveTrack, toggleLike, lockedMood, setLockedMood, setCurrentMoodHistoryId, selectedLangs, setSelectedLangs, playAlbumTrack } = usePlayer();
   const [langOpen, setLangOpen] = useState(false);
-  const [countdown, setCountdown] = useState<number | null>(null);
   const [lockedResult, setLockedResult] = useState<typeof result>(lockedMood as typeof result);
   const [detectCount, setDetectCount] = useState(0);
-  const isMountedRef = useRef(false);
-  const countdownRef = useRef<NodeJS.Timeout | null>(null);
   const langRef = useRef<HTMLDivElement>(null);
-  const latestResultRef = useRef<typeof result>(null);
   const [recommendedTracks, setRecommendedTracks] = useState<SpotifyTrack[]>([]);
   const [loadingTracks, setLoadingTracks] = useState(false);
   const recMenuRef = useRef<HTMLDivElement>(null);
@@ -55,9 +51,19 @@ export default function HomePage() {
   const moodHistoryDocIdRef = useRef<string | null>(null);
 
   const moodDetected = lockedResult !== null;
-  // Show tracklist if mood detected OR if queue came from an album
-  const showTrackList = moodDetected || queueSource?.type === "album";
+  // Show tracklist ONLY if mood detected (not for albums/playlists)
+  const showTrackList = moodDetected;
   const safeActiveTrack = activeTrack ?? currentQueue[0] ?? null;
+  
+  // Reset local detection state when user changes
+  useEffect(() => {
+    if (!user?.uid) {
+      setLockedResult(null);
+      setDetectCount(0);
+      moodHistoryDocIdRef.current = null;
+    }
+  }, [user?.uid]);
+
   // Load user playlists on mount
   useEffect(() => {
     if (!user?.uid) return;
@@ -96,37 +102,52 @@ export default function HomePage() {
     setRecContextMenu({ x, y, track });
   };
 
-  // Register play handler for artist/album modals
+  // Register album play handler — bridges ArtistAlbumContext → PlayerContext
   useEffect(() => {
-    registerPlayHandler((track, queue) => {
-      const source = { type: "album" as const, name: queue[0].album ?? "Album", art: queue[0].albumArt ?? "" };
-      setQueue(queue, track, source);
-    });
-  }, [registerPlayHandler, setQueue]);
+    registerPlayAlbumHandler((track, queue, source) => playAlbumTrack(track, queue, source));
+  }, [registerPlayAlbumHandler, playAlbumTrack]);
 
-  // Fetch trending tracks — cache for 10 minutes so shuffle refreshes periodically
+  // Fetch trending tracks
   useEffect(() => {
     if (!user?.uid) return;
-    const cacheKey = `moodify-trending-${user.uid}`;
-    const cached = sessionStorage.getItem(cacheKey);
-    if (cached) {
-      try {
-        const { tracks, ts } = JSON.parse(cached) as { tracks: SpotifyTrack[]; ts: number };
-        if (tracks.length && Date.now() - ts < 10 * 60 * 1000) {
-          setRecommendedTracks(tracks);
-          return;
-        }
-      } catch { /* fall through */ }
-    }
     fetchTopTracks().then(tracks => {
       if (tracks.length) {
         setRecommendedTracks(tracks);
-        sessionStorage.setItem(cacheKey, JSON.stringify({ tracks, ts: Date.now() }));
       }
     });
   }, [user?.uid]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => { latestResultRef.current = result; }, [result]);
+  // Handle detection result and save to Firestore
+  useEffect(() => {
+    if (!result || !user?.uid) return;
+    
+    // Lock the result and save
+    setLockedResult(result);
+    setLockedMood(result);
+    setDetectCount(c => c + 1);
+    
+    // Stop detection after result
+    stopDetection();
+    
+    // Show mood detected toast
+    toast.success("Mood detected!", {
+      description: `You're feeling ${result.mood.toUpperCase()} with ${Math.round(result.confidence * 100)}% confidence`,
+      duration: 3000,
+    });
+    
+    // Save mood history entry
+    saveMoodHistory(user.uid, result.mood, result.confidence)
+      .then(docId => {
+        moodHistoryDocIdRef.current = docId;
+        setCurrentMoodHistoryId(docId);
+      })
+      .catch(() => {});
+    
+    // Increment moodStats on user doc
+    updateDoc(doc(db, "users", user.uid), {
+      [`moodStats.${result.mood}`]: increment(1),
+    }).catch(() => {});
+  }, [result, user?.uid, setLockedMood, setCurrentMoodHistoryId, stopDetection]);
 
   // Fetch mood tracks on every detection (re-shuffles even if same mood)
   useEffect(() => {
@@ -145,17 +166,6 @@ export default function HomePage() {
     });
   }, [detectCount]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Re-fetch when language changes after mood detected — skip on initial mount
-  useEffect(() => {
-    if (!isMountedRef.current) { isMountedRef.current = true; return; }
-    if (!lockedResult) return;
-    setLoadingTracks(true);
-    fetchRecommendations(lockedResult.mood, selectedLangs).then(tracks => {
-      if (tracks.length) setQueue(tracks, tracks[0]);
-      setLoadingTracks(false);
-    });
-  }, [selectedLangs]); // eslint-disable-line react-hooks/exhaustive-deps
-
   // Close lang dropdown on outside click
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -166,42 +176,26 @@ export default function HomePage() {
   }, []);
 
   useEffect(() => {
-    return () => { if (countdownRef.current) clearInterval(countdownRef.current); };
+    return () => { /* Cleanup handled by hook */ };
   }, []);
 
   const handleStart = useCallback(async () => {
-    if (countdownRef.current) clearInterval(countdownRef.current);
-    setCountdown(null);
-    await startDetection();
-    setCountdown(DETECT_SECONDS);
-    let remaining = DETECT_SECONDS;
-    countdownRef.current = setInterval(() => {
-      remaining -= 1;
-      setCountdown(remaining);
-      if (remaining <= 0) {
-        clearInterval(countdownRef.current!);
-        countdownRef.current = null;
-        setCountdown(null);
-        setTimeout(async () => {
-          const final = latestResultRef.current;
-          if (final && user?.uid) {
-            setLockedResult(final);
-            setLockedMood(final);
-            setDetectCount(c => c + 1);
-            // Save mood history entry
-            const docId = await saveMoodHistory(user.uid, final.mood, final.confidence).catch(() => null);
-            moodHistoryDocIdRef.current = docId;
-            setCurrentMoodHistoryId(docId);
-            // Increment moodStats on user doc
-            updateDoc(doc(db, "users", user.uid), {
-              [`moodStats.${final.mood}`]: increment(1),
-            }).catch(() => {});
-          }
-          stopDetection();
-        }, 900);
-      }
-    }, 1000);
-  }, [startDetection, stopDetection, user?.uid, setLockedMood, setCurrentMoodHistoryId]);
+    // Auto-pause any playing music before detection starts
+    if (isPlaying) {
+      togglePlayRef.current?.();
+    }
+    
+    const success = await startDetection();
+    
+    // Only show "starting" toast if camera access was granted
+    if (success) {
+      toast.info("Starting face detection...", {
+        description: "Please look at the camera",
+        duration: 2000,
+      });
+    }
+    // Error toasts are already handled in useFaceDetection hook
+  }, [startDetection, isPlaying, togglePlayRef]);
 
   const handleTogglePlay = useCallback(() => { togglePlayRef.current?.(); }, [togglePlayRef]);
   const handleGoToAlbum = useCallback((albumId: string) => openAlbum(albumId), [openAlbum]);
@@ -225,7 +219,7 @@ export default function HomePage() {
     const newPlaylist: Playlist = {
       id: `custom-${Date.now()}`,
       name: newPlaylistName.trim(),
-      emoji: "🎵",
+      emoji: "custom",
       tracks: [],
       createdAt: new Date().toISOString(),
     };
@@ -237,6 +231,46 @@ export default function HomePage() {
     }
     setUserPlaylists(prev => [...prev, newPlaylist]);
   }, [newPlaylistName, user?.uid]);
+
+  const handleRefreshQueue = useCallback(() => {
+    if (!lockedResult) return;
+    
+    // Format language list for display
+    const langDisplay = selectedLangs.length === 0 
+      ? "all languages" 
+      : selectedLangs.length === 1 
+        ? selectedLangs[0] 
+        : `${selectedLangs.slice(0, -1).join(", ")} & ${selectedLangs[selectedLangs.length - 1]}`;
+    
+    toast.info("Refreshing queue...", {
+      description: `Fetching new ${lockedResult.mood.toUpperCase()} songs in ${langDisplay}`,
+      duration: 2500,
+    });
+    
+    setLoadingTracks(true);
+    // Fetch fresh tracks (no cache)
+    fetchRecommendations(lockedResult.mood, selectedLangs).then(tracks => {
+      if (tracks.length) {
+        setQueue(tracks, tracks[0]);
+        // Update mood history with tracks served
+        if (moodHistoryDocIdRef.current) {
+          updateMoodHistoryTracks(moodHistoryDocIdRef.current, tracks.map(t => t.id)).catch(() => {});
+        }
+        
+        toast.success("Queue refreshed!", {
+          description: `${tracks.length} new tracks loaded (${langDisplay})`,
+          duration: 2500,
+        });
+      }
+      setLoadingTracks(false);
+    }).catch(() => {
+      toast.error("Failed to refresh", {
+        description: "Please try again",
+        duration: 2000,
+      });
+      setLoadingTracks(false);
+    });
+  }, [lockedResult, selectedLangs, fetchRecommendations, setQueue]);
 
   const handleRecommendedPlay = (track: SpotifyTrack) => {
     if (activeTrack?.id === track.id) {
@@ -250,7 +284,8 @@ export default function HomePage() {
   const muted = isDark ? "text-[#aaa]" : "text-[#7A6055]";
   const isCameraError = error === "camera_denied" || error === "camera_not_supported";
   const cameraErrorMsg = error === "camera_not_supported" ? "Camera not supported in this browser" : "Please allow camera access and try again";
-  const isDetecting = countdown !== null && !isCameraError;
+  const isDetecting = status === "detecting" || status === "analyzing";
+  const showAnalyzingProgress = status === "analyzing" && analyzingStatus;
 
   return (
     <>
@@ -262,30 +297,210 @@ export default function HomePage() {
           <p className={`text-sm text-center font-medium ${isDark ? "text-white" : "text-[#3a2a20]"}`}>
             Welcome, {user?.displayName || user?.email}
           </p>
+          
+          {/* Premium Account Warning - Only show if Spotify not connected */}
+          {!connected && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.3 }}
+              className={`rounded-xl border p-3 flex items-start gap-2.5 ${
+                isDark 
+                  ? "bg-amber-950/20 border-amber-900/40" 
+                  : "bg-amber-50 border-amber-200"
+              }`}
+            >
+              <AlertCircle 
+                size={18} 
+                className={`flex-shrink-0 mt-0.5 ${isDark ? "text-amber-400" : "text-amber-600"}`}
+              />
+              <div className="flex-1 min-w-0">
+                <p className={`text-xs font-semibold ${isDark ? "text-amber-400" : "text-amber-700"}`}>
+                  Premium Spotify Required
+                </p>
+                <p className={`text-xs mt-1 leading-relaxed ${isDark ? "text-amber-400/80" : "text-amber-600"}`}>
+                  MoodiFy requires a Spotify Premium account to play music. Free accounts are not supported.
+                </p>
+              </div>
+            </motion.div>
+          )}
 
           {/* Webcam */}
-          <div className={`relative w-full rounded-xl overflow-hidden flex-1 min-h-0 ${isDark ? "bg-[#1a1a1a]" : "bg-[#e0e0e0]"}`}>
-            <video ref={videoRef} className="w-full h-full object-cover" muted playsInline />
+          <div className={`relative w-full rounded-xl overflow-hidden flex-1 min-h-0 ${
+            lockedResult?.mood === "romantic" && !isDetecting
+              ? "bg-gradient-to-br from-pink-50 via-rose-50 to-pink-100" 
+              : isDark ? "bg-[#1a1a1a]" : "bg-[#e0e0e0]"
+          }`}>
+            <video ref={videoRef} className={`w-full h-full object-cover ${
+              lockedResult?.mood === "romantic" && !isDetecting ? "mix-blend-multiply opacity-90" : ""
+            }`} muted playsInline />
             <canvas ref={canvasRef} className="hidden" />
-            {status === "idle" && !isCameraError && (
-              <div className={`absolute inset-0 flex items-center justify-center text-sm ${isDark ? "text-[#555]" : "text-[#999]"}`}>Camera Off</div>
+            
+            {/* Subtle pinkish overlay for romantic mood */}
+            {lockedResult?.mood === "romantic" && !isDetecting && (
+              <div className="absolute inset-0 bg-gradient-to-br from-pink-200/20 via-transparent to-rose-200/20 pointer-events-none" />
             )}
+            
+            {/* Gesture Guide Overlay (Shows when not detecting) */}
+            {status === "idle" && !isCameraError && (
+              <div className={`absolute inset-0 flex flex-col items-center justify-center p-4 ${isDark ? "bg-black/60" : "bg-white/80"} backdrop-blur-sm`}>
+                <div className="flex items-center gap-2 mb-3">
+                  <PLAYLIST_ICONS.info size={16} className={isDark ? "text-[#4A90E2]" : "text-[#3B82F6]"} />
+                  <p className={`text-xs font-semibold ${isDark ? "text-white" : "text-[#3a2a20]"}`}>Gesture Guide</p>
+                </div>
+                <div className="flex flex-col gap-2 text-xs">
+                  <div className="flex items-center gap-2">
+                    <span className="text-2xl">😊</span>
+                    <span className={isDark ? "text-[#ccc]" : "text-[#7A6055]"}>Smile → Happy Songs</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-2xl">😮</span>
+                    <span className={isDark ? "text-[#ccc]" : "text-[#7A6055]"}>Surprised → Upbeat Songs</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-2xl">😐</span>
+                    <span className={isDark ? "text-[#ccc]" : "text-[#7A6055]"}>Neutral → Chill Songs</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-2xl">😢</span>
+                    <span className={isDark ? "text-[#ccc]" : "text-[#7A6055]"}>Sad → Melancholy Songs</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-2xl">😠</span>
+                    <span className={isDark ? "text-[#ccc]" : "text-[#7A6055]"}>Angry → Intense Songs</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-2xl">🫶</span>
+                    <span className={`font-semibold ${isDark ? "text-pink-400" : "text-pink-600"}`}>Heart Gesture → Romantic Songs</span>
+                  </div>
+                </div>
+              </div>
+            )}
+            
             {isCameraError && (
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
                 <AlertCircle size={32} className="text-red-500" />
                 <p className="text-xs text-red-400 text-center px-4">Camera access denied</p>
               </div>
             )}
+            
+            {/* Live indicator */}
             {isDetecting && (
               <div className="absolute top-2 right-2 flex items-center gap-1.5 bg-black/50 px-2.5 py-1 rounded-full">
                 <span className="w-2 h-2 rounded-full bg-[#FF6B35] animate-pulse" />
-                <span className="text-xs text-white">{countdown}s</span>
+                <span className="text-xs text-white">
+                  {status === "analyzing" && analyzingStatus 
+                    ? `${analyzingStatus.frames_collected}/${analyzingStatus.max_frames}`
+                    : "Live"}
+                </span>
               </div>
+            )}
+            
+            {/* Romantic Mood Heartbeat Effect */}
+            {lockedResult?.mood === "romantic" && !isDetecting && (
+              <>
+                {/* Falling Cherry Blossoms (Japanese Style) */}
+                <div className="absolute inset-0 overflow-hidden pointer-events-none">
+                  {[...Array(25)].map((_, i) => (
+                    <motion.div
+                      key={i}
+                      className="absolute"
+                      style={{
+                        left: `${Math.random() * 100}%`,
+                      }}
+                      initial={{ 
+                        top: -40, 
+                        opacity: 0.9,
+                        rotate: Math.random() * 360,
+                        x: 0,
+                      }}
+                      animate={{
+                        top: "100%",
+                        opacity: [0, 0.9, 0.85, 0.8, 0.75, 0.7, 0.5],
+                        rotate: [
+                          Math.random() * 360,
+                          Math.random() * 360 + 180,
+                          Math.random() * 360 + 360,
+                        ],
+                        x: [
+                          0,
+                          Math.sin(i) * 30,
+                          Math.sin(i + 1) * -20,
+                          Math.sin(i + 2) * 40,
+                        ],
+                      }}
+                      transition={{
+                        duration: 5 + Math.random() * 4,
+                        delay: i * 0.3,
+                        repeat: Infinity,
+                        ease: "linear",
+                      }}
+                    >
+                      {/* Realistic Cherry Blossom Petal SVG */}
+                      <svg width="22" height="22" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        {/* Petal 1 - Top */}
+                        <ellipse cx="16" cy="8" rx="4" ry="7" fill="#FFB3D9" transform="rotate(-18 16 16)" />
+                        {/* Petal 2 - Top Right */}
+                        <ellipse cx="24" cy="12" rx="4" ry="7" fill="#FFC0E0" transform="rotate(54 16 16)" />
+                        {/* Petal 3 - Bottom Right */}
+                        <ellipse cx="22" cy="22" rx="4" ry="7" fill="#FFCCE8" transform="rotate(126 16 16)" />
+                        {/* Petal 4 - Bottom Left */}
+                        <ellipse cx="10" cy="22" rx="4" ry="7" fill="#FFD8ED" transform="rotate(198 16 16)" />
+                        {/* Petal 5 - Top Left */}
+                        <ellipse cx="8" cy="12" rx="4" ry="7" fill="#FFE0F0" transform="rotate(270 16 16)" />
+                        {/* Center */}
+                        <circle cx="16" cy="16" r="3" fill="#FFEB99" />
+                        <circle cx="16" cy="16" r="2" fill="#FFD700" />
+                        {/* Stamen dots */}
+                        <circle cx="16" cy="14" r="0.8" fill="#FF6B9D" />
+                        <circle cx="17.5" cy="15.5" r="0.8" fill="#FF6B9D" />
+                        <circle cx="14.5" cy="15.5" r="0.8" fill="#FF6B9D" />
+                        <circle cx="16" cy="17" r="0.8" fill="#FF6B9D" />
+                      </svg>
+                    </motion.div>
+                  ))}
+                </div>
+                
+                {/* Heartbeat Effect */}
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                  <motion.div
+                    className="text-8xl drop-shadow-2xl"
+                    animate={{
+                      scale: [1, 1.2, 1],
+                      opacity: [0.8, 1, 0.8],
+                    }}
+                    transition={{
+                      duration: 1.2,
+                      repeat: Infinity,
+                      ease: "easeInOut",
+                    }}
+                  >
+                    ❤️
+                  </motion.div>
+                </div>
+              </>
             )}
           </div>
 
           {!lockedResult && !isDetecting && (
-            <p className={`text-xs text-center ${muted}`}>{isCameraError ? cameraErrorMsg : "Click Start to detect mood"}</p>
+            <p className={`text-xs text-center ${muted}`}>
+              {isCameraError ? cameraErrorMsg : "Click Start to detect mood"}
+            </p>
+          )}
+          
+          {showAnalyzingProgress && (
+            <div className="flex flex-col gap-1">
+              <p className={`text-xs text-center ${muted}`}>
+                Analyzing... {analyzingStatus.current_emotion} ({Math.round(analyzingStatus.current_confidence * 100)}%)
+              </p>
+              <div className={`w-full h-1.5 rounded-full overflow-hidden ${isDark ? "bg-[#2a2a2a]" : "bg-[#FFDDD2]"}`}>
+                <div 
+                  className="h-full bg-[#FF6B35] transition-all duration-300"
+                  style={{ width: `${(analyzingStatus.frames_collected / analyzingStatus.max_frames) * 100}%` }}
+                />
+              </div>
+            </div>
           )}
 
           {lockedResult && (
@@ -295,24 +510,17 @@ export default function HomePage() {
                 disabled={isDetecting || status === "connecting"}
                 className="flex-shrink-0 py-2.5 px-4 rounded-xl bg-[#FF6B35] hover:bg-[#e85d2a] disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors flex items-center justify-center gap-2"
               >
-                🎥 {status === "connecting" ? "Connecting..." : isDetecting ? `${countdown}s` : "Re-detect"}
+                <Camera size={16} /> {status === "connecting" ? "Connecting..." : status === "analyzing" ? "Analyzing..." : "Re-detect"}
               </button>
-              <AnimatePresence mode="wait">
-                <motion.div
-                  key={lockedResult.mood}
-                  initial={{ opacity: 0, scale: 0.85, y: 6 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.85, y: -6 }}
-                  transition={{ duration: 0.3, ease: "easeOut" }}
-                  className={`flex items-center justify-between px-4 py-2.5 rounded-xl border flex-1 ${isDark ? "bg-[#1a1a1a] border-[#2a2a2a]" : "bg-[#FFF5F0] border-[#FFDDD2]"}`}
-                >
-                  <div className="flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-[#FF6B35] animate-pulse" />
-                    <span className="text-sm font-bold text-[#FF6B35] uppercase tracking-wide">{lockedResult.mood}</span>
-                  </div>
-                  <span className={`text-sm font-medium ${muted}`}>{Math.round(lockedResult.confidence * 100)}%</span>
-                </motion.div>
-              </AnimatePresence>
+              <div
+                className={`flex items-center justify-between px-4 py-2.5 rounded-xl border flex-1 ${isDark ? "bg-[#1a1a1a] border-[#2a2a2a]" : "bg-[#FFF5F0] border-[#FFDDD2]"}`}
+              >
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-[#FF6B35] animate-pulse" />
+                  <span className="text-sm font-bold text-[#FF6B35] uppercase tracking-wide">{lockedResult.mood}</span>
+                </div>
+                <span className={`text-sm font-medium ${muted}`}>{Math.round(lockedResult.confidence * 100)}%</span>
+              </div>
             </div>
           )}
 
@@ -322,7 +530,7 @@ export default function HomePage() {
               disabled={isDetecting || status === "connecting"}
               className="w-full py-2.5 rounded-xl bg-[#FF6B35] hover:bg-[#e85d2a] disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors flex items-center justify-center gap-2"
             >
-              🎥 {status === "connecting" ? "Connecting..." : isDetecting ? `Detecting... ${countdown}s` : "Start"}
+              <Camera size={16} /> {status === "connecting" ? "Connecting..." : status === "analyzing" ? "Analyzing..." : "Start"}
             </button>
           )}
 
@@ -347,7 +555,7 @@ export default function HomePage() {
                   return (
                     <button
                       key={lang}
-                      onClick={() => setSelectedLangs(prev => checked ? prev.filter(l => l !== lang) : [...prev, lang])}
+                      onClick={() => setSelectedLangs(checked ? selectedLangs.filter(l => l !== lang) : [...selectedLangs, lang])}
                       className={`w-full px-4 py-2.5 text-sm text-left flex items-center gap-3 transition-colors ${checked ? "text-[#FF6B35]" : isDark ? "text-[#ccc] hover:bg-[#1a1a1a]" : "text-[#7A6055] hover:bg-[#FFF5F0]"}`}
                     >
                       <span className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${checked ? "bg-[#FF6B35] border-[#FF6B35]" : isDark ? "border-[#555]" : "border-[#ccc]"}`}>
@@ -375,10 +583,16 @@ export default function HomePage() {
             >
               <p className={`text-xl font-bold mb-4 flex-shrink-0 ${isDark ? "text-white" : "text-[#3a2a20]"}`}>Trendings</p>
               <div className="grid grid-cols-5 gap-3 app-scroll overflow-y-auto flex-1 content-start">
-                {recommendedTracks.map(track => (
+                {recommendedTracks.length === 0 ? (
+                  // Loading skeletons
+                  Array.from({ length: 10 }).map((_, i) => (
+                    <TrendingCardSkeleton key={i} isDark={isDark} />
+                  ))
+                ) : (
+                  recommendedTracks.map(track => (
                   <div
                     key={track.id}
-                    className={`relative flex flex-col gap-2 cursor-pointer group rounded-xl p-2 transition-colors ${activeTrack?.id === track.id ? isDark ? "bg-[#1a1a1a]" : "bg-[#FFF5F0]" : isDark ? "hover:bg-[#1a1a1a]" : "hover:bg-[#FFF5F0]"}`}
+                    className={`relative flex flex-col gap-2 cursor-pointer group rounded-xl p-2 transition-colors ${activeTrack?.id === track.id ? isDark ? "bg-[#1a1a1a]" : "bg-[#feebe1]" : isDark ? "hover:bg-[#1a1a1a]" : "hover:bg-[#FFF5F0]"}`}
                     onClick={() => handleRecommendedPlay(track)}
                   >
                     <div className="relative aspect-square rounded-xl overflow-hidden bg-[#1a1a1a]">
@@ -404,7 +618,8 @@ export default function HomePage() {
                       <MoreHorizontal size={14} />
                     </button>
                   </div>
-                ))}
+                ))
+                )}
               </div>
               {recContextMenu && typeof document !== "undefined" && createPortal(
                 <div ref={recMenuRef} style={{ position: "fixed", top: recContextMenu.y, left: recContextMenu.x, zIndex: 9999 }}>
@@ -423,7 +638,7 @@ export default function HomePage() {
         ) : (
           <AnimatePresence mode="wait">
             <motion.div
-              key={(lockedResult?.mood ?? "album") + (queueSource?.name ?? "")}
+              key={lockedResult?.mood ?? "album"}
               initial={{ opacity: 0, x: 30 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -30 }}
               transition={{ duration: 0.35, ease: "easeOut" }}
               className="h-full"
@@ -440,7 +655,8 @@ export default function HomePage() {
                   onTrackSelect={(track) => setActiveTrack(track)} onTogglePlay={handleTogglePlay}
                   onLike={handleLike} onAddToPlaylist={handleAddToPlaylist}
                   onCreatePlaylist={handleCreatePlaylist}
-                  onGoToAlbum={handleGoToAlbum} queueSource={queueSource}
+                  onGoToAlbum={handleGoToAlbum}
+                  onRefresh={handleRefreshQueue}
                 />
               )}
             </motion.div>
