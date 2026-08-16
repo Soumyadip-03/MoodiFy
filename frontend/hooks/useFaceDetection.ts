@@ -60,27 +60,16 @@ export function useFaceDetection() {
     const canvas = canvasRef.current;
     const ws = wsRef.current;
 
-    if (!video) {
-      console.warn("sendFrame: no video ref");
-      return;
-    }
-    if (!canvas) {
-      console.warn("sendFrame: no canvas ref");
-      return;
-    }
-    if (!ws || ws.readyState !== WebSocket.OPEN) {
-      console.warn("sendFrame: WebSocket not open", ws?.readyState);
+    if (!video || !canvas || !ws || ws.readyState !== WebSocket.OPEN) {
       return;
     }
 
     const ctx = canvas.getContext("2d");
     if (!ctx) {
-      console.warn("sendFrame: no canvas context");
       return;
     }
 
     if (video.videoWidth === 0 || video.videoHeight === 0) {
-      console.warn("sendFrame: video not ready", { width: video.videoWidth, height: video.videoHeight, readyState: video.readyState });
       return;
     }
 
@@ -93,7 +82,6 @@ export function useFaceDetection() {
         blob.arrayBuffer().then(buf => {
           if (ws.readyState === WebSocket.OPEN) {
             ws.send(buf);
-            console.log("Frame sent", buf.byteLength, "bytes");
           }
         });
       }
@@ -135,33 +123,23 @@ export function useFaceDetection() {
     wsRef.current = ws;
 
     ws.onopen = () => {
-      console.log("WebSocket connected");
       setStatus("detecting");
       // Wait a bit for video to be fully ready before sending frames
       setTimeout(() => {
-        console.log("Starting frame interval");
         frameIntervalRef.current = setInterval(sendFrame, FRAME_INTERVAL_MS);
       }, 200);
     };
 
     ws.onmessage = (event) => {
-      console.log("WebSocket message:", event.data);
       try {
         const data = JSON.parse(event.data as string);
         
         // Handle errors
         if (data.error) {
-          if (data.error === "no_face") {
-            console.log("No face detected in frame");
+          if (data.error === "no_face" || data.error === "poor_quality") {
             // Don't show error for transient detection issues
             return;
           }
-          if (data.error === "poor_quality") {
-            console.log("Poor quality frame:", data.reason, "score:", data.quality_score);
-            // Don't show error for transient detection issues
-            return;
-          }
-          console.error("Detection failed:", data);
           setError("detection_failed");
           return;
         }
@@ -209,14 +187,12 @@ export function useFaceDetection() {
     };
 
     ws.onerror = () => {
-      console.error("WebSocket error");
       setError("websocket_error");
       setStatus("error");
       stopDetection();
     };
 
     ws.onclose = () => {
-      console.log("WebSocket closed");
       if (frameIntervalRef.current) clearInterval(frameIntervalRef.current);
     };
 

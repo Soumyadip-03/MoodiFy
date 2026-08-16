@@ -8,7 +8,6 @@ import {
 import { usePlayer } from "@/context/PlayerContext";
 import { useArtistAlbum } from "@/context/ArtistAlbumContext";
 import { useSpotifyPlayer } from "@/hooks/useSpotifyPlayer";
-import { useSpotify } from "@/hooks/useSpotify";
 import { useTheme } from "@/context/ThemeContext";
 
 function fmt(sec: number) {
@@ -29,43 +28,12 @@ export default function MusicPlayer() {
   // Navigation uses album queue when album is active, mood queue otherwise
   const activeQueue = albumSource ? albumQueue : currentQueue;
 
-  const { isPremium } = useSpotify();
   const { openAlbum } = useArtistAlbum();
-  const { sdk, playTrack: sdkPlay, togglePlay: sdkToggle, seek: sdkSeek, seekAndResume: sdkSeekAndResume, setVolume: sdkSetVolume, onEnded: sdkOnEnded, onReady: sdkOnReady } = useSpotifyPlayer(isPremium);
+  const { sdk, playTrack: sdkPlay, togglePlay: sdkToggle, seek: sdkSeek, seekAndResume: sdkSeekAndResume, setVolume: sdkSetVolume, onEnded: sdkOnEnded, onReady: sdkOnReady } = useSpotifyPlayer();
 
-  // ── Audio ref (free users) ──
-  const audioRef = useRef<HTMLAudioElement>(null as unknown as HTMLAudioElement);
-  const [position, setPosition] = useState(0);       // seconds
-  const [duration, setDuration] = useState(0);       // seconds
   const [volume, setVolume] = useState(0.7);
   const [muted, setMuted] = useState(false);
   const lastVolumeRef = useRef(0.7);
-
-  // Wire audio element events once on mount
-  useEffect(() => {
-    audioRef.current = new Audio();
-    const audio = audioRef.current;
-    audio.volume = 0.7;
-    const onTimeUpdate = () => setPosition(audio.currentTime);
-    const onMetadata = () => setDuration(audio.duration);
-    const onPlay = () => setIsPlaying(true);
-    const onPause = () => setIsPlaying(false);
-    const onEnded = () => handleNextRef.current();
-    audio.addEventListener("timeupdate", onTimeUpdate);
-    audio.addEventListener("loadedmetadata", onMetadata);
-    audio.addEventListener("play", onPlay);
-    audio.addEventListener("pause", onPause);
-    audio.addEventListener("ended", onEnded);
-    return () => {
-      audio.removeEventListener("timeupdate", onTimeUpdate);
-      audio.removeEventListener("loadedmetadata", onMetadata);
-      audio.removeEventListener("play", onPlay);
-      audio.removeEventListener("pause", onPause);
-      audio.removeEventListener("ended", onEnded);
-      audio.pause();
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   // ── Guards ──
   const notifiedTrackRef = useRef<string | null>(null);
@@ -122,13 +90,7 @@ export default function MusicPlayer() {
     const idx = trackIdxRef.current;
 
     if (r === "one") {
-      if (isPremium) {
-        sdkSeekAndResume(0);
-      } else {
-        // audio.loop handles this natively — this branch won't normally fire
-        audioRef.current.currentTime = 0;
-        audioRef.current.play().catch(() => {});
-      }
+      sdkSeekAndResume(0);
       return;
     }
     if (s && queue.length > 1) {
@@ -142,24 +104,18 @@ export default function MusicPlayer() {
     } else if (r === "all") {
       setActiveTrack(queue[0]);
     }
-  }, [isPremium, sdkSeekAndResume, setActiveTrack]);
+  }, [sdkSeekAndResume, setActiveTrack]);
   handleNextRef.current = handleNext;
 
   const handlePrev = useCallback(() => {
-    if (isPremium) {
-      if (sdk.position > 3000) { sdkSeek(0); return; }
-    } else {
-      if (audioRef.current.currentTime > 3) {
-        audioRef.current.currentTime = 0; return;
-      }
-    }
+    if (sdk.position > 3000) { sdkSeek(0); return; }
     if (hasPrev) setActiveTrack(activeQueue[trackIdx - 1]);
-  }, [hasPrev, trackIdx, activeQueue, setActiveTrack, isPremium, sdk.position, sdkSeek]);
+  }, [hasPrev, trackIdx, activeQueue, setActiveTrack, sdk.position, sdkSeek]);
 
-  // Sync audio.loop for free users — browser handles repeat-one natively, no glitch
-  useEffect(() => {
-    if (audioRef.current) audioRef.current.loop = repeat === "one";
-  }, [repeat]);
+  // Sync audio.loop - not needed for SDK, removing
+  // useEffect(() => {
+  //   if (audioRef.current) audioRef.current.loop = repeat === "one";
+  // }, [repeat]);
 
   // ── Track change effect ──
   useEffect(() => {
@@ -174,26 +130,16 @@ export default function MusicPlayer() {
       notifyTrackPlayed(activeTrack);
     }
 
-    if (isPremium) {
-      if (sdk.isReady) sdkPlay(activeTrack);
-      // If not ready yet, onReady callback will fire sdkPlay when SDK connects
-    } else {
-      if (!activeTrack.previewUrl) {
-        autoSkipTimerRef.current = setTimeout(() => handleNextRef.current(), 800);
-        return;
-      }
-      const audio = audioRef.current;
-      audio.src = activeTrack.previewUrl;
-      audio.volume = muted ? 0 : volume;
-      audio.play().catch(() => {});
-    }
+    // Play via Spotify SDK (Premium only)
+    if (sdk.isReady) sdkPlay(activeTrack);
+    // If not ready yet, onReady callback will fire sdkPlay when SDK connects
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTrack?.id]);
 
   // ── Sync SDK state → context isPlaying ──
   useEffect(() => {
-    if (isPremium) setIsPlaying(sdk.isPlaying);
-  }, [isPremium, sdk.isPlaying, setIsPlaying]);
+    setIsPlaying(sdk.isPlaying);
+  }, [sdk.isPlaying, setIsPlaying]);
 
   // ── SDK onEnded → handleNext (via ref so it's always fresh) ──
   useEffect(() => {
@@ -203,17 +149,8 @@ export default function MusicPlayer() {
   // ── Toggle play/pause ──
   const handleTogglePlay = useCallback(() => {
     if (!activeTrack) return;
-    if (isPremium) {
-      sdkToggle();
-    } else {
-      const audio = audioRef.current;
-      if (isPlaying) {
-        audio.pause();
-      } else {
-        audio.play().catch(() => {});
-      }
-    }
-  }, [activeTrack, isPremium, isPlaying, sdkToggle]); // eslint-disable-line react-hooks/exhaustive-deps
+    sdkToggle();
+  }, [activeTrack, sdkToggle]);
 
   // Write into togglePlayRef so home page can call it
   togglePlayRef.current = handleTogglePlay;
@@ -221,39 +158,31 @@ export default function MusicPlayer() {
   // ── Seek ──
   const handleSeek = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const val = Number(e.target.value);
-    if (isPremium) {
-      sdkSeek(val * 1000);
-    } else {
-      audioRef.current.currentTime = val;
-      setPosition(val);
-    }
-  }, [isPremium, sdkSeek]);
+    sdkSeek(val * 1000);
+  }, [sdkSeek]);
 
   // ── Volume ──
   const handleVolume = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const val = Number(e.target.value);
     setVolume(val);
     if (val > 0) { lastVolumeRef.current = val; setMuted(false); }
-    if (isPremium) sdkSetVolume(val);
-    else audioRef.current.volume = val;
-  }, [isPremium, sdkSetVolume]);
+    sdkSetVolume(val);
+  }, [sdkSetVolume]);
 
   const handleMuteToggle = useCallback(() => {
     if (muted) {
       const v = lastVolumeRef.current;
       setVolume(v); setMuted(false);
-      if (isPremium) sdkSetVolume(v);
-      else audioRef.current.volume = v;
+      sdkSetVolume(v);
     } else {
       setMuted(true);
-      if (isPremium) sdkSetVolume(0);
-      else audioRef.current.volume = 0;
+      sdkSetVolume(0);
     }
-  }, [muted, isPremium, sdkSetVolume]);
+  }, [muted, sdkSetVolume]);
 
   // ── Derived display values ──
-  const displayPosition = isPremium ? sdk.position / 1000 : position;
-  const displayDuration = isPremium ? sdk.duration / 1000 : duration;
+  const displayPosition = sdk.position / 1000;
+  const displayDuration = sdk.duration / 1000;
 
   // ── Theme ──
   const bg = isDark ? "bg-[#111111] border-[#2a2a2a]" : "bg-white border-[#FFDDD2]";

@@ -6,7 +6,7 @@ import { useTheme } from "@/context/ThemeContext";
 import ThemeToggle from "@/components/ui/ThemeToggle";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { useRef, MouseEvent, useState, useEffect } from "react";
-import { GitFork, Link as LinkIcon, FolderOpen, Menu, X, Video, Brain, Music, Lock, Zap, Target, Globe, Crown, TrendingUp, MessageSquare, Smile } from "lucide-react";
+import { GitFork, Link as LinkIcon, FolderOpen, Menu, X, Video, Brain, Music, Lock, Zap, Target, Globe, Crown, TrendingUp, MessageSquare, Smile, AlertCircle } from "lucide-react";
 
 // ── Wave SVG divider ──────────────────────────────────────────────────────────
 function WaveDivider({ flip = false, isDark }: { flip?: boolean; isDark: boolean }) {
@@ -669,6 +669,28 @@ export default function LandingPage() {
             </Link>
           </motion.div>
 
+          {/* Premium Account Warning */}
+          <motion.div variants={fadeUp} initial="hidden" animate="show" transition={{ delay: 0.25 }}
+            className={`max-w-md rounded-xl border p-3 flex items-start gap-2.5 ${
+              isDark 
+                ? "bg-amber-950/20 border-amber-900/40" 
+                : "bg-amber-50 border-amber-200"
+            }`}
+          >
+            <AlertCircle 
+              size={18} 
+              className={`flex-shrink-0 mt-0.5 ${isDark ? "text-amber-400" : "text-amber-600"}`}
+            />
+            <div className="flex-1 min-w-0">
+              <p className={`text-xs font-semibold ${isDark ? "text-amber-400" : "text-amber-700"}`}>
+                Spotify Premium Required
+              </p>
+              <p className={`text-xs mt-1 leading-relaxed ${isDark ? "text-amber-400/80" : "text-amber-600"}`}>
+                MoodiFy requires a Spotify Premium account to play music. Free accounts are not supported.
+              </p>
+            </div>
+          </motion.div>
+
           {/* Pipeline pill */}
           <motion.div variants={fadeUp} initial="hidden" animate="show" transition={{ delay: 0.3 }}
             className={`mt-6 flex items-center gap-3 px-6 py-3.5 rounded-2xl border text-xs sm:text-sm font-medium flex-wrap justify-center shadow-sm ${card}`}>
@@ -966,11 +988,13 @@ export default function LandingPage() {
               <h4 className={`text-sm font-bold ${text}`}>Get In Touch</h4>
               <div className="flex flex-col gap-2">
                 <a
-                  href="mailto:contact@moodify.app"
+                  href="https://mail.google.com/mail/?view=cm&fs=1&to=notification.moodify@gmail.com&su=MoodiFy%20Support"
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className={`flex items-center gap-2 text-xs transition-colors hover:text-[#FF6B35] ${muted}`}
                 >
                   <MessageSquare size={14} />
-                  <span>contact@moodify.app</span>
+                  <span>notification.moodify@gmail.com</span>
                 </a>
                 <p className={`text-xs leading-relaxed ${muted}`}>
                   Have questions or feedback? We&apos;d love to hear from you.

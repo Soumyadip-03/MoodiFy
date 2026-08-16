@@ -158,6 +158,13 @@ SPOTIFY_CLIENT_SECRET=your_client_secret
 SPOTIFY_REDIRECT_URI=http://localhost:8000/api/spotify/callback
 FIREBASE_SERVICE_ACCOUNT_KEY=./serviceAccountKey.json
 FRONTEND_URL=http://localhost:3000
+
+# Email Configuration (Gmail SMTP)
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_EMAIL=notification.moodify@gmail.com
+SMTP_PASSWORD=your_gmail_app_password
+ADMIN_SECRET=your_secure_admin_secret_key
 ```
 
 **Get Firebase Service Account Key:**
@@ -170,6 +177,13 @@ FRONTEND_URL=http://localhost:3000
 - Create an app
 - Add redirect URI: `http://localhost:8000/api/spotify/callback`
 - Copy Client ID and Secret
+
+**Get Gmail App Password (for email service):**
+- Go to [Google Account Security](https://myaccount.google.com/security)
+- Enable 2-Step Verification if not already enabled
+- Go to App Passwords: Security → 2-Step Verification → App passwords
+- Generate an app password for "Mail" on "Other (Custom name)"
+- Copy the 16-character password (no spaces) and add to `.env` as `SMTP_PASSWORD`
 
 ### 4. Run Application
 
@@ -210,13 +224,15 @@ MoodiFy/
 │   ├── routes/                  # API endpoints
 │   │   ├── auth.py              # Firebase auth verification
 │   │   ├── mood.py              # WebSocket mood detection
-│   │   └── spotify.py           # Spotify OAuth & API
+│   │   ├── spotify.py           # Spotify OAuth & API
+│   │   └── email.py             # Email sending (admin)
 │   ├── services/                # Core business logic
 │   │   ├── enhanced_face_detection.py    # HSEmotion + quality checks
 │   │   ├── mood_mapper.py                # Emotion → mood mapping
 │   │   ├── adaptive_temporal_buffer.py   # 3-8s smoothing
 │   │   ├── gesture_detection.py          # MediaPipe gestures
-│   │   └── spotify_service.py            # Spotify API calls
+│   │   ├── spotify_service.py            # Spotify API calls
+│   │   └── email_service.py              # Gmail SMTP integration
 │   ├── models/                  # ML models (auto-downloaded)
 │   │   └── hand_landmarker.task
 │   ├── main.py                  # FastAPI app entry point
@@ -261,6 +277,92 @@ MoodiFy/
 
 ---
 
+## 📧 Email Service (Admin)
+
+MoodiFy includes an official email service for sending admin messages to users via Gmail SMTP.
+
+### Available Email Templates
+
+1. **Welcome Email** — Sent to new users after signup
+2. **Announcement** — Custom announcements to users
+3. **Custom Email** — Full control over subject and body
+
+### API Endpoints
+
+All endpoints require admin authentication via `Authorization: Bearer YOUR_ADMIN_SECRET` header.
+
+**Test Configuration:**
+```bash
+GET /api/email/test
+```
+
+**Send Welcome Email:**
+```bash
+POST /api/email/welcome
+Content-Type: application/json
+Authorization: Bearer YOUR_ADMIN_SECRET
+
+{
+  "user_email": "user@example.com",
+  "user_name": "John Doe"
+}
+```
+
+**Send Announcement:**
+```bash
+POST /api/email/announcement
+Content-Type: application/json
+Authorization: Bearer YOUR_ADMIN_SECRET
+
+{
+  "user_email": "user@example.com",
+  "user_name": "John Doe",
+  "announcement_title": "New Feature Launch",
+  "announcement_body": "We're excited to announce..."
+}
+```
+
+**Send Custom Email:**
+```bash
+POST /api/email/send
+Content-Type: application/json
+Authorization: Bearer YOUR_ADMIN_SECRET
+
+{
+  "to_email": "user@example.com",
+  "subject": "Your Subject",
+  "body_text": "Plain text version",
+  "body_html": "<h1>HTML version</h1>"
+}
+```
+
+### Testing with cURL
+
+```bash
+# Test configuration
+curl -X GET http://localhost:8000/api/email/test \
+  -H "Authorization: Bearer your_admin_secret"
+
+# Send welcome email
+curl -X POST http://localhost:8000/api/email/welcome \
+  -H "Authorization: Bearer your_admin_secret" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "user_email": "test@example.com",
+    "user_name": "Test User"
+  }'
+```
+
+### Email Templates
+
+All emails are sent with:
+- **From:** `MoodiFy <notification.moodify@gmail.com>`
+- **Branding:** Orange gradient header with MoodiFy logo
+- **Responsive:** Mobile-friendly HTML design
+- **Fallback:** Plain text version included
+
+---
+
 ## 🐛 Troubleshooting
 
 **Issue:** `ModuleNotFoundError: No module named 'hsemotion_onnx'`  
@@ -277,6 +379,12 @@ MoodiFy/
 
 **Issue:** Python version compatibility errors  
 **Solution:** Use Python 3.11.x exactly (`python --version`)
+
+**Issue:** Email sending fails with authentication error  
+**Solution:** Ensure you're using a Gmail App Password (not regular password). Enable 2FA and generate app password from Google Account Security settings.
+
+**Issue:** Email API returns 401/403 error  
+**Solution:** Check that `ADMIN_SECRET` in `.env` matches the token in `Authorization: Bearer` header
 
 ---
 

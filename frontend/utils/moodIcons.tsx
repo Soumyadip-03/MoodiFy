@@ -7,7 +7,8 @@ import {
   Flame, 
   Frown, 
   Music, 
-  Heart 
+  Heart,
+  BadgeInfoIcon
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -29,6 +30,7 @@ export const MOOD_ICONS: Record<MoodIconKey, LucideIcon> = {
 export const PLAYLIST_ICONS = {
   liked: Heart,
   custom: Music,
+  info: BadgeInfoIcon,
 } as const;
 
 // Mood colors for consistency

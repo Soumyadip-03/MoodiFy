@@ -57,31 +57,15 @@ def _auth_header() -> str:
     return f"Basic {creds}"
 
 
-def _get_owner_refresh_token() -> str:
-    return os.getenv("MOODIFY_REFRESH_TOKEN", "")
-
-
-async def get_owner_token() -> str:
-    """Get a fresh access token using the MoodiFy owner account refresh token."""
-    async with httpx.AsyncClient() as client:
-        resp = await client.post(
-            SPOTIFY_TOKEN_URL,
-            headers={"Authorization": _auth_header(), "Content-Type": "application/x-www-form-urlencoded"},
-            data={"grant_type": "refresh_token", "refresh_token": _get_owner_refresh_token()},
-        )
-        resp.raise_for_status()
-        return resp.json()["access_token"]
-
-
-async def get_playlist_tracks(playlist_id: str, owner_token: str, mood: str, fetch_limit: int = 100) -> list:
+async def get_playlist_tracks(playlist_id: str, user_token: str, mood: str, fetch_limit: int = 100) -> list:
     """Fetch tracks from a playlist with a random offset for variety."""
-    if not playlist_id or playlist_id == "PLACEHOLDER_ID":
+    if not playlist_id or playlist_id == "PLACEHOLDER_ID" or not user_token:
         return []
     import random
     async with httpx.AsyncClient() as client:
         meta = await client.get(
             f"{SPOTIFY_API_BASE}/playlists/{playlist_id}",
-            headers={"Authorization": f"Bearer {owner_token}"},
+            headers={"Authorization": f"Bearer {user_token}"},
             params={"fields": "tracks.total"},
         )
         total = meta.json().get("tracks", {}).get("total", 100) if meta.is_success else 100
@@ -89,7 +73,7 @@ async def get_playlist_tracks(playlist_id: str, owner_token: str, mood: str, fet
         offset = random.randint(0, max_offset) if max_offset > 0 else 0
         resp = await client.get(
             f"{SPOTIFY_API_BASE}/playlists/{playlist_id}/items",
-            headers={"Authorization": f"Bearer {owner_token}"},
+            headers={"Authorization": f"Bearer {user_token}"},
             params={"limit": fetch_limit, "offset": offset},
         )
     if not resp.is_success:
@@ -105,20 +89,6 @@ async def get_playlist_tracks(playlist_id: str, owner_token: str, mood: str, fet
             pass
     random.shuffle(tracks)
     return tracks
-
-
-async def get_trending_tracks() -> list:
-    """Fetch tracks from the trending playlist using owner token."""
-    try:
-        owner_token = await get_owner_token()
-        tracks = await get_playlist_tracks(_get_trending_playlist_id(), owner_token, "mixed")
-        if tracks:
-            import random
-            random.shuffle(tracks)
-            return tracks[:80]
-    except Exception:
-        pass
-    return []
 
 
 def _db():
@@ -203,10 +173,13 @@ LANGUAGES = ["ENGLISH", "HINDI", "BENGALI", "KOREAN"]
 TARGET_QUEUE = 40
 
 async def get_recommendations(mood: str, access_token: str | None, languages: list = []) -> list:
+    """Get recommendations for a mood using user's Spotify token. Requires Premium account."""
+    if not access_token:
+        return []
+    
     import random
     import math
     try:
-        owner_token = await get_owner_token()
         active_langs = [l for l in languages if l in LANGUAGES] if languages else LANGUAGES
         per_playlist = math.ceil(TARGET_QUEUE / len(active_langs))
 
@@ -216,7 +189,7 @@ async def get_recommendations(mood: str, access_token: str | None, languages: li
         import asyncio
         async def fetch_lang(lang: str) -> list:
             pid = _get_mood_playlist_id(mood, lang)
-            tracks = await get_playlist_tracks(pid, owner_token, mood, fetch_limit=min(per_playlist * 2, 100))
+            tracks = await get_playlist_tracks(pid, access_token, mood, fetch_limit=min(per_playlist * 2, 100))
             random.shuffle(tracks)
             return [t for t in tracks if t.get("albumArt")][:per_playlist]
 
@@ -234,48 +207,8 @@ async def get_recommendations(mood: str, access_token: str | None, languages: li
             return all_tracks[:TARGET_QUEUE]
     except Exception:
         pass
-    # Fallback: search
-    search_token = access_token if access_token else await _get_client_credentials_token()
-    return await search_tracks_by_mood(mood, search_token, languages)
-
-
-async def search_tracks_by_mood(mood: str, token: str, languages: list = []) -> list:
-    features = MOOD_FEATURES.get(mood, MOOD_FEATURES["chill"])
-    genre = features["genres"][0]
-
-    # Build language suffix — use first keyword per selected language
-    lang_suffix = " ".join(
-        LANGUAGE_KEYWORDS[lang][0] for lang in languages if lang in LANGUAGE_KEYWORDS
-    ) if languages else ""
-
-    base_queries = [f"genre:{genre}", genre, features["genres"][1] if len(features["genres"]) > 1 else genre]
-    queries = [f"{q} {lang_suffix}".strip() for q in base_queries] if lang_suffix else base_queries
-
-    async with httpx.AsyncClient() as client:
-        for query in queries:
-            resp = await client.get(
-                f"{SPOTIFY_API_BASE}/search",
-                headers={"Authorization": f"Bearer {token}"},
-                params={"q": query, "type": "track", "limit": "10"},
-            )
-            if not resp.is_success:
-                continue
-            items = resp.json().get("tracks", {}).get("items", [])
-            tracks = [_format_track(t, mood) for t in items if t]
-            if tracks:
-                return tracks
+    
     return await get_recommendations_from_firestore(mood)
-
-
-async def _get_client_credentials_token() -> str:
-    async with httpx.AsyncClient() as client:
-        resp = await client.post(
-            SPOTIFY_TOKEN_URL,
-            headers={"Authorization": _auth_header(), "Content-Type": "application/x-www-form-urlencoded"},
-            data={"grant_type": "client_credentials"},
-        )
-        resp.raise_for_status()
-        return resp.json()["access_token"]
 
 
 async def save_tracks_to_firestore(tracks: list, mood: str):

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, Suspense } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Camera, Crown, Loader2, ArrowLeft, Trash2, AlertCircle, TrendingUp, Heart, Activity, BarChart3, Settings } from "lucide-react";
+import { Camera, Loader2, ArrowLeft, Trash2, AlertCircle, TrendingUp, Heart, Activity, BarChart3, Settings } from "lucide-react";
 import { useTheme } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
 import { useSpotify } from "@/hooks/useSpotify";
@@ -12,12 +12,13 @@ import { updateUserPhotoURL, getUserSettings, updateTrackTrendingEnabled, getMoo
 import { updateDoc, doc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { ProfileStatsSkeleton } from "@/components/ui/Skeleton";
+import { sendProfileUpdateNotification, sendSettingsUpdateNotification, sendAccountDeletionNotification } from "@/lib/emailNotifications";
 
 function ProfileContent() {
   const { theme } = useTheme();
   const isDark = theme === "dark";
   const { user, deleteAccount, refreshUserPhoto, userPhotoURL } = useAuth();
-  const { connected, connecting, isPremium, error, connectSpotify, disconnectSpotify } = useSpotify();
+  const { connected, connecting, error, connectSpotify, disconnectSpotify } = useSpotify();
   
   const [callbackStatus, setCallbackStatus] = useState<"connected" | "error" | null>(null);
   const callbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -53,6 +54,17 @@ function ProfileContent() {
     const status = searchParams.get("spotify");
     if (status === "connected") {
       setCallbackStatus("connected");
+      
+      // Send settings update notification for Spotify connection (non-blocking)
+      if (user?.email) {
+        const userName = user.displayName || user.email.split("@")[0];
+        sendSettingsUpdateNotification(user.email, userName, {
+          trackTrendingEnabled,
+          trackPlaylistEnabled,
+          spotifyConnected: true,
+        }).catch(err => console.error("Settings notification failed:", err));
+      }
+      
       toast.success("Spotify connected", {
         description: "Your account is now linked",
       });
@@ -65,7 +77,7 @@ function ProfileContent() {
       router.replace(pathname, { scroll: false });
     }
     return () => { if (callbackTimerRef.current) clearTimeout(callbackTimerRef.current); };
-  }, [searchParams, pathname, router]);
+  }, [searchParams, pathname, router, user?.email, user?.displayName, trackTrendingEnabled, trackPlaylistEnabled]);
 
   // Load user settings and stats
   useEffect(() => {
@@ -157,6 +169,12 @@ function ProfileContent() {
       // Refresh the photo in AuthContext so it updates everywhere immediately
       await refreshUserPhoto();
       
+      // Send profile update notification (non-blocking)
+      const userName = user.displayName || user.email?.split("@")[0] || "User";
+      sendProfileUpdateNotification(user.email!, userName, "Profile Photo").catch(err =>
+        console.error("Profile update notification failed:", err)
+      );
+      
       toast.success("Profile photo updated");
     } catch (error: unknown) {
       console.error("Photo upload error:", error);
@@ -175,6 +193,23 @@ function ProfileContent() {
     setDeleteLoading(true);
     setDeleteError(null);
     try {
+      // Send deletion notification before actually deleting (non-blocking)
+      if (user?.email) {
+        const userName = user.displayName || user.email.split("@")[0];
+        sendAccountDeletionNotification(user.email, userName).catch(err =>
+          console.error("Account deletion notification failed:", err)
+        );
+      }
+      
+      // Show appropriate toast for Google users
+      const providerIds = user?.providerData.map(p => p.providerId) || [];
+      if (providerIds.includes("google.com")) {
+        toast.info("Confirm in Google popup", {
+          description: "Select your account to verify deletion",
+          duration: 4000,
+        });
+      }
+      
       await deleteAccount(password);
     } catch (e: unknown) {
       setDeleteError(e instanceof Error ? e.message : "Failed to delete account.");
@@ -196,6 +231,16 @@ function ProfileContent() {
       // Update PlayerContext immediately
       if (typeof window !== "undefined") {
         window.dispatchEvent(new CustomEvent("trackTrendingChanged", { detail: { enabled: newValue } }));
+      }
+      
+      // Send settings update notification (non-blocking)
+      if (user.email) {
+        const userName = user.displayName || user.email.split("@")[0];
+        sendSettingsUpdateNotification(user.email, userName, {
+          trackTrendingEnabled: newValue,
+          trackPlaylistEnabled,
+          spotifyConnected: connected,
+        }).catch(err => console.error("Settings notification failed:", err));
       }
       
       toast.success(
@@ -227,6 +272,16 @@ function ProfileContent() {
       // Update PlayerContext immediately
       if (typeof window !== "undefined") {
         window.dispatchEvent(new CustomEvent("trackPlaylistChanged", { detail: { enabled: newValue } }));
+      }
+      
+      // Send settings update notification (non-blocking)
+      if (user.email) {
+        const userName = user.displayName || user.email.split("@")[0];
+        sendSettingsUpdateNotification(user.email, userName, {
+          trackTrendingEnabled,
+          trackPlaylistEnabled: newValue,
+          spotifyConnected: connected,
+        }).catch(err => console.error("Settings notification failed:", err));
       }
       
       toast.success(
@@ -266,7 +321,8 @@ function ProfileContent() {
         <ArrowLeft size={16} /> Back
       </motion.button>
 
-      <div className="flex flex-col lg:flex-row gap-3 flex-1 min-h-0">
+      {/* Two Column Layout */}
+      <div className="flex flex-col lg:flex-row gap-3">
         {/* ── LEFT column: User Profile + Stats ── */}
         <div className="w-full lg:w-[320px] lg:flex-shrink-0 flex flex-col gap-3">
 
@@ -285,7 +341,7 @@ function ProfileContent() {
                   transition={{ duration: 0.4, delay: 0.1, ease: "easeOut" }}
                   className={`w-32 h-32 rounded-full overflow-hidden flex items-center justify-center text-5xl font-bold flex-shrink-0 relative
                     ${isDark ? "bg-[#1a1a1a]" : "bg-[#FFDDD2]"}
-                    ${isPremium ? "ring-4 ring-[#FFD700] ring-offset-2 ring-offset-transparent" : "ring-2 ring-[#FF6B35]/30"}`}
+                    ring-2 ring-[#FF6B35]/30`}
                 >
                   {displayPhoto
                     // eslint-disable-next-line @next/next/no-img-element
@@ -306,17 +362,6 @@ function ProfileContent() {
                   </motion.div>
                 </motion.div>
                 <AnimatePresence>
-                  {isPremium && (
-                    <motion.span
-                      initial={{ scale: 0, opacity: 0 }}
-                      animate={{ scale: 1, opacity: 1 }}
-                      exit={{ scale: 0, opacity: 0 }}
-                      transition={{ type: "spring", stiffness: 300, damping: 18, delay: 0.25 }}
-                      className="absolute -top-1 -right-1 bg-[#FFD700] rounded-full p-1 shadow-lg"
-                    >
-                      <Crown size={14} className="text-black" />
-                    </motion.span>
-                  )}
                 </AnimatePresence>
               </div>
 
@@ -414,14 +459,14 @@ function ProfileContent() {
         </div>{/* end left column */}
 
         {/* ── RIGHT column: Settings ── */}
-        <div className="flex-1 min-w-0 flex flex-col gap-3">
+        <div className="flex-1 min-w-0 flex flex-col">
 
-          {/* Settings Card */}
+          {/* Settings Card - Stretches to match left column height */}
           <motion.section
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.35, delay: 0.1, ease: "easeOut" }}
-            className={`rounded-2xl border p-5 transition-colors ${card}`}
+            className={`rounded-2xl border p-4 transition-colors flex flex-col h-full ${card}`}
           >
             <div className="flex items-center gap-2 mb-5">
               <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${isDark ? "bg-[#1a1a1a]" : "bg-[#FFDDD2]"}`}>
@@ -430,47 +475,19 @@ function ProfileContent() {
               <h3 className={`text-sm font-bold ${text}`}>Settings</h3>
             </div>
 
-            <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-1.5 flex-1 justify-between">
 
               {/* Spotify Connection Setting */}
-              <div className={`rounded-xl border p-4 ${isDark ? "border-[#2a2a2a]" : "border-[#FFDDD2]"}`}>
-                <div className="flex items-start gap-3">
+              <div className={`rounded-xl border p-2.5 ${isDark ? "border-[#2a2a2a]" : "border-[#FFDDD2]"}`}>
+                <div className="flex items-center gap-3">
                   <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-[#1DB954]">
                     <svg viewBox="0 0 24 24" fill="white" className="w-5 h-5">
                       <path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/>
                     </svg>
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h4 className={`text-sm font-bold ${text}`}>Spotify Account</h4>
-                      <AnimatePresence mode="wait">
-                        {connected && isPremium && (
-                          <motion.span
-                            key="premium"
-                            initial={{ opacity: 0, scale: 0.8 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            exit={{ opacity: 0, scale: 0.8 }}
-                            transition={{ duration: 0.2 }}
-                            className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-[#FFD700]/15 border border-[#FFD700]/30 text-[10px] font-semibold text-[#FFD700]"
-                          >
-                            <Crown size={9} /> Premium
-                          </motion.span>
-                        )}
-                        {connected && !isPremium && (
-                          <motion.span
-                            key="free"
-                            initial={{ opacity: 0, scale: 0.8 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            exit={{ opacity: 0, scale: 0.8 }}
-                            transition={{ duration: 0.2 }}
-                            className="px-1.5 py-0.5 rounded-full bg-[#1DB954]/10 border border-[#1DB954]/30 text-[10px] font-semibold text-[#1DB954]"
-                          >
-                            Free
-                          </motion.span>
-                        )}
-                      </AnimatePresence>
-                    </div>
-                    <p className={`text-xs mt-1 ${muted}`}>Connect for mood-based recommendations.</p>
+                    <h4 className={`text-sm font-bold ${text}`}>Spotify Account</h4>
+                    <p className={`text-xs mt-1 ${muted}`}>Connect your Spotify Premium account for full playback.</p>
                   </div>
                   {connected && (
                     <motion.button
@@ -479,6 +496,17 @@ function ProfileContent() {
                       onClick={async () => {
                         try { 
                           await disconnectSpotify();
+                          
+                          // Send settings update notification (non-blocking)
+                          if (user?.email) {
+                            const userName = user.displayName || user.email.split("@")[0];
+                            sendSettingsUpdateNotification(user.email, userName, {
+                              trackTrendingEnabled,
+                              trackPlaylistEnabled,
+                              spotifyConnected: false,
+                            }).catch(err => console.error("Settings notification failed:", err));
+                          }
+                          
                           toast.success("Spotify disconnected");
                         }
                         catch (err) { 
@@ -486,12 +514,12 @@ function ProfileContent() {
                           toast.error("Failed to disconnect");
                         }
                       }}
-                      className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-red-500 text-red-500 text-xs font-semibold transition-colors hover:bg-red-500 hover:text-white"
+                      className="flex-shrink-0 flex items-center gap-1.5 px-2 py-1.5 rounded-xl border border-red-500 text-red-500 text-xs font-semibold transition-colors hover:bg-red-500 hover:text-white self-center"
                     >
                       Disconnect
                     </motion.button>
                   )}
-                  {connecting && <Loader2 size={15} className="animate-spin text-[#FF6B35] flex-shrink-0" />}
+                  {connecting && <Loader2 size={15} className="animate-spin text-[#FF6B35] flex-shrink-0 self-center" />}
                 </div>
 
                 <AnimatePresence>
@@ -540,10 +568,10 @@ function ProfileContent() {
               </div>
 
               {/* Track Trending Toggle */}
-              <div className={`rounded-xl border p-4 ${isDark ? "border-[#2a2a2a]" : "border-[#FFDDD2]"}`}>
+              <div className={`rounded-xl border p-2.5 ${isDark ? "border-[#2a2a2a]" : "border-[#FFDDD2]"}`}>
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex-1">
-                    <h4 className={`text-sm font-semibold ${text}`}>Track Trending Plays</h4>
+                    <h4 className={`text-sm font-bold ${text}`}>Track Trending Plays</h4>
                     <p className={`text-xs mt-1 ${muted}`}>
                       Automatically log songs played outside mood detection in your history.
                     </p>
@@ -552,7 +580,7 @@ function ProfileContent() {
                     onClick={handleToggleTrending}
                     disabled={updatingTrending}
                     whileTap={{ scale: 0.95 }}
-                    className={`relative flex-shrink-0 w-11 h-6 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed
+                    className={`relative flex-shrink-0 w-11 h-6 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed self-center
                       ${trackTrendingEnabled ? "bg-[#FF6B35]" : isDark ? "bg-[#2a2a2a]" : "bg-gray-300"}`}
                   >
                     <motion.div
@@ -570,10 +598,10 @@ function ProfileContent() {
               </div>
 
               {/* Track Playlist Toggle */}
-              <div className={`rounded-xl border p-4 ${isDark ? "border-[#2a2a2a]" : "border-[#FFDDD2]"}`}>
+              <div className={`rounded-xl border p-2.5 ${isDark ? "border-[#2a2a2a]" : "border-[#FFDDD2]"}`}>
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex-1">
-                    <h4 className={`text-sm font-semibold ${text}`}>Track Playlist Plays</h4>
+                    <h4 className={`text-sm font-bold ${text}`}>Track Playlist Plays</h4>
                     <p className={`text-xs mt-1 ${muted}`}>
                       Automatically log songs played from playlists in your history.
                     </p>
@@ -582,7 +610,7 @@ function ProfileContent() {
                     onClick={handleTogglePlaylist}
                     disabled={updatingPlaylist}
                     whileTap={{ scale: 0.95 }}
-                    className={`relative flex-shrink-0 w-11 h-6 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed
+                    className={`relative flex-shrink-0 w-11 h-6 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed self-center
                       ${trackPlaylistEnabled ? "bg-[#FF6B35]" : isDark ? "bg-[#2a2a2a]" : "bg-gray-300"}`}
                   >
                     <motion.div
@@ -599,17 +627,47 @@ function ProfileContent() {
                 </div>
               </div>
 
-              {/* Delete Account */}
-              <div className={`rounded-xl border p-4 ${isDark ? "border-red-900/40 bg-red-950/10" : "border-red-200 bg-red-50/50"}`}>
+              {/* Animations Toggle - Placeholder */}
+              <div className={`rounded-xl border p-2.5 ${isDark ? "border-[#2a2a2a]" : "border-[#FFDDD2]"}`}>
                 <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <h4 className="text-sm font-semibold text-red-500">Delete Account</h4>
-                    <p className={`text-xs mt-0.5 ${muted}`}>Permanently delete your account and all data.</p>
+                  <div className="flex-1">
+                    <h4 className={`text-sm font-bold ${text}`}>Animations</h4>
+                    <p className={`text-xs mt-1 ${muted}`}>
+                      Enable smooth transitions and motion effects throughout the app.
+                    </p>
+                  </div>
+                  <motion.button
+                    disabled={true}
+                    whileTap={{ scale: 0.95 }}
+                    className={`relative flex-shrink-0 w-11 h-6 rounded-full transition-colors opacity-50 cursor-not-allowed self-center
+                      ${isDark ? "bg-[#2a2a2a]" : "bg-gray-300"}`}
+                  >
+                    <motion.div
+                      animate={{ x: 2 }}
+                      transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                      className={`w-5 h-5 rounded-full absolute top-0.5 shadow-md
+                        ${isDark ? "bg-[#555]" : "bg-white"}`}
+                    />
+                  </motion.button>
+                </div>
+              </div>
+
+              {/* Delete Account */}
+              <div className={`rounded-xl border p-2.5 ${isDark ? "border-red-900/40 bg-red-950/10" : "border-red-200 bg-red-50/50"}`}>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex-1">
+                    <h4 className="text-sm font-bold text-red-500">Delete Account</h4>
+                    <p className={`text-xs mt-1 ${muted}`}>Permanently delete your account and all data.</p>
+                    {user?.providerData.some(p => p.providerId === "google.com") && (
+                      <p className={`text-xs mt-1.5 ${isDark ? "text-orange-400" : "text-orange-600"}`}>
+                        ⚠️ You&apos;ll need to confirm via Google popup
+                      </p>
+                    )}
                   </div>
                   <motion.button
                     whileTap={{ scale: 0.95 }}
                     onClick={() => { setDeleteConfirm(true); setDeleteError(null); setDeletePassword(""); }}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-red-500 text-red-500 text-xs font-semibold transition-colors hover:bg-red-500 hover:text-white flex-shrink-0"
+                    className="flex items-center gap-1.5 px-2 py-1.5 rounded-xl border border-red-500 text-red-500 text-xs font-semibold transition-colors hover:bg-red-500 hover:text-white flex-shrink-0 self-center"
                   >
                     <Trash2 size={13} /> Delete
                   </motion.button>
@@ -620,7 +678,43 @@ function ProfileContent() {
           </motion.section>
 
         </div>{/* end right column */}
-      </div>{/* end main flex container */}
+      </div>{/* end two column layout */}
+
+      {/* ── Feedback Section (Full Width Below Columns) ── */}
+      <motion.section
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.35, delay: 0.2, ease: "easeOut" }}
+        className={`rounded-2xl border p-4 transition-colors ${card}`}
+      >
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3 flex-1 min-w-0">
+            <div className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl ${isDark ? "bg-[#1a1a1a]" : "bg-[#FFDDD2]"}`}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 text-[#FF6B35]">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+              </svg>
+            </div>
+            <div className="flex-1 min-w-0">
+              <h3 className={`text-sm font-bold ${text}`}>Send Feedback</h3>
+              <p className={`text-xs mt-0.5 ${muted}`}>
+                Help us improve MoodiFy! Share your thoughts, report bugs, or suggest new features
+              </p>
+            </div>
+          </div>
+          <a
+            href="https://mail.google.com/mail/?view=cm&fs=1&to=notification.moodify@gmail.com&su=MoodiFy%20Feedback"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex-shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#FF6B35] hover:bg-[#e85d2a] text-white text-xs font-semibold transition-all hover:scale-105 shadow-sm shadow-[#FF6B35]/20"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+              <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+              <polyline points="22,6 12,13 2,6" />
+            </svg>
+            Email Us
+          </a>
+        </div>
+      </motion.section>
 
       {/* ── Delete Confirm Modal ── */}
       <AnimatePresence>
@@ -648,6 +742,12 @@ function ProfileContent() {
                 <div>
                   <p className={`text-base font-bold ${text}`}>Delete Account?</p>
                   <p className={`text-xs mt-0.5 ${muted}`}>This will permanently erase all your data.</p>
+                  {user?.providerData.some(p => p.providerId === "google.com") && (
+                    <p className={`text-xs mt-2 ${isDark ? "text-orange-400" : "text-orange-600"} flex items-center gap-1`}>
+                      <AlertCircle size={12} />
+                      You&apos;ll see a Google popup to verify this action
+                    </p>
+                  )}
                 </div>
               </div>
               <AnimatePresence>
@@ -673,6 +773,15 @@ function ProfileContent() {
                     ${isDark ? "bg-[#1a1a1a] border-[#2a2a2a] text-white placeholder-[#555] focus:border-red-500" : "bg-[#FFF5F0] border-[#FFDDD2] text-[#3a2a20] placeholder-[#bbb] focus:border-red-400"}`}
                 />
               )}
+              
+              {/* Info for Google users */}
+              {user?.providerData.some(p => p.providerId === "google.com") && (
+                <div className={`px-4 py-3 rounded-xl text-xs leading-relaxed ${isDark ? "bg-[#1a1a1a] text-[#aaa]" : "bg-[#FFF5F0] text-[#7A6055]"}`}>
+                  <strong className="text-orange-500">⚠️ Security Verification Required</strong><br/>
+                  After clicking &quot;Delete&quot;, you&apos;ll see a Google sign-in popup. <strong>This is normal</strong> - select your account to confirm the deletion. This is a security requirement by Firebase.
+                </div>
+              )}
+              
               <div className="flex gap-3">
                 <motion.button
                   whileTap={{ scale: 0.97 }}

@@ -1,7 +1,6 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import {
   onAuthStateChanged,
   signInWithEmailAndPassword,
@@ -36,7 +35,6 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [userPhotoURL, setUserPhotoURL] = useState<string | null>(null);
@@ -245,10 +243,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       toast.success("Account deleted", {
         description: "Your account and all data have been permanently deleted",
+        duration: 2000,
       });
       
-      // FIX 3: Replace history so user cannot use the Back button
-      router.replace("/");
+      // Force hard redirect to landing page (clears all state)
+      window.location.href = "/";
     } catch (error: unknown) {
       const firebaseError = error as { message?: string };
       toast.error("Failed to delete account", {

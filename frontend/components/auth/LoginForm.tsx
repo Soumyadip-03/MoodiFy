@@ -6,6 +6,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
 import { Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
+import { sendSignInNotification } from "@/lib/emailNotifications";
 
 export default function LoginForm() {
   const router = useRouter();
@@ -26,6 +27,13 @@ export default function LoginForm() {
     setLoading(true);
     try {
       await signInWithEmail(email, password);
+      
+      // Send sign-in notification (non-blocking)
+      const displayName = email.split("@")[0];
+      sendSignInNotification(email, displayName).catch(err => 
+        console.error("Sign-in notification failed:", err)
+      );
+      
       // Use Next.js router for client-side navigation to preserve sessionStorage
       await router.push("/home");
       

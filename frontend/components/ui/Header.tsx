@@ -3,13 +3,12 @@
 import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
 import { useRouter, usePathname } from "next/navigation";
-import { ChevronDown, LogOut, Crown } from "lucide-react";
+import { ChevronDown, LogOut } from "lucide-react";
 import ThemeToggle from "@/components/ui/ThemeToggle";
 import Link from "next/link";
 import Image from "next/image";
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useSpotify } from "@/hooks/useSpotify";
 
 const NAV_LINKS = [
   { label: "Home", href: "/home" },
@@ -23,7 +22,6 @@ export default function Header() {
   const router = useRouter();
   const pathname = usePathname();
   const isDark = theme === "dark";
-  const { isPremium } = useSpotify();
 
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -115,9 +113,7 @@ export default function Header() {
             className="flex items-center gap-2 group"
           >
             <div className="relative">
-              <div className={`w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-semibold overflow-hidden ${
-                isPremium ? "ring-2 ring-yellow-400 ring-offset-1 ring-offset-transparent" : ""
-              } ${isDark ? "bg-[#5a3e2b]" : "bg-[#FF6B35]"}`}>
+              <div className={`w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-semibold overflow-hidden ${isDark ? "bg-[#5a3e2b]" : "bg-[#FF6B35]"}`}>
                 {loading ? (
                   <span className="w-9 h-9 rounded-full animate-pulse bg-white/20" />
                 ) : avatarUrl ? (
@@ -127,11 +123,6 @@ export default function Header() {
                   avatarLetter
                 )}
               </div>
-              {isPremium && (
-                <div className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-yellow-400 flex items-center justify-center animate-pulse">
-                  <Crown size={9} className="text-yellow-900" fill="currentColor" />
-                </div>
-              )}
             </div>
             <span className={`text-sm font-medium hidden sm:block ${isDark ? "text-white" : "text-[#7A6055]"}`}>
               {user?.displayName?.split(" ")[0] || user?.email?.split("@")[0]}
@@ -158,19 +149,12 @@ export default function Header() {
               {/* User Info Header */}
               <div className={`px-4 py-3 border-b ${isDark ? "border-[#2a2a2a] bg-[#0a0a0a]" : "border-[#FFDDD2] bg-[#FFF5F0]"}`}>
                 <div className="flex items-center gap-2.5">
-                  <div className={`relative w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-semibold overflow-hidden flex-shrink-0 ${
-                    isPremium ? "ring-2 ring-yellow-400 ring-offset-1 ring-offset-transparent" : ""
-                  } ${isDark ? "bg-[#5a3e2b]" : "bg-[#FF6B35]"}`}>
+                  <div className={`relative w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-semibold overflow-hidden flex-shrink-0 ${isDark ? "bg-[#5a3e2b]" : "bg-[#FF6B35]"}`}>
                     {avatarUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={avatarUrl} alt="avatar" className="w-10 h-10 object-cover" referrerPolicy="no-referrer" />
                     ) : (
                       avatarLetter
-                    )}
-                    {isPremium && (
-                      <div className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-yellow-400 flex items-center justify-center">
-                        <Crown size={9} className="text-yellow-900" fill="currentColor" />
-                      </div>
                     )}
                   </div>
                   <div className="flex-1 min-w-0">

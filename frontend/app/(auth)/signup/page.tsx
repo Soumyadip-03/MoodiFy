@@ -10,6 +10,7 @@ import GoogleSignInButton from "@/components/auth/GoogleSignInButton";
 import ThemeToggle from "@/components/ui/ThemeToggle";
 import { Eye, EyeOff, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
+import { sendWelcomeEmail } from "@/lib/emailNotifications";
 
 export default function SignupPage() {
   const router = useRouter();
@@ -32,6 +33,12 @@ export default function SignupPage() {
     setLoading(true);
     try {
       await signUpWithEmail(email, password, displayName);
+      
+      // Send welcome email (non-blocking)
+      sendWelcomeEmail(email, displayName).catch(err => 
+        console.error("Welcome email failed:", err)
+      );
+      
       // Use Next.js router for client-side navigation to preserve sessionStorage
       await router.push("/home");
       

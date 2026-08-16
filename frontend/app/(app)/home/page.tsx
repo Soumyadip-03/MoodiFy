@@ -21,6 +21,7 @@ import {
 } from "@/lib/firestore";
 import { doc, updateDoc, increment } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { PLAYLIST_ICONS } from "@/utils/moodIcons";
 
 const LANGUAGES = ["ENGLISH", "HINDI", "BENGALI", "KOREAN"];
 
@@ -30,7 +31,7 @@ export default function HomePage() {
   const isDark = theme === "dark";
 
   const { videoRef, canvasRef, status, result, error, analyzingStatus, startDetection, stopDetection } = useFaceDetection();
-  const { fetchRecommendations, fetchTopTracks } = useSpotify();
+  const { fetchRecommendations, fetchTopTracks, connected } = useSpotify();
   const { openAlbum, registerPlayAlbumHandler } = useArtistAlbum();
   const { activeTrack, currentQueue, isPlaying, likedTrackIds, togglePlayRef, setQueue, setActiveTrack, toggleLike, lockedMood, setLockedMood, setCurrentMoodHistoryId, selectedLangs, setSelectedLangs, playAlbumTrack } = usePlayer();
   const [langOpen, setLangOpen] = useState(false);
@@ -106,24 +107,12 @@ export default function HomePage() {
     registerPlayAlbumHandler((track, queue, source) => playAlbumTrack(track, queue, source));
   }, [registerPlayAlbumHandler, playAlbumTrack]);
 
-  // Fetch trending tracks — cache for 10 minutes so shuffle refreshes periodically
+  // Fetch trending tracks
   useEffect(() => {
     if (!user?.uid) return;
-    const cacheKey = `moodify-trending-${user.uid}`;
-    const cached = sessionStorage.getItem(cacheKey);
-    if (cached) {
-      try {
-        const { tracks, ts } = JSON.parse(cached) as { tracks: SpotifyTrack[]; ts: number };
-        if (tracks.length && Date.now() - ts < 10 * 60 * 1000) {
-          setRecommendedTracks(tracks);
-          return;
-        }
-      } catch { /* fall through */ }
-    }
     fetchTopTracks().then(tracks => {
       if (tracks.length) {
         setRecommendedTracks(tracks);
-        sessionStorage.setItem(cacheKey, JSON.stringify({ tracks, ts: Date.now() }));
       }
     });
   }, [user?.uid]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -191,19 +180,22 @@ export default function HomePage() {
   }, []);
 
   const handleStart = useCallback(async () => {
-    toast.info("Starting face detection...", {
-      description: "Please look at the camera",
-      duration: 2000,
-    });
+    // Auto-pause any playing music before detection starts
+    if (isPlaying) {
+      togglePlayRef.current?.();
+    }
     
     const success = await startDetection();
-    if (!success) {
-      toast.error("Failed to start detection", {
-        description: error || "Please check camera permissions",
-        duration: 3000,
+    
+    // Only show "starting" toast if camera access was granted
+    if (success) {
+      toast.info("Starting face detection...", {
+        description: "Please look at the camera",
+        duration: 2000,
       });
     }
-  }, [startDetection, error]);
+    // Error toasts are already handled in useFaceDetection hook
+  }, [startDetection, isPlaying, togglePlayRef]);
 
   const handleTogglePlay = useCallback(() => { togglePlayRef.current?.(); }, [togglePlayRef]);
   const handleGoToAlbum = useCallback((albumId: string) => openAlbum(albumId), [openAlbum]);
@@ -256,6 +248,7 @@ export default function HomePage() {
     });
     
     setLoadingTracks(true);
+    // Fetch fresh tracks (no cache)
     fetchRecommendations(lockedResult.mood, selectedLangs).then(tracks => {
       if (tracks.length) {
         setQueue(tracks, tracks[0]);
@@ -304,20 +297,95 @@ export default function HomePage() {
           <p className={`text-sm text-center font-medium ${isDark ? "text-white" : "text-[#3a2a20]"}`}>
             Welcome, {user?.displayName || user?.email}
           </p>
+          
+          {/* Premium Account Warning - Only show if Spotify not connected */}
+          {!connected && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.3 }}
+              className={`rounded-xl border p-3 flex items-start gap-2.5 ${
+                isDark 
+                  ? "bg-amber-950/20 border-amber-900/40" 
+                  : "bg-amber-50 border-amber-200"
+              }`}
+            >
+              <AlertCircle 
+                size={18} 
+                className={`flex-shrink-0 mt-0.5 ${isDark ? "text-amber-400" : "text-amber-600"}`}
+              />
+              <div className="flex-1 min-w-0">
+                <p className={`text-xs font-semibold ${isDark ? "text-amber-400" : "text-amber-700"}`}>
+                  Premium Spotify Required
+                </p>
+                <p className={`text-xs mt-1 leading-relaxed ${isDark ? "text-amber-400/80" : "text-amber-600"}`}>
+                  MoodiFy requires a Spotify Premium account to play music. Free accounts are not supported.
+                </p>
+              </div>
+            </motion.div>
+          )}
 
           {/* Webcam */}
-          <div className={`relative w-full rounded-xl overflow-hidden flex-1 min-h-0 ${isDark ? "bg-[#1a1a1a]" : "bg-[#e0e0e0]"}`}>
-            <video ref={videoRef} className="w-full h-full object-cover" muted playsInline />
+          <div className={`relative w-full rounded-xl overflow-hidden flex-1 min-h-0 ${
+            lockedResult?.mood === "romantic" && !isDetecting
+              ? "bg-gradient-to-br from-pink-50 via-rose-50 to-pink-100" 
+              : isDark ? "bg-[#1a1a1a]" : "bg-[#e0e0e0]"
+          }`}>
+            <video ref={videoRef} className={`w-full h-full object-cover ${
+              lockedResult?.mood === "romantic" && !isDetecting ? "mix-blend-multiply opacity-90" : ""
+            }`} muted playsInline />
             <canvas ref={canvasRef} className="hidden" />
-            {status === "idle" && !isCameraError && (
-              <div className={`absolute inset-0 flex items-center justify-center text-sm ${isDark ? "text-[#555]" : "text-[#999]"}`}>Camera Off</div>
+            
+            {/* Subtle pinkish overlay for romantic mood */}
+            {lockedResult?.mood === "romantic" && !isDetecting && (
+              <div className="absolute inset-0 bg-gradient-to-br from-pink-200/20 via-transparent to-rose-200/20 pointer-events-none" />
             )}
+            
+            {/* Gesture Guide Overlay (Shows when not detecting) */}
+            {status === "idle" && !isCameraError && (
+              <div className={`absolute inset-0 flex flex-col items-center justify-center p-4 ${isDark ? "bg-black/60" : "bg-white/80"} backdrop-blur-sm`}>
+                <div className="flex items-center gap-2 mb-3">
+                  <PLAYLIST_ICONS.info size={16} className={isDark ? "text-[#4A90E2]" : "text-[#3B82F6]"} />
+                  <p className={`text-xs font-semibold ${isDark ? "text-white" : "text-[#3a2a20]"}`}>Gesture Guide</p>
+                </div>
+                <div className="flex flex-col gap-2 text-xs">
+                  <div className="flex items-center gap-2">
+                    <span className="text-2xl">😊</span>
+                    <span className={isDark ? "text-[#ccc]" : "text-[#7A6055]"}>Smile → Happy Songs</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-2xl">😮</span>
+                    <span className={isDark ? "text-[#ccc]" : "text-[#7A6055]"}>Surprised → Upbeat Songs</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-2xl">😐</span>
+                    <span className={isDark ? "text-[#ccc]" : "text-[#7A6055]"}>Neutral → Chill Songs</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-2xl">😢</span>
+                    <span className={isDark ? "text-[#ccc]" : "text-[#7A6055]"}>Sad → Melancholy Songs</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-2xl">😠</span>
+                    <span className={isDark ? "text-[#ccc]" : "text-[#7A6055]"}>Angry → Intense Songs</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-2xl">🫶</span>
+                    <span className={`font-semibold ${isDark ? "text-pink-400" : "text-pink-600"}`}>Heart Gesture → Romantic Songs</span>
+                  </div>
+                </div>
+              </div>
+            )}
+            
             {isCameraError && (
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
                 <AlertCircle size={32} className="text-red-500" />
                 <p className="text-xs text-red-400 text-center px-4">Camera access denied</p>
               </div>
             )}
+            
+            {/* Live indicator */}
             {isDetecting && (
               <div className="absolute top-2 right-2 flex items-center gap-1.5 bg-black/50 px-2.5 py-1 rounded-full">
                 <span className="w-2 h-2 rounded-full bg-[#FF6B35] animate-pulse" />
@@ -327,6 +395,91 @@ export default function HomePage() {
                     : "Live"}
                 </span>
               </div>
+            )}
+            
+            {/* Romantic Mood Heartbeat Effect */}
+            {lockedResult?.mood === "romantic" && !isDetecting && (
+              <>
+                {/* Falling Cherry Blossoms (Japanese Style) */}
+                <div className="absolute inset-0 overflow-hidden pointer-events-none">
+                  {[...Array(25)].map((_, i) => (
+                    <motion.div
+                      key={i}
+                      className="absolute"
+                      style={{
+                        left: `${Math.random() * 100}%`,
+                      }}
+                      initial={{ 
+                        top: -40, 
+                        opacity: 0.9,
+                        rotate: Math.random() * 360,
+                        x: 0,
+                      }}
+                      animate={{
+                        top: "100%",
+                        opacity: [0, 0.9, 0.85, 0.8, 0.75, 0.7, 0.5],
+                        rotate: [
+                          Math.random() * 360,
+                          Math.random() * 360 + 180,
+                          Math.random() * 360 + 360,
+                        ],
+                        x: [
+                          0,
+                          Math.sin(i) * 30,
+                          Math.sin(i + 1) * -20,
+                          Math.sin(i + 2) * 40,
+                        ],
+                      }}
+                      transition={{
+                        duration: 5 + Math.random() * 4,
+                        delay: i * 0.3,
+                        repeat: Infinity,
+                        ease: "linear",
+                      }}
+                    >
+                      {/* Realistic Cherry Blossom Petal SVG */}
+                      <svg width="22" height="22" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        {/* Petal 1 - Top */}
+                        <ellipse cx="16" cy="8" rx="4" ry="7" fill="#FFB3D9" transform="rotate(-18 16 16)" />
+                        {/* Petal 2 - Top Right */}
+                        <ellipse cx="24" cy="12" rx="4" ry="7" fill="#FFC0E0" transform="rotate(54 16 16)" />
+                        {/* Petal 3 - Bottom Right */}
+                        <ellipse cx="22" cy="22" rx="4" ry="7" fill="#FFCCE8" transform="rotate(126 16 16)" />
+                        {/* Petal 4 - Bottom Left */}
+                        <ellipse cx="10" cy="22" rx="4" ry="7" fill="#FFD8ED" transform="rotate(198 16 16)" />
+                        {/* Petal 5 - Top Left */}
+                        <ellipse cx="8" cy="12" rx="4" ry="7" fill="#FFE0F0" transform="rotate(270 16 16)" />
+                        {/* Center */}
+                        <circle cx="16" cy="16" r="3" fill="#FFEB99" />
+                        <circle cx="16" cy="16" r="2" fill="#FFD700" />
+                        {/* Stamen dots */}
+                        <circle cx="16" cy="14" r="0.8" fill="#FF6B9D" />
+                        <circle cx="17.5" cy="15.5" r="0.8" fill="#FF6B9D" />
+                        <circle cx="14.5" cy="15.5" r="0.8" fill="#FF6B9D" />
+                        <circle cx="16" cy="17" r="0.8" fill="#FF6B9D" />
+                      </svg>
+                    </motion.div>
+                  ))}
+                </div>
+                
+                {/* Heartbeat Effect */}
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                  <motion.div
+                    className="text-8xl drop-shadow-2xl"
+                    animate={{
+                      scale: [1, 1.2, 1],
+                      opacity: [0.8, 1, 0.8],
+                    }}
+                    transition={{
+                      duration: 1.2,
+                      repeat: Infinity,
+                      ease: "easeInOut",
+                    }}
+                  >
+                    ❤️
+                  </motion.div>
+                </div>
+              </>
             )}
           </div>
 

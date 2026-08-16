@@ -9,7 +9,6 @@ const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
 export function useSpotify() {
   const { user } = useAuth();
   const [connected, setConnected] = useState(false);
-  const [isPremium, setIsPremium] = useState(false);
   const [connecting, setConnecting] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -24,7 +23,6 @@ export function useSpotify() {
         .then(r => r.json())
         .then(data => {
           setConnected(Boolean(data.connected));
-          setIsPremium(Boolean(data.isPremium));
           setError(null);
         })
         .catch(() => setError("Failed to check Spotify status"))
@@ -41,8 +39,9 @@ export function useSpotify() {
 
   const fetchTopTracks = useCallback(async (): Promise<SpotifyTrack[]> => {
     try {
-      const uid = user?.uid ?? "";
-      const res = await fetch(`${BACKEND}/api/spotify/top-tracks${uid ? `?uid=${uid}` : ""}`);
+      const uid = user?.uid;
+      if (!uid) return [];
+      const res = await fetch(`${BACKEND}/api/spotify/top-tracks?uid=${uid}`);
       if (!res.ok) throw new Error();
       const data = await res.json();
       return Array.isArray(data.tracks) ? (data.tracks as SpotifyTrack[]) : [];
@@ -52,15 +51,17 @@ export function useSpotify() {
   }, [user]);
 
   const fetchRecommendations = useCallback(async (mood: string, languages: string[] = []): Promise<SpotifyTrack[]> => {
-    if (!mood) return [];
+    if (!mood || !user?.uid) return [];
+    
     try {
-      const uid = user?.uid ?? "";
-      const params = new URLSearchParams({ mood, uid });
+      const params = new URLSearchParams({ mood, uid: user.uid });
       if (languages.length) params.set("languages", languages.join(","));
       const res = await fetch(`${BACKEND}/api/spotify/recommendations?${params}`);
       if (!res.ok) throw new Error("Failed to fetch recommendations");
       const data = await res.json();
-      return Array.isArray(data.tracks) ? (data.tracks as SpotifyTrack[]) : [];
+      const tracks = Array.isArray(data.tracks) ? (data.tracks as SpotifyTrack[]) : [];
+      
+      return tracks;
     } catch {
       setError("Could not load recommendations");
       return [];
@@ -71,8 +72,7 @@ export function useSpotify() {
     if (!user) return;
     await fetch(`${BACKEND}/api/spotify/disconnect?uid=${encodeURIComponent(user.uid)}`, { method: "DELETE" });
     setConnected(false);
-    setIsPremium(false);
   }, [user]);
 
-  return { connected, connecting, isPremium, error, connectSpotify, disconnectSpotify, fetchRecommendations, fetchTopTracks };
+  return { connected, connecting, error, connectSpotify, disconnectSpotify, fetchRecommendations, fetchTopTracks };
 }

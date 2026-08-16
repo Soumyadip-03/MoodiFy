@@ -18,3 +18,6 @@ requests>=2.31.0
 
 # WebSocket support (included in uvicorn[standard])
 websockets==12.0
+
+# Production ASGI server
+gunicorn==21.2.0
