@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
 import os
 import time
@@ -34,6 +35,15 @@ app.include_router(mood_router)
 app.include_router(spotify_router)
 app.include_router(email_router)
 
+# Mount static files for Google verification
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+# Serve Google verification file at root
+@app.get("/googleffd3ba6cffc26575.html")
+def google_verification():
+    from fastapi.responses import FileResponse
+    return FileResponse("static/googleffd3ba6cffc26575.html")
+
 
 @app.get("/api/health")
 def health_check():
@@ -54,4 +64,8 @@ def health_check():
 
 @app.get("/")
 def root():
-    return {"status": "Moodify API running"}
+    return {
+        "status": "Moodify API running",
+        "version": "v1.1.0-refresh-fix",
+        "timestamp": "2026-09-04T19:10:00Z"
+    }

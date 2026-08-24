@@ -1,6 +1,7 @@
 # Python
 venv/
 backend/venv/
+backend/antenv/
 __pycache__/
 *.pyc
 *.pyo
@@ -10,10 +11,18 @@ backend/.env
 backend/.env.production
 backend/.env.local
 
+# Pre-built virtual environments (Azure builds these)
+backend/output.tar.zst
+backend/antenv.tar.gz
+backend/oryx-manifest.toml
+backend/backend-deploy.zip
+backend/.deployment
+
 # Admin Panel (sensitive)
 backend/Admin/
 
 # Node
+node_modules/
 frontend/node_modules/
 frontend/.next/
 frontend/.env.local
@@ -31,6 +40,16 @@ serviceAccountKey.json
 # Deployment credentials (contains secrets)
 DEPLOYMENT_CREDENTIALS.md
 TODO.md
+AZURE_DEPLOYMENT_GUIDE.md
+DEPLOYMENT_PLAN.md
+
+# Temporary files
+*.bak
+*.tmp
+*.temp
+backend/startup.txt
+backend/oryx-build-commands.txt
+backend/test_*.py
 
 # OS
 .DS_Store
@@ -40,6 +59,7 @@ Thumbs.db
 # IDE
 .vscode/
 .idea/
+.kiro/
 
 # Logs
 *.log

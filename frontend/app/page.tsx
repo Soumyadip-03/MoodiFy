@@ -177,7 +177,7 @@ const stagger = {
 
 const CREDITS_IMAGES = [
   { src: "/credits/Home.jpeg",              label: "Home — Mood Detection" },
-  { src: "/credits/Playlist.jpeg",          label: "Playlist Page" },
+  { src: "/credits/PlayList.jpeg",          label: "Playlist Page" },
   { src: "/credits/History.jpeg",           label: "History Page" },
   { src: "/credits/MoodRoom.jpeg",         label: "Mood Room" },
   { src: "/credits/Logo.svg",              label: "Brand Logo" },
