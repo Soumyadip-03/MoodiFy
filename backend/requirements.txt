@@ -21,3 +21,7 @@ websockets==12.0
 
 # Production ASGI server
 gunicorn==21.2.0
+
+# Azure-specific requirements
+onnxruntime>=1.16.0
+Pillow>=10.0.0

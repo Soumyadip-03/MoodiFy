@@ -1,6 +1,7 @@
 # Python
 venv/
 backend/venv/
+backend/antenv/
 __pycache__/
 *.pyc
 *.pyo
@@ -9,6 +10,11 @@ __pycache__/
 backend/.env
 backend/.env.production
 backend/.env.local
+
+# Pre-built virtual environments (Azure builds these)
+backend/output.tar.zst
+backend/antenv.tar.gz
+backend/oryx-manifest.toml
 
 # Admin Panel (sensitive)
 backend/Admin/

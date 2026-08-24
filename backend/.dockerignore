@@ -1,0 +1,53 @@
+# Python bytecode and cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual environments (huge, rebuilt in container)
+venv/
+env/
+ENV/
+antenv/
+
+# IDE files (not needed in production)
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Testing files (not needed in production)
+.pytest_cache/
+.coverage
+htmlcov/
+test_*.py
+
+# Local development files (secrets should be in Azure env vars)
+.env
+.env.local
+.env.production
+*.log
+
+# Azure deployment artifacts (generated files)
+backend-deploy.zip
+output.tar.zst
+antenv.tar.gz
+oryx-manifest.toml
+
+# Git files (no need for git inside container)
+.git/
+.gitignore
+.gitattributes
+
+# Documentation (reduces image size)
+README.md
+*.md
+DEPLOYMENT_PLAN.md
+
+# Admin panel (sensitive, should be in .gitignore too)
+Admin/
+
+# Development scripts (not needed in production)
+setup_enhanced_detection.py
+test_enhanced_detection.py
