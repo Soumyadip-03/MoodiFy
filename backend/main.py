@@ -54,4 +54,8 @@ def health_check():
 
 @app.get("/")
 def root():
-    return {"status": "Moodify API running"}
+    return {
+        "status": "Moodify API running",
+        "version": "v1.1.0-refresh-fix",
+        "timestamp": "2026-09-04T19:10:00Z"
+    }
