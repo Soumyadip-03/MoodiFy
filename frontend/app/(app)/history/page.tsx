@@ -637,36 +637,36 @@ export default function HistoryPage() {
             <AnimatePresence>
               {calOpen && (
                 <motion.div
-                  initial={{ opacity: 0, y: -6, scaleY: 0.95 }}
-                  animate={{ opacity: 1, y: 0, scaleY: 1 }}
-                  exit={{ opacity: 0, y: -4, scaleY: 0.97 }}
-                  transition={{ duration: 0.15, ease: "easeOut" }}
-                  style={{ transformOrigin: "top" }}
-                  className={`absolute top-full left-0 right-0 mt-1 rounded-2xl border shadow-2xl z-50 p-4 ${
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className={`absolute top-full left-0 right-0 mt-2 rounded-2xl border shadow-2xl z-50 p-4 ${
                     isDark ? "bg-[#111] border-[#2a2a2a]" : "bg-white border-[#FFDDD2]"
                   }`}
                 >
                   <div className="flex gap-3 mb-4">
-                    <div className="flex-1">
+                    <div className="flex-1 min-w-0">
                       <p className={`text-xs mb-1 ${muted}`}>Month</p>
                       <select
                         value={calMonth}
                         onChange={(e) => setCalMonth(Number(e.target.value))}
-                        className={`w-full px-2 py-1.5 rounded-lg border text-sm ${
+                        className={`w-full pl-1.5 pr-5 py-1 sm:px-2 sm:py-1.5 rounded-lg border text-[11px] sm:text-sm appearance-none outline-none ${
                           isDark ? "bg-[#1a1a1a] border-[#2a2a2a] text-white" : "bg-[#FFF5F0] border-[#FFDDD2] text-[#3a2a20]"
                         }`}
+                        style={{ backgroundSize: "10px", backgroundPosition: "right 4px center", backgroundRepeat: "no-repeat", backgroundImage: `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='${isDark ? '%23aaaaaa' : '%237A6055'}' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'></polyline></svg>")` }}
                       >
                         {MONTHS.map((m, i) => <option key={m} value={i}>{m}</option>)}
                       </select>
                     </div>
-                    <div className="flex-1">
-                      <p className={`text-xs mb-1 ${muted}`}>Year</p>
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-[10px] sm:text-xs mb-1 ${muted}`}>Year</p>
                       <select
                         value={calYear}
                         onChange={(e) => setCalYear(Number(e.target.value))}
-                        className={`w-full px-2 py-1.5 rounded-lg border text-sm ${
+                        className={`w-full pl-1.5 pr-5 py-1 sm:px-2 sm:py-1.5 rounded-lg border text-[11px] sm:text-sm appearance-none outline-none ${
                           isDark ? "bg-[#1a1a1a] border-[#2a2a2a] text-white" : "bg-[#FFF5F0] border-[#FFDDD2] text-[#3a2a20]"
                         }`}
+                        style={{ backgroundSize: "10px", backgroundPosition: "right 4px center", backgroundRepeat: "no-repeat", backgroundImage: `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='${isDark ? '%23aaaaaa' : '%237A6055'}' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'></polyline></svg>")` }}
                       >
                         {Array.from({ length: 5 }, (_, i) => today.getFullYear() - 2 + i).map((y) => (
                           <option key={y} value={y}>{y}</option>

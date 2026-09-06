@@ -48,7 +48,7 @@ def _get_mood_playlist_id(mood: str, language: str = "") -> str:
     return os.getenv(f"MOOD_PLAYLIST_{mood.upper()}", "")
 
 
-def _get_trending_playlist_id() -> str:
+def get_trending_playlist_id() -> str:
     return os.getenv("MOOD_PLAYLIST_TRENDING", "")
 
 
@@ -58,10 +58,11 @@ def _auth_header() -> str:
 
 
 async def get_playlist_tracks(playlist_id: str, user_token: str, mood: str, fetch_limit: int = 100) -> list:
-    """Fetch tracks from a playlist with a random offset for variety."""
+    """Fetch tracks from a playlist with multiple random offsets for maximum variety."""
     if not playlist_id or playlist_id == "PLACEHOLDER_ID" or not user_token:
         return []
     import random
+    import asyncio
     async with httpx.AsyncClient() as client:
         meta = await client.get(
             f"{SPOTIFY_API_BASE}/playlists/{playlist_id}",
@@ -69,26 +70,46 @@ async def get_playlist_tracks(playlist_id: str, user_token: str, mood: str, fetc
             params={"fields": "tracks.total"},
         )
         total = meta.json().get("tracks", {}).get("total", 100) if meta.is_success else 100
-        max_offset = max(0, total - fetch_limit)
-        offset = random.randint(0, max_offset) if max_offset > 0 else 0
-        resp = await client.get(
-            f"{SPOTIFY_API_BASE}/playlists/{playlist_id}/items",
-            headers={"Authorization": f"Bearer {user_token}"},
-            params={"limit": fetch_limit, "offset": offset},
-        )
-    if not resp.is_success:
-        return []
-    items = resp.json().get("items", [])
+        
+        # We will split the playlist into num_chunks segments and pick a random offset within each
+        num_chunks = 4
+        chunk_size = max(1, fetch_limit // num_chunks)
+        
+        offsets = set()
+        # If total is smaller than fetch_limit, we just start at 0 and hope for the best
+        if total <= chunk_size:
+            offsets.add(0)
+        else:
+            segment_size = total // num_chunks
+            for i in range(num_chunks):
+                seg_start = i * segment_size
+                max_seg_offset = max(0, segment_size - chunk_size)
+                offsets.add(seg_start + random.randint(0, max_seg_offset))
+            
+        async def fetch_chunk(offset: int):
+            resp = await client.get(
+                f"{SPOTIFY_API_BASE}/playlists/{playlist_id}/items",
+                headers={"Authorization": f"Bearer {user_token}"},
+                params={"limit": chunk_size, "offset": offset},
+            )
+            return resp.json().get("items", []) if resp.is_success else []
+            
+        chunks = await asyncio.gather(*(fetch_chunk(o) for o in offsets))
+        
     tracks = []
-    for item in items:
-        try:
-            t = item.get("item") or item.get("track")
-            if t and t.get("id") and t.get("type") == "track":
-                tracks.append(_format_track(t, mood))
-        except Exception:
-            pass
+    seen_ids = set()
+    for chunk in chunks:
+        for item in chunk:
+            try:
+                t = item.get("item") or item.get("track")
+                if t and t.get("id") and t.get("type") == "track":
+                    if t["id"] not in seen_ids:
+                        tracks.append(_format_track(t, mood))
+                        seen_ids.add(t["id"])
+            except Exception:
+                pass
     random.shuffle(tracks)
-    return tracks
+    return tracks[:fetch_limit]
 
 
 def _db():

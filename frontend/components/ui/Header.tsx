@@ -51,17 +51,17 @@ export default function Header() {
         isDark ? "bg-[#000000]" : "bg-[#FFE8D6] backdrop-blur-sm"
       }`}
     >
-      <div className="mx-auto px-4 pt-3 pb-0 flex items-center justify-between">
+      <div className="mx-auto px-4 pt-3 pb-2 sm:pb-0 flex items-center justify-between gap-2">
       {/* Logo */}
-      <div className="flex items-center gap-2">
-        <Image src="/MoodiFy.svg" alt="MoodiFy logo" width={44} height={44} className="p-0" />
-        <span className="text-2xl font-pacifico text-[#FF6B35] select-none">MoodiFy</span>
+      <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+        <Image src="/MoodiFy.svg" alt="MoodiFy logo" width={44} height={44} className="w-8 h-8 sm:w-11 sm:h-11 p-0" />
+        <span className="text-lg sm:text-2xl font-pacifico text-[#FF6B35] select-none">MoodiFy</span>
       </div>
 
       {/* Nav Pill — hidden on profile and mood-room */}
       <nav
         style={{ visibility: (pathname.startsWith("/profile") || pathname.startsWith("/mood-room")) ? "hidden" : "visible" }}
-        className={`flex items-center rounded-full border px-1 py-1 ${
+        className={`hidden sm:flex items-center rounded-full border px-1 py-1 ${
           isDark ? "bg-[#1A1A1A] border-[#3a3a3a]" : "bg-[#ffffff] border-[#e2beb1]"
         }`}
       >
@@ -102,7 +102,7 @@ export default function Header() {
       </nav>
 
       {/* Right controls */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-1.5 sm:gap-3">
         {/* Theme toggle */}
         <ThemeToggle />
 
@@ -129,7 +129,7 @@ export default function Header() {
             </span>
             <ChevronDown
               size={14}
-              className={`transition-transform duration-200 ${dropdownOpen ? "rotate-180" : ""} ${
+              className={`hidden sm:block transition-transform duration-200 ${dropdownOpen ? "rotate-180" : ""} ${
                 isDark ? "text-[#aaa]" : "text-[#7A6055]"
               }`}
             />
@@ -222,6 +222,50 @@ export default function Header() {
         </div>
       </div>
       </div>
+
+      {/* Mobile nav row — only on small screens, hidden on profile / mood-room */}
+      {!pathname.startsWith("/profile") && !pathname.startsWith("/mood-room") && (
+        <div className="sm:hidden px-3 pb-2.5">
+          <nav className={`flex items-center justify-center rounded-full border px-1 py-1 ${
+            isDark ? "bg-[#1A1A1A] border-[#3a3a3a]" : "bg-[#ffffff] border-[#e2beb1]"
+          }`}>
+            {NAV_LINKS.map(({ label, href }, i) => {
+              const active = pathname === href || (href !== "/home" && pathname.startsWith(href));
+              return (
+                <div key={href} className="flex items-center">
+                  {i > 0 && (
+                    <span className={`px-1.5 text-sm select-none ${isDark ? "text-[#444]" : "text-[#FFDDD2]"}`}>|</span>
+                  )}
+                  <Link
+                    href={href}
+                    className={`relative px-6 py-1.5 rounded-full text-xs font-medium z-10 transition-colors duration-200 ${
+                      active
+                        ? "text-white"
+                        : isDark
+                        ? "text-[#aaa] hover:text-white"
+                        : "text-[#7A6055] hover:text-[#FF6B35]"
+                    }`}
+                  >
+                    {active && (
+                      <motion.span
+                        layoutId="nav-capsule-mobile"
+                        className="absolute inset-0 rounded-full bg-[#FF6B35] -z-10"
+                        transition={{
+                          type: "spring",
+                          stiffness: 180,
+                          damping: 10,
+                          mass: 0.6,
+                        }}
+                      />
+                    )}
+                    {label}
+                  </Link>
+                </div>
+              );
+            })}
+          </nav>
+        </div>
+      )}
     </header>
   );
 }

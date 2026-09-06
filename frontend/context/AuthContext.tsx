@@ -171,7 +171,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     
     // FIX 1: Safe sessionStorage cleanup (Prefix matching)
     Object.keys(sessionStorage)
-      .filter(k => k.startsWith("moodify-"))
+      .filter(k => k.startsWith("moodify"))
       .forEach(k => sessionStorage.removeItem(k));
     
     toast.success("Signed out successfully", {
@@ -180,7 +180,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     
     // Force hard reload to landing page to clear all Spotify player state
     // This prevents stale device IDs and ensures clean re-initialization on next sign-in
-    window.location.href = "/";
+    setTimeout(() => {
+      window.location.href = "/";
+    }, 1500);
   };
 
   const deleteAccount = async (password?: string) => {
@@ -202,10 +204,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const uid = currentUser.uid;
       
       // Fetch all documents to be deleted
-      const [playlistSnap, likedSnap, moodSnap] = await Promise.all([
+      const [playlistSnap, likedSnap, moodSnap, albumSnap] = await Promise.all([
         getDocs(collection(db, "userPlaylists", uid, "playlists")),
         getDocs(collection(db, "likedTracks", uid, "tracks")),
-        getDocs(query(collection(db, "moodHistory"), where("userId", "==", uid)))
+        getDocs(query(collection(db, "moodHistory"), where("userId", "==", uid))),
+        getDocs(collection(db, "savedAlbums", uid, "albums"))
       ]);
 
       // Combine all document references to delete
@@ -213,6 +216,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         ...playlistSnap.docs.map(d => d.ref),
         ...likedSnap.docs.map(d => d.ref),
         ...moodSnap.docs.map(d => d.ref),
+        ...albumSnap.docs.map(d => d.ref),
         doc(db, "users", uid) // Don't forget the user's main profile document
       ];
 
@@ -238,7 +242,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       // FIX 1: Safe sessionStorage cleanup for deletion
       Object.keys(sessionStorage)
-        .filter(k => k.startsWith("moodify-"))
+        .filter(k => k.startsWith("moodify"))
         .forEach(k => sessionStorage.removeItem(k));
       
       toast.success("Account deleted", {
@@ -247,7 +251,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
       
       // Force hard redirect to landing page (clears all state)
-      window.location.href = "/";
+      setTimeout(() => {
+        window.location.href = "/";
+      }, 1500);
     } catch (error: unknown) {
       const firebaseError = error as { message?: string };
       toast.error("Failed to delete account", {

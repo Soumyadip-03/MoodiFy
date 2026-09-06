@@ -143,6 +143,23 @@ a {
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4) !important;
 }
 
+@media (max-width: 640px) {
+  [data-sonner-toast] {
+    padding: 12px 14px !important;
+    font-size: 12px !important;
+    border-radius: 10px !important;
+  }
+  
+  [data-sonner-toast] [data-title] {
+    font-size: 14px !important;
+  }
+  
+  [data-sonner-toast] [data-description] {
+    font-size: 12px !important;
+    line-height: 1.4 !important;
+  }
+}
+
 /* Dark theme toasts - Black background with orange accents */
 [data-theme="dark"] [data-sonner-toast] {
   background: #111111 !important;

@@ -41,10 +41,28 @@ export function useSpotify() {
     try {
       const uid = user?.uid;
       if (!uid) return [];
+      
+      // Check session storage first
+      const cacheKey = `moodify_trending_${uid}`;
+      const cached = sessionStorage.getItem(cacheKey);
+      if (cached) {
+        try {
+          return JSON.parse(cached);
+        } catch (e) {
+          console.error("Failed to parse cached trending tracks", e);
+        }
+      }
+
       const res = await fetch(`${BACKEND}/api/spotify/top-tracks?uid=${uid}`);
       if (!res.ok) throw new Error();
       const data = await res.json();
-      return Array.isArray(data.tracks) ? (data.tracks as SpotifyTrack[]) : [];
+      const tracks = Array.isArray(data.tracks) ? (data.tracks as SpotifyTrack[]) : [];
+      
+      // Save to session storage
+      if (tracks.length > 0) {
+        sessionStorage.setItem(cacheKey, JSON.stringify(tracks));
+      }
+      return tracks;
     } catch {
       return [];
     }
@@ -72,6 +90,7 @@ export function useSpotify() {
     if (!user) return;
     await fetch(`${BACKEND}/api/spotify/disconnect?uid=${encodeURIComponent(user.uid)}`, { method: "DELETE" });
     setConnected(false);
+    sessionStorage.removeItem(`moodify_trending_${user.uid}`);
   }, [user]);
 
   return { connected, connecting, error, connectSpotify, disconnectSpotify, fetchRecommendations, fetchTopTracks };

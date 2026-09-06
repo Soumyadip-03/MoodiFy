@@ -7,6 +7,7 @@ import os
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from email.mime.application import MIMEApplication
 from typing import Optional, List
 from datetime import datetime
 
@@ -30,7 +31,8 @@ class EmailService:
         body_text: str,
         body_html: Optional[str] = None,
         cc: Optional[List[str]] = None,
-        bcc: Optional[List[str]] = None
+        bcc: Optional[List[str]] = None,
+        attachments: Optional[List[dict]] = None
     ) -> bool:
         """
         Send an email from MoodiFy official account
@@ -42,6 +44,7 @@ class EmailService:
             body_html: HTML body (optional)
             cc: CC recipients (optional)
             bcc: BCC recipients (optional)
+            attachments: List of dicts with 'filename' and 'content' (bytes)
         
         Returns:
             bool: True if sent successfully, False otherwise
@@ -52,7 +55,11 @@ class EmailService:
         
         try:
             # Create message
-            msg = MIMEMultipart('alternative')
+            msg = MIMEMultipart('mixed')  # Changed from 'alternative' to 'mixed' for attachments
+            
+            # Create alternative part for text/html
+            alt_part = MIMEMultipart('alternative')
+            
             msg['From'] = f"MoodiFy <{self.smtp_email}>"
             msg['To'] = to_email
             msg['Subject'] = subject
@@ -63,14 +70,23 @@ class EmailService:
             if bcc:
                 msg['Bcc'] = ', '.join(bcc)
             
-            # Attach plain text
+            # Attach plain text to alternative part
             part_text = MIMEText(body_text, 'plain', 'utf-8')
-            msg.attach(part_text)
+            alt_part.attach(part_text)
             
-            # Attach HTML if provided
+            # Attach HTML if provided to alternative part
             if body_html:
                 part_html = MIMEText(body_html, 'html', 'utf-8')
-                msg.attach(part_html)
+                alt_part.attach(part_html)
+                
+            msg.attach(alt_part)
+            
+            # Process attachments
+            if attachments:
+                for att in attachments:
+                    part = MIMEApplication(att['content'], Name=att['filename'])
+                    part['Content-Disposition'] = f'attachment; filename="{att["filename"]}"'
+                    msg.attach(part)
             
             # Build recipient list
             recipients = [to_email]
@@ -547,6 +563,58 @@ The MoodiFy Team
         """.strip()
         
         return self.send_email(user_email, subject, body_text, body_html)
+    
+    def send_feedback_email(
+        self,
+        user_email: str,
+        user_name: str,
+        message: str,
+        attachments: Optional[List[dict]] = None
+    ) -> bool:
+        """Send feedback email to the admin"""
+        subject = f"MoodiFy Feedback from {user_name}"
+        
+        body_text = f"""
+New feedback received!
+
+From: {user_name} ({user_email})
+
+Message:
+{message}
+        """.strip()
+        
+        body_html = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #FFF8F4; color: #3a2a20;">
+    <div style="max-width: 600px; margin: 40px auto; background: white; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.08);">
+        
+        <div style="background: linear-gradient(135deg, #FF6B35 0%, #f05a20 100%); padding: 24px; text-align: center;">
+            <div style="font-size: 28px; font-weight: 700; color: white;">
+                💬 Feedback Received
+            </div>
+        </div>
+        
+        <div style="padding: 32px 24px;">
+            <div style="font-size: 15px; color: #7A6055; margin-bottom: 16px;">
+                <strong>From:</strong> {user_name} (<a href="mailto:{user_email}" style="color: #FF6B35;">{user_email}</a>)
+            </div>
+            
+            <div style="background: #FFF5F0; border-radius: 8px; padding: 20px; margin: 20px 0; font-size: 15px; line-height: 1.6; color: #5a3e2b; white-space: pre-wrap;">
+{message}
+            </div>
+        </div>
+        
+    </div>
+</body>
+</html>
+        """.strip()
+        
+        return self.send_email(self.smtp_email, subject, body_text, body_html, attachments=attachments)
 
 
 # Singleton instance

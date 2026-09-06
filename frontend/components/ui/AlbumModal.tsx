@@ -2,15 +2,16 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { X, ArrowLeft, Play, Pause, Disc3, Plus, Check, ChevronDown } from "lucide-react";
+import { X, ArrowLeft, Play, Pause, Disc3, Heart, ChevronDown, MoreHorizontal, ListMusic, PlusSquare } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useTheme } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
 import { useArtistAlbum } from "@/context/ArtistAlbumContext";
 import { usePlayer } from "@/context/PlayerContext";
 import ModalSkeleton from "@/components/ui/ModalSkeleton";
-import { getSavedAlbums, saveAlbumToFirestore, removeSavedAlbum } from "@/lib/firestore";
-import type { SpotifyTrack } from "@/types/index";
+import { getSavedAlbums, saveAlbumToFirestore, removeSavedAlbum, getUserPlaylists, addTrackToPlaylist } from "@/lib/firestore";
+import type { SpotifyTrack, Playlist } from "@/types/index";
+import { toast } from "sonner";
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
 
@@ -46,6 +47,10 @@ export default function AlbumModal({ albumId }: { albumId: string }) {
   const [saved, setSaved] = useState(false);
   const [closing, setClosing] = useState(false);
 
+  // Playlists state
+  const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
+  const [playlists, setPlaylists] = useState<Playlist[]>([]);
+
   useEffect(() => {
     if (!albumId) return;
     setLoading(true);
@@ -68,12 +73,20 @@ export default function AlbumModal({ albumId }: { albumId: string }) {
     if (saved) {
       setSaved(false);
       removeAlbum(data.id);
-      removeSavedAlbum(user.uid, data.id).catch(() => setSaved(true));
+      toast.success("Removed from Library");
+      removeSavedAlbum(user.uid, data.id).catch(() => {
+        setSaved(true);
+        toast.error("Failed to remove from Library");
+      });
     } else {
       setSaved(true);
       const meta = { id: data.id, name: data.name, albumArt: data.albumArt, artistName: data.artistName, totalTracks: data.totalTracks, releaseDate: data.releaseDate };
       saveAlbum(meta);
-      saveAlbumToFirestore(user.uid, meta).catch(() => setSaved(false));
+      toast.success("Saved to Library");
+      saveAlbumToFirestore(user.uid, meta).catch(() => {
+        setSaved(false);
+        toast.error("Failed to save to Library");
+      });
     }
   }, [data, user?.uid, saved, saveAlbum, removeAlbum]);
 
@@ -114,6 +127,34 @@ export default function AlbumModal({ albumId }: { albumId: string }) {
     }
   }, [data, handlePlayTrack, isAlbumPlaying, togglePlayRef]);
 
+  const handlePlaylistClick = async (e: React.MouseEvent, trackId: string) => {
+    e.stopPropagation();
+    if (!user?.uid) {
+      toast.error("Please login to manage playlists");
+      return;
+    }
+    const willShow = openDropdownId !== trackId;
+    if (willShow) {
+      setOpenDropdownId(trackId);
+      const userPlaylists = await getUserPlaylists(user.uid);
+      setPlaylists(userPlaylists.filter(p => !p.id.startsWith("mood-") && p.id !== "liked"));
+    } else {
+      setOpenDropdownId(null);
+    }
+  };
+
+  const handleAddToPlaylist = async (e: React.MouseEvent, playlistId: string, track: SpotifyTrack) => {
+    e.stopPropagation();
+    if (!user?.uid) return;
+    try {
+      await addTrackToPlaylist(user.uid, playlistId, track);
+      toast.success("Added to playlist");
+      setOpenDropdownId(null);
+    } catch {
+      toast.error("Failed to add to playlist");
+    }
+  };
+
   const card = isDark ? "bg-[#111111] border-[#2a2a2a]" : "bg-white border-[#FFDDD2]";
   const muted = isDark ? "text-[#aaa]" : "text-[#7A6055]";
   const text = isDark ? "text-white" : "text-[#3a2a20]";
@@ -144,7 +185,7 @@ export default function AlbumModal({ albumId }: { albumId: string }) {
               : { duration: 0.3, ease: "easeOut" }
             }
             style={{ transformOrigin: "bottom center" }}
-            className={`relative w-[68vw] h-[82vh] rounded-2xl border flex flex-col overflow-hidden shadow-2xl ${card}`}
+            className={`relative w-[90vw] md:w-[68vw] max-w-2xl h-[82vh] md:h-[85vh] rounded-2xl border flex flex-col overflow-hidden shadow-2xl ${card}`}
             onClick={e => e.stopPropagation()}
           >
             {/* ── Top bar ── */}
@@ -232,10 +273,10 @@ export default function AlbumModal({ albumId }: { albumId: string }) {
                             onClick={handleToggleSave}
                             title={saved ? "Remove from saved" : "Save album"}
                             className={`w-10 h-10 rounded-full border-2 flex items-center justify-center shadow-lg transition-all hover:scale-105 ${
-                              saved ? "border-[#FF6B35] bg-[#FF6B35]/10 text-[#FF6B35]" : "border-white/40 hover:border-white text-white"
+                              saved ? "border-[#F06292] bg-[#F06292]/10 text-[#F06292]" : "border-white/40 hover:border-white text-white"
                             }`}
                           >
-                            {saved ? <Check size={16} /> : <Plus size={16} />}
+                            <Heart size={16} className={saved ? "fill-[#F06292] text-[#F06292]" : ""} />
                           </button>
                         </div>
                       )}
@@ -245,12 +286,13 @@ export default function AlbumModal({ albumId }: { albumId: string }) {
 
                 {/* ── Track table ── */}
                 <div className="flex-1 min-h-0 overflow-y-auto app-scroll">
-                  <table className="w-full border-collapse">
+                  <table className="w-full border-collapse" style={{ tableLayout: "fixed" }}>
                     <thead className="sticky top-0 z-10">
                       <tr className={`border-b ${border} text-xs ${muted} ${isDark ? "bg-[#111111]" : "bg-white"}`}>
-                        <th className="text-left px-6 py-3 w-10 font-medium">#</th>
-                        <th className="text-left px-3 py-3 font-medium">Title</th>
-                        <th className="text-right px-6 py-3 w-20 font-medium">Duration</th>
+                        <th className="text-left px-2 md:px-4 py-3 w-8 md:w-12 font-medium">#</th>
+                        <th className="text-left px-2 md:px-3 py-3 w-auto font-medium">Title</th>
+                        <th className="text-right px-1 md:px-3 py-3 w-12 md:w-16 font-medium">Duration</th>
+                        <th className="px-1 md:px-2 py-3 w-8 md:w-10"></th>
                       </tr>
                     </thead>
                     <tbody>
@@ -262,7 +304,7 @@ export default function AlbumModal({ albumId }: { albumId: string }) {
                             onClick={() => handlePlayTrack(track)}
                             className={`group cursor-pointer transition-colors border-b ${border} ${rowHover} ${isRowActive ? isDark ? "bg-[#1a1a1a]" : "bg-[#FFF5F0]" : ""}`}
                           >
-                            <td className="px-6 py-3 w-10">
+                            <td className="px-2 md:px-4 py-3 w-8 md:w-12">
                               <span className={`text-sm ${muted} flex items-center`}>
                                 {isRowActive
                                   ? isPlaying
@@ -275,11 +317,52 @@ export default function AlbumModal({ albumId }: { albumId: string }) {
                                 }
                               </span>
                             </td>
-                            <td className="px-3 py-3">
+                            <td className="px-2 md:px-3 py-3 min-w-0 overflow-hidden w-auto">
                               <p className={`text-sm font-medium truncate ${isRowActive ? "text-[#FF6B35]" : text}`}>{track.title}</p>
                               <p className={`text-xs truncate ${muted}`}>{track.artist}</p>
                             </td>
-                            <td className={`px-6 py-3 text-sm text-right ${muted}`}>{formatDuration(track.duration)}</td>
+                            <td className={`px-1 md:px-3 py-3 text-xs md:text-sm text-right ${muted} overflow-hidden whitespace-nowrap w-12 md:w-16`}>{formatDuration(track.duration)}</td>
+                            <td className="px-1 md:px-2 py-3 w-8 md:w-10 text-right relative">
+                              <button 
+                                onClick={(e) => handlePlaylistClick(e, track.id)}
+                                className={`w-8 h-8 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all ${isDark ? "hover:bg-[#333] text-[#aaa]" : "hover:bg-[#E5E5E5] text-[#7A6055]"}`}
+                              >
+                                <MoreHorizontal size={16} />
+                              </button>
+                              {openDropdownId === track.id && (
+                                <div className={`absolute right-6 top-10 w-48 rounded-xl shadow-2xl border z-50 overflow-hidden flex flex-col ${isDark ? "bg-[#1f1f1f] border-[#333]" : "bg-white border-[#e5e5e5]"}`}>
+                                  <div className={`px-3 py-2 border-b text-xs font-semibold flex items-center justify-between ${isDark ? "border-[#333] text-white" : "border-[#e5e5e5] text-[#3a2a20]"}`}>
+                                    Add to Playlist
+                                    <ChevronDown size={12} className={isDark ? "text-[#aaa]" : "text-[#777]"} />
+                                  </div>
+                                  <div className="max-h-48 overflow-y-auto app-scroll p-1.5 flex flex-col gap-0.5">
+                                    <button 
+                                      className={`w-full flex items-center gap-2 px-2 py-2 rounded-md text-xs transition-colors group ${isDark ? "hover:bg-[#333] text-[#ddd]" : "hover:bg-[#f0f0f0] text-[#555]"}`}
+                                    >
+                                      <PlusSquare size={14} className="group-hover:text-[#FF6B35] transition-colors" />
+                                      <span className="font-medium group-hover:text-white">Create Playlist</span>
+                                    </button>
+                                    
+                                    <div className={`my-0.5 border-t ${isDark ? "border-[#333]" : "border-[#e5e5e5]"}`} />
+
+                                    {playlists.length === 0 ? (
+                                      <p className={`p-2 text-[10px] text-center ${muted}`}>No custom playlists</p>
+                                    ) : (
+                                      playlists.map(p => (
+                                        <button 
+                                          key={p.id} 
+                                          onClick={(e) => handleAddToPlaylist(e, p.id, track)} 
+                                          className={`w-full flex items-center gap-2 px-2 py-2 rounded-md text-xs transition-colors group ${isDark ? "hover:bg-[#333] text-[#ddd]" : "hover:bg-[#f0f0f0] text-[#555]"}`}
+                                        >
+                                          <ListMusic size={14} className="group-hover:text-[#FF6B35] transition-colors text-[#FF6B35]" />
+                                          <span className={`font-medium truncate ${isDark ? "group-hover:text-white" : "group-hover:text-black"}`}>{p.name}</span>
+                                        </button>
+                                      ))
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+                            </td>
                           </tr>
                         );
                       })}

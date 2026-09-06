@@ -50,9 +50,9 @@ function PlaylistCover({ playlist, size = "md", className = "" }: {
   const trackImages = playlist.tracks.slice(0, 4).map(t => t.albumArt).filter(Boolean);
   
   const sizeClasses = {
-    sm: "w-10 h-10",
-    md: "w-12 h-12",
-    lg: "w-32 h-32",
+    sm: "w-8 h-8 sm:w-10 sm:h-10",
+    md: "w-10 h-10 sm:w-12 sm:h-12",
+    lg: "w-20 h-20 sm:w-32 sm:h-32",
   };
 
   // Custom playlist with tracks: show 2x2 collage
@@ -146,7 +146,7 @@ function SidebarRow({ moodId, label, isActive, isDark, muted, rowHover, indent =
       onMouseLeave={() => setHovered(false)}
       whileHover={{ scale: 1.02, x: 4 }}
       whileTap={{ scale: 0.98 }}
-      className={`flex items-center gap-3 ${indent ? "pl-8 pr-3" : "px-3"} py-2.5 rounded-xl cursor-pointer transition-colors ${
+      className={`flex items-center gap-2 sm:gap-3 ${indent ? "pl-8 pr-3" : "px-3"} py-2 sm:py-2.5 rounded-xl cursor-pointer transition-colors ${
         isActive ? isDark ? "bg-[#1e1e2e]" : "bg-[#FFF0E8]" : rowHover
       }`}
     >
@@ -174,12 +174,12 @@ function PlaylistRow({ p, isActive, isDark, muted, text, rowHover, onClick, chil
       onClick={onClick}
       whileHover={{ scale: 1.02 }}
       whileTap={{ scale: 0.98 }}
-      className={`group flex items-center gap-3 px-3 py-3 rounded-xl cursor-pointer transition-colors ${
+      className={`group flex items-center gap-2 sm:gap-3 px-2 sm:px-3 py-2 sm:py-3 rounded-xl cursor-pointer transition-colors ${
         isActive ? isDark ? "bg-[#2a2a2a]" : "bg-[#FFF5F0]" : rowHover
       }`}
     >
       <PlaylistCover playlist={p} size="md" />
-      <p className={`text-sm font-medium truncate ${isActive ? text : muted}`}>{p.name}</p>
+      <p className={`text-xs sm:text-sm font-medium truncate ${isActive ? text : muted}`}>{p.name}</p>
       {children}
     </motion.div>
   );
@@ -250,11 +250,11 @@ function MoodsFolderRow({ isDark, moodView, muted, text, rowHover, onClick }: {
       onMouseLeave={() => setHovered(false)}
       whileHover={{ scale: 1.02 }}
       whileTap={{ scale: 0.98 }}
-      className={`flex items-center gap-3 px-3 py-3 rounded-xl cursor-pointer transition-colors ${
+      className={`flex items-center gap-2 sm:gap-3 px-2 sm:px-3 py-2 sm:py-3 rounded-xl cursor-pointer transition-colors ${
         moodView !== null ? isDark ? "bg-[#2a2a2a]" : "bg-[#FFF5F0]" : rowHover
       }`}
     >
-      <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
+      <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-lg flex items-center justify-center flex-shrink-0 ${
         isDark ? "bg-gradient-to-br from-[#FF6B35] to-[#e85d2a]" : "bg-gradient-to-br from-[#FF6B35] to-[#e85d2a]"
       }`}>
         <AnimatedIcon Icon={Music} hovered={hovered} anim={MOOD_ANIMATIONS.intense} className="text-white" />
@@ -602,7 +602,7 @@ export default function PlaylistPage() {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.4, ease: "easeOut" }}
-      className="flex gap-3 px-3 py-3 h-full min-h-0"
+      className="flex flex-col lg:flex-row gap-3 px-3 py-3 h-full min-h-0 overflow-y-auto lg:overflow-hidden app-scroll"
     >
 
         {/* ── Left Column — Sidebar + Player ── */}
@@ -610,11 +610,11 @@ export default function PlaylistPage() {
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.4, delay: 0.1, ease: "easeOut" }}
-          className="w-[400px] flex-shrink-0 flex flex-col gap-4 h-full"
+          className="w-full lg:w-[300px] lg:flex-shrink-0 flex flex-col gap-4 lg:h-full"
         >
 
           {/* Card 1 — Playlist Sidebar — shrinks when player is visible */}
-          <div className={`rounded-2xl border flex flex-col transition-colors duration-300 flex-1 min-h-0 ${card}`}>
+          <div className={`rounded-2xl border flex flex-col transition-colors duration-300 max-h-[380px] lg:max-h-none flex-1 min-h-0 ${card}`}>
 
           {/* Header row */}
           <div className="flex items-center justify-between px-5 py-4 flex-shrink-0">
@@ -741,7 +741,7 @@ export default function PlaylistPage() {
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.4, delay: 0.15, ease: "easeOut" }}
-          className={`flex-1 min-w-0 rounded-2xl border flex flex-col transition-colors duration-300 ${card}`}
+          className={`w-full lg:flex-1 lg:min-w-0 rounded-2xl border flex flex-col transition-colors duration-300 ${card}`}
         >
 
           {/* Hero banner */}
@@ -758,13 +758,13 @@ export default function PlaylistPage() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, ease: "easeOut" }}
-                className="flex items-end gap-6 px-8 pt-6 pb-5 relative z-10"
+                className="flex flex-col sm:flex-row items-start sm:items-end gap-3 sm:gap-6 px-4 sm:px-8 pt-4 sm:pt-6 pb-4 sm:pb-5 relative z-10"
               >
-                <div className="w-32 h-32 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-2xl bg-white/20 backdrop-blur-sm border-2 border-white/30">
+                <div className="w-16 h-16 sm:w-32 sm:h-32 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-2xl bg-white/20 backdrop-blur-sm border-2 border-white/30">
                   <Music size={48} className="text-white drop-shadow-lg" />
                 </div>
                 <div className="flex flex-col gap-1.5 pb-1">
-                  <p className="text-3xl font-bold text-white leading-tight drop-shadow-md">Moods Playlist</p>
+                  <p className="text-xl sm:text-3xl font-bold text-white leading-tight drop-shadow-md">Moods Playlist</p>
                   <p className="text-sm text-white/90 drop-shadow">{moodPlaylists.length} mood playlists</p>
                 </div>
               </motion.div>
@@ -776,17 +776,17 @@ export default function PlaylistPage() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, ease: "easeOut" }}
-                className="flex items-end gap-6 px-8 pt-6 pb-5 relative z-10"
+                className="flex flex-col sm:flex-row items-start sm:items-end gap-3 sm:gap-6 px-4 sm:px-8 pt-4 sm:pt-6 pb-4 sm:pb-5 relative z-10"
               >
                 {/* Large cover art with enhanced shadow */}
-                <div className="shadow-2xl rounded-2xl">
-                  <PlaylistCover playlist={selected} size="lg" className="w-32 h-32 ring-4 ring-white/30" />
+                <div className="shadow-2xl rounded-2xl flex-shrink-0">
+                  <PlaylistCover playlist={selected} size="lg" className="w-20 h-20 sm:w-32 sm:h-32 ring-4 ring-white/30" />
                 </div>
 
                 {/* Text + controls stacked */}
                 <div className="flex flex-col gap-2 pb-1 min-w-0">
                   <p className="text-xs font-semibold uppercase tracking-widest text-white/90 drop-shadow">Playlist</p>
-                  <p className="text-3xl font-bold text-white leading-tight truncate drop-shadow-md">{selected.name}</p>
+                  <p className="text-xl sm:text-3xl font-bold text-white leading-tight truncate drop-shadow-md">{selected.name}</p>
                   <p className="text-sm text-white/90 drop-shadow">
                     {queue.length} songs{queue.length > 0 && ` · about ${durationLabel}`}
                   </p>
@@ -824,13 +824,13 @@ export default function PlaylistPage() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, ease: "easeOut" }}
-                className="flex items-end gap-6 px-8 pt-6 pb-5 relative z-10"
+                className="flex flex-col sm:flex-row items-start sm:items-end gap-3 sm:gap-6 px-4 sm:px-8 pt-4 sm:pt-6 pb-4 sm:pb-5 relative z-10"
               >
-                <div className="w-32 h-32 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-2xl bg-white/20 backdrop-blur-sm border-2 border-white/30">
+                <div className="w-16 h-16 sm:w-32 sm:h-32 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-2xl bg-white/20 backdrop-blur-sm border-2 border-white/30">
                   <Disc3 size={48} className="text-white drop-shadow-lg" />
                 </div>
                 <div className="flex flex-col gap-1.5 pb-1">
-                  <p className="text-3xl font-bold text-white leading-tight drop-shadow-md">Saved Albums</p>
+                  <p className="text-xl sm:text-3xl font-bold text-white leading-tight drop-shadow-md">Saved Albums</p>
                   <p className="text-sm text-white/90 drop-shadow">{savedAlbums.length} albums</p>
                 </div>
               </motion.div>
@@ -842,7 +842,7 @@ export default function PlaylistPage() {
 
             {/* ── Mood picker grid ── */}
             {mounted && moodView === "moods" && (
-              <div className="p-6 grid grid-cols-4 gap-4">
+              <div className="p-4 sm:p-6 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
                 {moodPlaylists.map((p) => (
                   <MoodCard
                     key={p.id}
@@ -860,14 +860,14 @@ export default function PlaylistPage() {
             {mounted && viewTab === "Tracks" && moodView !== "moods" && (
               loading ? (
                 // Loading skeleton for tracks
-                <table className="w-full border-collapse">
+                <table className="w-full border-collapse table-fixed">
                   <thead className="sticky top-0 z-10">
                     <tr className={`border-b ${border} text-xs ${muted} ${isDark ? "bg-[#111111]" : "bg-white"}`}>
-                      <th className="text-left px-5 py-3 w-10 font-medium">#</th>
-                      <th className="text-left px-3 py-3 font-medium">Title</th>
-                      <th className="text-left px-3 py-3 font-medium">Album</th>
-                      <th className="text-left px-3 py-3 font-medium">Date added</th>
-                      <th className="text-left px-5 py-3 w-24 font-medium"><Clock size={12} /></th>
+                      <th className="text-left px-3 sm:px-5 py-2 sm:py-3 w-8 sm:w-10 font-medium">#</th>
+                      <th className="text-left px-2 sm:px-3 py-2 sm:py-3 font-medium">Title</th>
+                      <th className="text-left px-2 sm:px-3 py-2 sm:py-3 font-medium hidden sm:table-cell w-1/4 md:w-1/3">Album</th>
+                      <th className="text-left px-2 sm:px-3 py-2 sm:py-3 font-medium hidden md:table-cell w-1/5 md:w-1/4">Date added</th>
+                      <th className="text-left px-3 sm:px-5 py-2 sm:py-3 w-16 sm:w-24 font-medium"><Clock size={12} /></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -877,14 +877,14 @@ export default function PlaylistPage() {
                   </tbody>
                 </table>
               ) : queue.length > 0 ? (
-                <table className="w-full border-collapse">
+                <table className="w-full border-collapse table-fixed">
                   <thead className="sticky top-0 z-10">
                     <tr className={`border-b ${border} text-xs ${muted} ${isDark ? "bg-[#111111]" : "bg-white"}`}>
-                      <th className="text-left px-5 py-3 w-10 font-medium">#</th>
-                      <th className="text-left px-3 py-3 font-medium">Title</th>
-                      <th className="text-left px-3 py-3 font-medium">Album</th>
-                      <th className="text-left px-3 py-3 font-medium">Date added</th>
-                      <th className="text-left px-5 py-3 w-24 font-medium"><Clock size={12} /></th>
+                      <th className="text-left px-3 sm:px-5 py-2 sm:py-3 w-8 sm:w-10 font-medium">#</th>
+                      <th className="text-left px-2 sm:px-3 py-2 sm:py-3 font-medium">Title</th>
+                      <th className="text-left px-2 sm:px-3 py-2 sm:py-3 font-medium hidden sm:table-cell w-1/4 md:w-1/3">Album</th>
+                      <th className="text-left px-2 sm:px-3 py-2 sm:py-3 font-medium hidden md:table-cell w-1/5 md:w-1/4">Date added</th>
+                      <th className="text-left px-3 sm:px-5 py-2 sm:py-3 w-16 sm:w-24 font-medium"><Clock size={12} /></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -899,8 +899,8 @@ export default function PlaylistPage() {
                           }`}
                           title="Double-click to play"
                         >
-                          <td className="px-5 py-3 w-10" onClick={(e) => { e.stopPropagation(); if (!playlistSource) return; if (isActive) { togglePlayRef.current?.(); } else { playPlaylistTrack(track, queue, playlistSource); } }}>
-                            <span className={`text-sm ${muted} flex items-center`}>
+                          <td className="px-3 sm:px-5 py-2 sm:py-3 w-8 sm:w-10" onClick={(e) => { e.stopPropagation(); if (!playlistSource) return; if (isActive) { togglePlayRef.current?.(); } else { playPlaylistTrack(track, queue, playlistSource); } }}>
+                            <span className={`text-xs sm:text-sm ${muted} flex items-center`}>
                               {isActive && isPlaying
                                 ? <Pause size={13} fill="#FF6B35" className="text-[#FF6B35]" />
                                 : isActive
@@ -910,21 +910,21 @@ export default function PlaylistPage() {
                               {!isActive && <Play size={13} fill="white" className="text-white hidden group-hover:inline" />}
                             </span>
                           </td>
-                          <td className="px-3 py-3">
-                            <div className="flex items-center gap-3">
+                          <td className="px-2 sm:px-3 py-2 sm:py-3 truncate">
+                            <div className="flex items-center gap-2 sm:gap-3">
                               {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img src={track.albumArt} alt={track.title} className="w-9 h-9 rounded-lg object-cover flex-shrink-0" />
-                              <div className="min-w-0">
-                                <p className={`text-sm font-medium truncate ${isActive ? "text-[#FF6B35]" : text}`}>{track.title}</p>
-                                <p className={`text-xs truncate ${muted}`}>{track.artist}</p>
+                              <img src={track.albumArt} alt={track.title} className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg object-cover flex-shrink-0" />
+                              <div className="min-w-0 flex-1">
+                                <p className={`text-xs sm:text-sm font-medium truncate ${isActive ? "text-[#FF6B35]" : text}`}>{track.title}</p>
+                                <p className={`text-[10px] sm:text-xs truncate ${muted}`}>{track.artist}</p>
                               </div>
                             </div>
                           </td>
-                          <td className={`px-3 py-3 text-sm ${muted} max-w-[160px] truncate`}>{track.album ?? "—"}</td>
-                          <td className={`px-3 py-3 text-sm ${muted} whitespace-nowrap`}>{track.addedAt ?? "—"}</td>
-                          <td className="px-5 py-3 w-24">
+                          <td className={`px-2 sm:px-3 py-2 sm:py-3 text-xs sm:text-sm ${muted} truncate hidden sm:table-cell`}>{track.album ?? "—"}</td>
+                          <td className={`px-2 sm:px-3 py-2 sm:py-3 text-xs sm:text-sm ${muted} truncate hidden md:table-cell`}>{track.addedAt ?? "—"}</td>
+                          <td className="px-3 sm:px-5 py-2 sm:py-3 w-auto sm:w-24">
                             <div className="flex items-center justify-start gap-2">
-                              <span className={`text-sm ${muted}`}>{formatDuration(track.duration)}</span>
+                              <span className={`text-xs sm:text-sm ${muted}`}>{formatDuration(track.duration)}</span>
                               <div className="relative">
                                 <button
                                   onClick={(e) => { e.stopPropagation(); const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setMenuPos(menuTrackId === track.id ? null : { x: r.right, y: r.bottom }); setMenuTrackId(menuTrackId === track.id ? null : track.id); }}
@@ -951,14 +951,14 @@ export default function PlaylistPage() {
 
             {/* ── Albums tab ── */}
             {mounted && viewTab === "Albums" && (
-              <div className="p-5 grid grid-cols-4 gap-3">
+              <div className="p-4 sm:p-5 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
                 {loading ? (
                   // Loading skeletons for albums
                   Array.from({ length: 8 }).map((_, i) => (
                     <AlbumCardSkeleton key={i} isDark={isDark} />
                   ))
                 ) : savedAlbums.length === 0 ? (
-                  <div className="col-span-4 flex items-center justify-center py-16">
+                  <div className="col-span-2 sm:col-span-3 lg:col-span-4 flex items-center justify-center py-16">
                     <p className={`text-sm ${muted}`}>No saved albums yet</p>
                   </div>
                 ) : savedAlbums.map((album, index) => (
