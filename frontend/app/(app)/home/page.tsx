@@ -289,10 +289,10 @@ export default function HomePage() {
 
   return (
     <>
-    <main className="flex gap-3 px-3 py-3 h-full min-h-0">
+    <main className="flex flex-col lg:flex-row gap-3 px-3 py-3 h-full min-h-0 overflow-y-auto lg:overflow-hidden app-scroll">
 
       {/* ── Left Panel ── */}
-      <div className="flex flex-col gap-4 w-[400px] flex-shrink-0 h-full">
+      <div className="flex flex-col gap-4 w-full lg:w-[400px] lg:flex-shrink-0 lg:h-full">
         <div className={`rounded-2xl border p-5 flex flex-col gap-3 transition-colors duration-300 flex-1 min-h-0 ${card}`}>
           <p className={`text-sm text-center font-medium ${isDark ? "text-white" : "text-[#3a2a20]"}`}>
             Welcome, {user?.displayName || user?.email}
@@ -327,7 +327,7 @@ export default function HomePage() {
           )}
 
           {/* Webcam */}
-          <div className={`relative w-full rounded-xl overflow-hidden flex-1 min-h-0 ${
+          <div className={`relative w-full rounded-xl overflow-hidden h-64 sm:h-72 lg:flex-1 lg:min-h-0 ${
             lockedResult?.mood === "romantic" && !isDetecting
               ? "bg-gradient-to-br from-pink-50 via-rose-50 to-pink-100" 
               : isDark ? "bg-[#1a1a1a]" : "bg-[#e0e0e0]"
@@ -344,34 +344,34 @@ export default function HomePage() {
             
             {/* Gesture Guide Overlay (Shows when not detecting) */}
             {status === "idle" && !isCameraError && (
-              <div className={`absolute inset-0 flex flex-col items-center justify-center p-4 ${isDark ? "bg-black/60" : "bg-white/80"} backdrop-blur-sm`}>
-                <div className="flex items-center gap-2 mb-3">
-                  <PLAYLIST_ICONS.info size={16} className={isDark ? "text-[#4A90E2]" : "text-[#3B82F6]"} />
-                  <p className={`text-xs font-semibold ${isDark ? "text-white" : "text-[#3a2a20]"}`}>Gesture Guide</p>
+              <div className={`absolute inset-0 flex flex-col items-center justify-center p-2 sm:p-4 ${isDark ? "bg-black/60" : "bg-white/80"} backdrop-blur-sm overflow-hidden`}>
+                <div className="flex items-center gap-1.5 sm:gap-2 mb-2 sm:mb-3">
+                  <PLAYLIST_ICONS.info size={14} className={isDark ? "text-[#4A90E2]" : "text-[#3B82F6]"} />
+                  <p className={`text-[10px] sm:text-xs font-semibold ${isDark ? "text-white" : "text-[#3a2a20]"}`}>Gesture Guide</p>
                 </div>
-                <div className="flex flex-col gap-2 text-xs">
-                  <div className="flex items-center gap-2">
-                    <span className="text-2xl">😊</span>
+                <div className="flex flex-col gap-1 sm:gap-2 text-[10px] sm:text-xs">
+                  <div className="flex items-center gap-1.5 sm:gap-2">
+                    <span className="text-lg sm:text-xl">😊</span>
                     <span className={isDark ? "text-[#ccc]" : "text-[#7A6055]"}>Smile → Happy Songs</span>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-2xl">😮</span>
+                  <div className="flex items-center gap-1.5 sm:gap-2">
+                    <span className="text-lg sm:text-xl">😮</span>
                     <span className={isDark ? "text-[#ccc]" : "text-[#7A6055]"}>Surprised → Upbeat Songs</span>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-2xl">😐</span>
+                  <div className="flex items-center gap-1.5 sm:gap-2">
+                    <span className="text-lg sm:text-xl">😐</span>
                     <span className={isDark ? "text-[#ccc]" : "text-[#7A6055]"}>Neutral → Chill Songs</span>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-2xl">😢</span>
+                  <div className="flex items-center gap-1.5 sm:gap-2">
+                    <span className="text-lg sm:text-xl">😢</span>
                     <span className={isDark ? "text-[#ccc]" : "text-[#7A6055]"}>Sad → Melancholy Songs</span>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-2xl">😠</span>
+                  <div className="flex items-center gap-1.5 sm:gap-2">
+                    <span className="text-lg sm:text-xl">😠</span>
                     <span className={isDark ? "text-[#ccc]" : "text-[#7A6055]"}>Angry → Intense Songs</span>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-2xl">🫶</span>
+                  <div className="flex items-center gap-1.5 sm:gap-2">
+                    <span className="text-lg sm:text-xl">🫶</span>
                     <span className={`font-semibold ${isDark ? "text-pink-400" : "text-pink-600"}`}>Heart Gesture → Romantic Songs</span>
                   </div>
                 </div>
@@ -572,17 +572,17 @@ export default function HomePage() {
       </div>
 
       {/* ── Right Panel ── */}
-      <div className="flex-1 min-w-0 h-full">
+      <div className="w-full lg:flex-1 lg:min-w-0 lg:h-full">
         {!showTrackList ? (
           <AnimatePresence mode="wait">
             <motion.div
               key="recommended"
               initial={{ opacity: 0, x: 30 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -30 }}
               transition={{ duration: 0.35, ease: "easeOut" }}
-              className={`rounded-2xl border p-5 h-full flex flex-col transition-colors duration-300 ${card}`}
+              className={`rounded-2xl border p-5 min-h-[400px] lg:h-full flex flex-col transition-colors duration-300 ${card}`}
             >
               <p className={`text-xl font-bold mb-4 flex-shrink-0 ${isDark ? "text-white" : "text-[#3a2a20]"}`}>Trendings</p>
-              <div className="grid grid-cols-5 gap-3 app-scroll overflow-y-auto flex-1 content-start">
+              <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-3 app-scroll overflow-y-auto flex-1 content-start">
                 {recommendedTracks.length === 0 ? (
                   // Loading skeletons
                   Array.from({ length: 10 }).map((_, i) => (
@@ -641,10 +641,10 @@ export default function HomePage() {
               key={lockedResult?.mood ?? "album"}
               initial={{ opacity: 0, x: 30 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -30 }}
               transition={{ duration: 0.35, ease: "easeOut" }}
-              className="h-full"
+              className="min-h-[400px] lg:h-full"
             >
               {loadingTracks && (
-                <div className={`rounded-2xl border p-5 h-full flex items-center justify-center ${card}`}>
+                <div className={`rounded-2xl border p-5 min-h-[200px] lg:h-full flex items-center justify-center ${card}`}>
                   <p className={`text-sm ${muted}`}>Loading tracks...</p>
                 </div>
               )}

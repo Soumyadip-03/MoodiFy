@@ -693,24 +693,24 @@ export default function LandingPage() {
 
           {/* Pipeline pill */}
           <motion.div variants={fadeUp} initial="hidden" animate="show" transition={{ delay: 0.3 }}
-            className={`mt-6 flex items-center gap-3 px-6 py-3.5 rounded-2xl border text-xs sm:text-sm font-medium flex-wrap justify-center shadow-sm ${card}`}>
-            <div className="flex items-center gap-2">
-              <Video size={16} className="text-[#FF6B35]" />
+            className={`mt-6 flex items-center gap-1.5 sm:gap-3 px-3 py-2.5 sm:px-6 sm:py-3.5 rounded-2xl border text-[10px] sm:text-sm font-medium flex-wrap justify-center shadow-sm ${card}`}>
+            <div className="flex items-center gap-1 sm:gap-2">
+              <Video className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#FF6B35]" />
               <span className={`${text} font-semibold`}>Webcam</span>
             </div>
-            <span className={`${muted} text-base`}>→</span>
-            <div className="flex items-center gap-2">
-              <Brain size={16} className="text-[#FF6B35]" />
+            <span className={`${muted} text-xs sm:text-base`}>→</span>
+            <div className="flex items-center gap-1 sm:gap-2">
+              <Brain className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#FF6B35]" />
               <span className={`${text} font-semibold`}>deepface</span>
             </div>
-            <span className={`${muted} text-base`}>→</span>
-            <div className="flex items-center gap-2">
-              <Smile size={16} className="text-[#FF6B35]" />
+            <span className={`${muted} text-xs sm:text-base`}>→</span>
+            <div className="flex items-center gap-1 sm:gap-2">
+              <Smile className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#FF6B35]" />
               <span className={`${text} font-semibold`}>Mood</span>
             </div>
-            <span className={`${muted} text-base`}>→</span>
-            <div className="flex items-center gap-2">
-              <Music size={16} className="text-[#FF6B35]" />
+            <span className={`${muted} text-xs sm:text-base`}>→</span>
+            <div className="flex items-center gap-1 sm:gap-2">
+              <Music className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#FF6B35]" />
               <span className={`${text} font-semibold`}>Spotify API</span>
             </div>
           </motion.div>
@@ -755,9 +755,9 @@ export default function LandingPage() {
 
         {/* ── How It Works ── */}
         <section id="how-it-works" className="w-full px-[4vw] py-24">
-          <motion.div variants={fadeUp} initial="hidden" whileInView="show" viewport={{ once: true }} className="text-center mb-14">
-            <p className="text-xs font-semibold uppercase tracking-widest mb-3 text-[#FF6B35]">How It Works</p>
-            <h2 className={`text-4xl font-bold ${text}`}>Zero effort. Pure music.</h2>
+          <motion.div variants={fadeUp} initial="hidden" whileInView="show" viewport={{ once: true }} className="text-center mb-10 sm:mb-14">
+            <p className="text-xs font-semibold uppercase tracking-widest mb-2 sm:mb-3 text-[#FF6B35]">How It Works</p>
+            <h2 className={`text-3xl sm:text-4xl font-bold ${text}`}>Zero effort. Pure music.</h2>
             <p className={`mt-3 text-base max-w-md mx-auto ${muted}`}>From camera open to first beat in under three seconds.</p>
           </motion.div>
 
@@ -796,14 +796,14 @@ export default function LandingPage() {
               className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {STEPS.map((step, i) => (
                 <motion.div key={i} variants={fadeUp}>
-                  <TiltCard className={`relative rounded-2xl border p-8 flex flex-col gap-5 hover:border-[#FF6B35]/50 ${card}`}>
-                    <span className="absolute top-6 right-6 text-5xl font-black text-[#FF6B35]/10 select-none">{step.step}</span>
-                    <div className="w-14 h-14 rounded-2xl bg-[#FF6B35]/15 flex items-center justify-center">
-                      <step.icon size={28} className="text-[#FF6B35]" strokeWidth={2} />
+                  <TiltCard className={`relative rounded-2xl border p-6 sm:p-8 flex flex-col gap-4 sm:gap-5 hover:border-[#FF6B35]/50 ${card}`}>
+                    <span className="absolute top-4 right-4 sm:top-6 sm:right-6 text-4xl sm:text-5xl font-black text-[#FF6B35]/10 select-none">{step.step}</span>
+                    <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-[#FF6B35]/15 flex items-center justify-center">
+                      <step.icon className="w-6 h-6 sm:w-7 sm:h-7 text-[#FF6B35]" strokeWidth={2} />
                     </div>
                     <div>
-                      <p className={`text-lg font-bold mb-2 ${text}`}>{step.title}</p>
-                      <p className={`text-sm leading-relaxed ${muted}`}>{step.desc}</p>
+                      <p className={`text-base sm:text-lg font-bold mb-1.5 sm:mb-2 ${text}`}>{step.title}</p>
+                      <p className={`text-xs sm:text-sm leading-relaxed ${muted}`}>{step.desc}</p>
                     </div>
                   </TiltCard>
                 </motion.div>
@@ -816,9 +816,9 @@ export default function LandingPage() {
         <WaveDivider isDark={isDark} />
         <section id="moods" className={`py-24 transition-colors duration-300 ${isDark ? "bg-[#111111]" : "bg-[#fff8f4]"}`}>
           <div className="w-full px-[4vw]">
-            <motion.div variants={fadeUp} initial="hidden" whileInView="show" viewport={{ once: true }} className="text-center mb-14">
-              <p className="text-xs font-semibold uppercase tracking-widest mb-3 text-[#FF6B35]">7 Moods</p>
-              <h2 className={`text-4xl font-bold ${text}`}>Every feeling has its soundtrack</h2>
+            <motion.div variants={fadeUp} initial="hidden" whileInView="show" viewport={{ once: true }} className="text-center mb-10 sm:mb-14">
+              <p className="text-xs font-semibold uppercase tracking-widest mb-2 sm:mb-3 text-[#FF6B35]">7 Moods</p>
+              <h2 className={`text-3xl sm:text-4xl font-bold ${text}`}>Every feeling has its soundtrack</h2>
               <p className={`mt-3 text-base max-w-md mx-auto ${muted}`}>MoodiFy maps your expression to one of seven emotional states — each with its own curated genre blend.</p>
             </motion.div>
 
@@ -841,9 +841,9 @@ export default function LandingPage() {
 
         {/* ── Features Grid ── */}
         <section id="features" className="w-full px-[4vw] py-24">
-          <motion.div variants={fadeUp} initial="hidden" whileInView="show" viewport={{ once: true }} className="text-center mb-14">
-            <p className="text-xs font-semibold uppercase tracking-widest mb-3 text-[#FF6B35]">Features</p>
-            <h2 className={`text-4xl font-bold ${text}`}>Built for music lovers</h2>
+          <motion.div variants={fadeUp} initial="hidden" whileInView="show" viewport={{ once: true }} className="text-center mb-10 sm:mb-14">
+            <p className="text-xs font-semibold uppercase tracking-widest mb-2 sm:mb-3 text-[#FF6B35]">Features</p>
+            <h2 className={`text-3xl sm:text-4xl font-bold ${text}`}>Built for music lovers</h2>
           </motion.div>
 
           <motion.div variants={stagger} initial="hidden" whileInView="show" viewport={{ once: true }}
@@ -870,7 +870,7 @@ export default function LandingPage() {
         <WaveDivider flip isDark={isDark} />
 
         {/* ── CTA Banner ── */}
-        <section className="w-full px-[4vw] py-24">
+        <section className="w-full px-[4vw] py-12 md:py-24">
           <motion.div variants={fadeUp} initial="hidden" whileInView="show" viewport={{ once: true }}
             className="relative rounded-3xl bg-gradient-to-br from-[#FF6B35] via-[#f05a20] to-[#c94a10] overflow-hidden shadow-2xl shadow-[#FF6B35]/30">
 
@@ -889,22 +889,22 @@ export default function LandingPage() {
             <div className="relative z-10 grid grid-cols-1 lg:grid-cols-2 items-center gap-0">
 
               {/* Left — text + buttons */}
-              <div className="flex flex-col gap-6 p-14">
+              <div className="flex flex-col gap-4 md:gap-6 p-6 md:p-14">
                 <p className="text-white/60 text-xs font-semibold uppercase tracking-widest">Ready to vibe?</p>
-                <h2 className="text-5xl font-bold text-white leading-[1.15]">
+                <h2 className="text-3xl md:text-5xl font-bold text-white leading-[1.15]">
                   Your mood.<br />Your music.<br />
                   <span className="font-pacifico text-[1.15em]">Right now.</span>
                 </h2>
                 <p className="text-white/70 text-sm leading-relaxed max-w-xs">
                   No playlists to build. No genres to pick. Just open MoodiFy, look at the camera, and let the music find you.
                 </p>
-                <div className="flex items-center gap-3 mt-1">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 mt-1">
                   <Link href="/signup"
-                    className="px-8 py-3.5 rounded-full bg-white text-[#FF6B35] font-bold text-sm hover:bg-[#FFF5F0] transition-all hover:scale-105 shadow-xl shadow-black/20">
+                    className="px-6 py-3 md:px-8 md:py-3.5 rounded-full bg-white text-[#FF6B35] font-bold text-xs md:text-sm hover:bg-[#FFF5F0] transition-all hover:scale-105 shadow-xl shadow-black/20 text-center">
                     Create Free Account →
                   </Link>
                   <Link href="/login"
-                    className="px-8 py-3.5 rounded-full border-2 border-white/30 text-white font-semibold text-sm hover:border-white/70 hover:bg-white/10 transition-all">
+                    className="px-6 py-3 md:px-8 md:py-3.5 rounded-full border-2 border-white/30 text-white font-semibold text-xs md:text-sm hover:border-white/70 hover:bg-white/10 transition-all text-center">
                     Sign In
                   </Link>
                 </div>
@@ -912,7 +912,7 @@ export default function LandingPage() {
               </div>
 
               {/* Right — floating emoji orb */}
-              <div className="relative flex items-center justify-center h-full min-h-[340px]">
+              <div className="relative flex items-center justify-center h-full min-h-[240px] md:min-h-[340px]">
                 {/* Glowing orb */}
                 <div className="absolute w-52 h-52 rounded-full bg-white/10 blur-2xl" />
                 <div className="absolute w-36 h-36 rounded-full bg-amber-200/20 blur-xl" />
@@ -954,11 +954,11 @@ export default function LandingPage() {
       <footer className={`w-screen left-0 py-10 transition-colors duration-300 ${isDark ? "bg-[#111111]" : "bg-[#fff8f4]"}`}>
         <div className="w-full px-[4vw] max-w-6xl mx-auto">
           {/* Main Footer Content */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-12 mb-8 text-center md:text-left">
             
             {/* Brand Section */}
-            <div className="flex flex-col gap-3">
-              <div className="flex items-center gap-2">
+            <div className="flex flex-col items-center md:items-start gap-3">
+              <div className="flex items-center justify-center md:justify-start gap-2">
                 <Image src="/MoodiFy.svg" alt="MoodiFy" width={40} height={40} className="p-1" />
                 <span className="font-pacifico text-[#FF6B35] text-lg">MoodiFy</span>
               </div>
@@ -968,7 +968,7 @@ export default function LandingPage() {
             </div>
 
             {/* Quick Links */}
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col items-center md:items-start gap-3">
               <h4 className={`text-sm font-bold ${text}`}>Quick Links</h4>
               <div className="flex flex-col gap-2">
                 {["How It Works", "Moods", "Features", "Credits"].map((label) => (
@@ -984,14 +984,14 @@ export default function LandingPage() {
             </div>
 
             {/* Contact Section */}
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col items-center md:items-start gap-3">
               <h4 className={`text-sm font-bold ${text}`}>Get In Touch</h4>
-              <div className="flex flex-col gap-2">
+              <div className="flex flex-col items-center md:items-start gap-2">
                 <a
                   href="https://mail.google.com/mail/?view=cm&fs=1&to=notification.moodify@gmail.com&su=MoodiFy%20Support"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className={`flex items-center gap-2 text-xs transition-colors hover:text-[#FF6B35] ${muted}`}
+                  className={`flex items-center justify-center md:justify-start gap-2 text-xs transition-colors hover:text-[#FF6B35] ${muted}`}
                 >
                   <MessageSquare size={14} />
                   <span>notification.moodify@gmail.com</span>
@@ -1005,11 +1005,11 @@ export default function LandingPage() {
           </div>
 
           {/* Bottom Bar */}
-          <div className={`pt-6 border-t flex flex-col sm:flex-row items-center justify-between gap-3 ${isDark ? "border-[#2a2a2a]" : "border-[#FFDDD2]"}`}>
-            <p className={`text-xs ${muted}`}>
+          <div className={`pt-6 border-t flex flex-col sm:flex-row items-center justify-between gap-4 sm:gap-3 ${isDark ? "border-[#2a2a2a]" : "border-[#FFDDD2]"}`}>
+            <p className={`text-xs text-center sm:text-left ${muted}`}>
               © 2026 Soumyadip Khan Sarkar. All rights reserved.
             </p>
-            <div className="flex items-center gap-4">
+            <div className="flex items-center justify-center gap-4 flex-wrap">
               <a href="https://github.com/Soumyadip-03/MoodiFy" target="_blank" rel="noopener noreferrer"
                 className={`text-xs transition-colors hover:text-[#FF6B35] ${muted}`}>
                 GitHub

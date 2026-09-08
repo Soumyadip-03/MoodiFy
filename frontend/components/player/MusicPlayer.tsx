@@ -193,7 +193,7 @@ export default function MusicPlayer() {
 
   return (
     <>
-      <div className={`flex-shrink-0 mx-4 mb-3 h-[80px] rounded-2xl border flex items-center px-4 gap-3 transition-colors duration-300 ${bg}`}>
+      <div className={`flex-shrink-0 mx-2 md:mx-4 mb-2 md:mb-3 h-[64px] md:h-[80px] rounded-2xl border flex items-center px-3 md:px-4 gap-2 md:gap-3 transition-colors duration-300 ${bg}`}>
         {!activeTrack ? (
           /* ── Placeholder ── */
           <div className="flex-1 flex items-center justify-center gap-3">
@@ -205,19 +205,19 @@ export default function MusicPlayer() {
         ) : (
           <>
             {/* ── LEFT: Album art + title + artist ── */}
-            <div className="flex items-center gap-3 w-[220px] flex-shrink-0 min-w-0">
+            <div className="flex items-center gap-2 md:gap-3 flex-1 md:flex-none md:w-[220px] min-w-0">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={activeTrack.albumArt}
                 alt={activeTrack.title}
-                className="w-12 h-12 rounded-xl object-cover flex-shrink-0"
+                className="w-10 h-10 md:w-12 md:h-12 rounded-xl object-cover flex-shrink-0"
               />
               <div className="min-w-0 flex-1">
-                <p className={`text-sm font-semibold truncate ${textMain}`}>{activeTrack.title}</p>
-                <p className={`text-xs truncate ${textMuted}`}>{activeTrack.artist}</p>
+                <p className={`text-xs md:text-sm font-semibold truncate ${textMain}`}>{activeTrack.title}</p>
+                <p className={`text-[10px] md:text-xs truncate ${textMuted}`}>{activeTrack.artist}</p>
               </div>
               {/* Like button */}
-              <button onClick={() => toggleLike(activeTrack)} className="flex-shrink-0 p-1">
+              <button onClick={() => toggleLike(activeTrack)} className="flex-shrink-0 p-1 md:hidden">
                 <Heart
                   size={15}
                   className={isLiked ? "fill-[#F06292] text-[#F06292]" : textMuted}
@@ -226,12 +226,12 @@ export default function MusicPlayer() {
             </div>
 
             {/* ── CENTRE: Controls + seek ── */}
-            <div className="flex-1 flex flex-col items-center justify-center gap-1 min-w-0">
+            <div className="flex-shrink-0 md:flex-1 flex flex-col items-center justify-center gap-1 min-w-0">
               {/* Buttons row */}
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-3 md:gap-4">
                 <button
                   onClick={toggleShuffle}
-                  className={`transition-colors ${shuffle ? "text-[#FF6B35]" : `${textMuted} hover:text-[#FF6B35]`}`}
+                  className={`hidden md:block transition-colors ${shuffle ? "text-[#FF6B35]" : `${textMuted} hover:text-[#FF6B35]`}`}
                   title="Shuffle"
                 >
                   <Shuffle size={14} />
@@ -241,15 +241,15 @@ export default function MusicPlayer() {
                   disabled={!hasPrev}
                   className={`transition-colors ${hasPrev ? `${textMuted} hover:${textMain}` : "opacity-30 cursor-not-allowed"}`}
                 >
-                  <SkipBack size={18} />
+                  <SkipBack size={16} className="md:w-[18px] md:h-[18px]" />
                 </button>
                 <button
                   onClick={handleTogglePlay}
-                  className="w-9 h-9 rounded-full bg-[#FF6B35] hover:bg-[#e55a2b] flex items-center justify-center transition-colors flex-shrink-0"
+                  className="w-8 h-8 md:w-9 md:h-9 rounded-full bg-[#FF6B35] hover:bg-[#e55a2b] flex items-center justify-center transition-colors flex-shrink-0"
                 >
                   {isPlaying
-                    ? <Pause size={16} className="text-white" />
-                    : <Play size={16} className="text-white ml-0.5" />
+                    ? <Pause size={14} className="md:w-[16px] md:h-[16px] text-white" />
+                    : <Play size={14} className="md:w-[16px] md:h-[16px] text-white ml-0.5" />
                   }
                 </button>
                 <button
@@ -257,11 +257,11 @@ export default function MusicPlayer() {
                   disabled={!hasNext}
                   className={`transition-colors ${hasNext ? `${textMuted} hover:${textMain}` : "opacity-30 cursor-not-allowed"}`}
                 >
-                  <SkipForward size={18} />
+                  <SkipForward size={16} className="md:w-[18px] md:h-[18px]" />
                 </button>
                 <button
                   onClick={cycleRepeat}
-                  className={`relative transition-colors ${repeat !== "off" ? "text-[#FF6B35]" : `${textMuted} hover:text-[#FF6B35]`}`}
+                  className={`hidden md:block relative transition-colors ${repeat !== "off" ? "text-[#FF6B35]" : `${textMuted} hover:text-[#FF6B35]`}`}
                   title={repeat === "off" ? "Repeat off" : repeat === "all" ? "Repeat all" : "Repeat one"}
                 >
                   <Repeat size={14} />
@@ -271,8 +271,8 @@ export default function MusicPlayer() {
                 </button>
               </div>
 
-              {/* Seek bar + timestamps */}
-              <div className="flex items-center gap-2 w-full">
+              {/* Seek bar + timestamps (Hidden on mobile to save space) */}
+              <div className="hidden md:flex items-center gap-2 w-full">
                 <span className={`text-[10px] w-7 text-right flex-shrink-0 ${textMuted}`}>
                   {fmt(displayPosition)}
                 </span>
@@ -304,7 +304,14 @@ export default function MusicPlayer() {
             </div>
 
             {/* ── RIGHT: Volume + actions ── */}
-            <div className="flex items-center gap-3 w-[220px] flex-shrink-0 justify-end">
+            <div className="hidden md:flex items-center gap-3 w-[220px] flex-shrink-0 justify-end">
+              {/* Like button (Moved to desktop view here, mobile has it on the left) */}
+              <button onClick={() => toggleLike(activeTrack)} className="flex-shrink-0 p-1 mr-1">
+                <Heart
+                  size={15}
+                  className={isLiked ? "fill-[#F06292] text-[#F06292]" : textMuted}
+                />
+              </button>
               {/* Album / Queue icon */}
               {albumSource ? (
                 <button
