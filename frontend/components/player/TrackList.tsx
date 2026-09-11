@@ -59,9 +59,7 @@ export default function TrackList({
   const openMenu = (e: React.MouseEvent, track: SpotifyTrack) => {
     e.stopPropagation();
     e.preventDefault();
-    const x = Math.min(e.clientX, window.innerWidth - 210);
-    const y = Math.min(e.clientY, window.innerHeight - 230);
-    setContextMenu({ x, y, track });
+    setContextMenu({ x: e.clientX, y: e.clientY, track });
   };
 
   const card = isDark ? "bg-[#111111] border-[#2a2a2a]" : "bg-white border-[#FFDDD2]";

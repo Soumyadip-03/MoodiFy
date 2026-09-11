@@ -3,7 +3,7 @@ Email API Routes for MoodiFy
 Admin endpoints for sending official emails
 """
 
-from fastapi import APIRouter, HTTPException, Header
+from fastapi import APIRouter, HTTPException, Header, Form, File, UploadFile
 from pydantic import BaseModel, EmailStr
 from typing import Optional
 import os
@@ -230,4 +230,34 @@ async def test_email_config(authorization: str = Header(None)):
         "smtp_email": smtp_email,
         "message": "Email service is configured"
     }
+
+
+@router.post("/feedback")
+async def send_feedback_email(
+    user_email: str = Form(...),
+    user_name: str = Form(...),
+    message: str = Form(...),
+    file: Optional[UploadFile] = File(None)
+):
+    """
+    Send user feedback email to the admin
+    Accepts multipart/form-data for file uploads
+    No auth required - called automatically when user submits feedback
+    """
+    attachments = None
+    if file:
+        content = await file.read()
+        attachments = [{"filename": file.filename, "content": content}]
+
+    success = email_service.send_feedback_email(
+        user_email=user_email,
+        user_name=user_name,
+        message=message,
+        attachments=attachments
+    )
+    
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to send feedback email")
+    
+    return {"message": "Feedback sent successfully", "sent": True}
 

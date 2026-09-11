@@ -19,7 +19,8 @@ backend/backend-deploy.zip
 backend/.deployment
 
 # Admin Panel (sensitive)
-backend/Admin/
+frontend/app/admin/
+frontend/utils/emailTemplates.ts
 
 # Node
 node_modules/

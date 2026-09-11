@@ -93,12 +93,8 @@ export default function HomePage() {
   const openRecMenu = (e: React.MouseEvent, track: SpotifyTrack) => {
     e.stopPropagation();
     e.preventDefault();
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    // Anchor below-left of the button; clamp so menu stays inside viewport
-    const menuW = 210;
-    const menuH = 240;
-    const x = rect.right - menuW < 0 ? rect.left : rect.right - menuW;
-    const y = rect.bottom + menuH > window.innerHeight ? rect.top - menuH : rect.bottom + 4;
+    const x = e.clientX;
+    const y = e.clientY;
     setRecContextMenu({ x, y, track });
   };
 

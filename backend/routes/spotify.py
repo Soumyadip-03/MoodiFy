@@ -1,5 +1,7 @@
 import os
 import asyncio
+from typing import Optional
+from firebase_admin import firestore as fs
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import RedirectResponse
 from services.spotify_service import (
@@ -13,6 +15,8 @@ from services.spotify_service import (
     ensure_fresh_token,
     _format_track,
     SPOTIFY_API_BASE,
+    get_trending_playlist_id,
+    get_playlist_tracks,
 )
 import httpx
 router = APIRouter(prefix="/api/spotify")
@@ -20,7 +24,7 @@ FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
 
 
 @router.get("/login")
-def spotify_login(state: str = None):
+def spotify_login(state: Optional[str] = None):
     from urllib.parse import urlencode
     from services.spotify_service import SPOTIFY_AUTH_URL, SPOTIFY_CLIENT_ID, SPOTIFY_REDIRECT_URI, SCOPES
     params = {
@@ -36,7 +40,7 @@ def spotify_login(state: str = None):
 
 
 @router.get("/callback")
-async def spotify_callback(code: str = None, error: str = None, state: str = None):
+async def spotify_callback(code: Optional[str] = None, error: Optional[str] = None, state: Optional[str] = None):
     if error or not code:
         return RedirectResponse(f"{FRONTEND_URL}/profile?spotify=error")
     try:
@@ -46,12 +50,12 @@ async def spotify_callback(code: str = None, error: str = None, state: str = Non
             await save_tokens(uid, tokens)
             # Check and save premium status
             product = await check_premium(tokens["accessToken"])
-            from firebase_admin import firestore as fs
+
             fs.client().collection("users").document(uid).set(
                 {"isPremium": product == "premium"}, merge=True
             )
         return RedirectResponse(f"{FRONTEND_URL}/profile?spotify=connected")
-    except Exception as e:
+    except Exception:
         return RedirectResponse(f"{FRONTEND_URL}/profile?spotify=error")
 
 
@@ -65,20 +69,15 @@ async def top_tracks(uid: str):
         if not access_token:
             raise HTTPException(status_code=401, detail="Spotify not connected")
         
-        # Get user's top tracks from Spotify
-        async with httpx.AsyncClient() as client:
-            resp = await client.get(
-                f"{SPOTIFY_API_BASE}/me/top/tracks",
-                headers={"Authorization": f"Bearer {access_token}"},
-                params={"limit": 50, "time_range": "short_term"}
-            )
-        
-        if not resp.is_success:
-            raise HTTPException(status_code=resp.status_code, detail="Failed to fetch tracks")
-        
-        items = resp.json().get("items", [])
-        tracks = [_format_track(t, "mixed") for t in items if t]
-        
+        playlist_id = get_trending_playlist_id()
+        if not playlist_id:
+            return {"tracks": []}
+
+        tracks = await get_playlist_tracks(playlist_id, access_token, "trending", fetch_limit=100)
+
+        # Take the first 80 from the fully randomized 100-track pool
+        tracks = tracks[:80]
+
         return {"tracks": tracks}
     except HTTPException:
         raise
@@ -87,7 +86,7 @@ async def top_tracks(uid: str):
 
 
 @router.get("/recommendations")
-async def recommendations(mood: str, uid: str, languages: str = None):
+async def recommendations(mood: str, uid: str, languages: Optional[str] = None):
     """Get mood-based recommendations. Requires authenticated user with Premium Spotify."""
     if not uid or not uid.strip():
         raise HTTPException(status_code=401, detail="Authentication required")
@@ -124,7 +123,7 @@ async def refresh_token_route(uid: str):
 
 @router.delete("/disconnect")
 async def disconnect_spotify(uid: str):
-    from firebase_admin import firestore as fs
+
     fs.client().collection("users").document(uid).update({
         "spotifyTokens": fs.DELETE_FIELD,
         "isPremium": False,
@@ -145,7 +144,7 @@ async def spotify_status(uid: str):
     tokens = await get_tokens(uid)
     if not tokens:
         return {"connected": False, "isPremium": False}
-    from firebase_admin import firestore as fs
+
     snap = fs.client().collection("users").document(uid).get()
     is_premium = snap.to_dict().get("isPremium", False) if snap.exists else False
     return {"connected": True, "isPremium": is_premium}

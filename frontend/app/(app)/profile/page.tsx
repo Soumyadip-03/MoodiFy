@@ -13,6 +13,7 @@ import { updateDoc, doc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { ProfileStatsSkeleton } from "@/components/ui/Skeleton";
 import { sendProfileUpdateNotification, sendSettingsUpdateNotification, sendAccountDeletionNotification } from "@/lib/emailNotifications";
+import { ContactForm } from "@/components/ui/ContactForm";
 
 function ProfileContent() {
   const { theme } = useTheme();
@@ -36,6 +37,8 @@ function ProfileContent() {
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deletePassword, setDeletePassword] = useState("");
+
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
 
   // User stats and settings
   const [trackTrendingEnabled, setTrackTrendingEnabled] = useState(true);
@@ -189,6 +192,37 @@ function ProfileContent() {
     }
   };
 
+  const handleRemovePhoto = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!user?.uid) return;
+    
+    setPhotoUploading(true);
+    setPhotoError(null);
+    try {
+      await updateUserPhotoURL(user.uid, "");
+      
+      // Refresh the photo in AuthContext so it updates everywhere immediately
+      await refreshUserPhoto();
+      
+      // Send profile update notification (non-blocking)
+      const userName = user.displayName || user.email?.split("@")[0] || "User";
+      sendProfileUpdateNotification(user.email!, userName, "Profile Photo Removed").catch(err =>
+        console.error("Profile update notification failed:", err)
+      );
+      
+      toast.success("Profile photo removed");
+    } catch (error: unknown) {
+      console.error("Photo remove error:", error);
+      const errorMsg = error instanceof Error ? error.message : "Remove failed.";
+      setPhotoError(errorMsg);
+      toast.error("Failed to remove photo", {
+        description: errorMsg,
+      });
+    } finally {
+      setPhotoUploading(false);
+    }
+  };
+
   const handleDeleteAccount = async (password?: string) => {
     setDeleteLoading(true);
     setDeleteError(null);
@@ -217,6 +251,8 @@ function ProfileContent() {
       setDeleteLoading(false);
     }
   };
+
+
 
   const handleToggleTrending = async () => {
     if (!user?.uid || updatingTrending) return;
@@ -348,21 +384,31 @@ function ProfileContent() {
                     ? <img src={displayPhoto} alt="avatar" className="w-full h-full object-cover" />
                     : <span className="text-[#FF6B35]">{initials}</span>
                   }
-                  <motion.div
-                    onClick={() => fileInputRef.current?.click()}
-                    initial={{ opacity: 0 }}
-                    whileHover={{ opacity: 1 }}
-                    transition={{ duration: 0.18 }}
-                    className="absolute inset-0 rounded-full bg-black/50 flex items-center justify-center cursor-pointer"
-                  >
-                    {photoUploading
-                      ? <Loader2 size={22} className="text-white animate-spin" />
-                      : <Camera size={22} className="text-white" />
-                    }
-                  </motion.div>
                 </motion.div>
-                <AnimatePresence>
-                </AnimatePresence>
+                
+                {/* Static Badge for Edit/Remove */}
+                <button
+                  disabled={photoUploading}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (displayPhoto) {
+                      handleRemovePhoto(e);
+                    } else {
+                      fileInputRef.current?.click();
+                    }
+                  }}
+                  className={`absolute bottom-0 right-0 p-2.5 rounded-full shadow-lg border transition-transform active:scale-95 z-10 flex items-center justify-center
+                    ${isDark ? "bg-[#1a1a1a] border-[#333] hover:bg-[#2a2a2a] text-[#FF6B35]" : "bg-white border-[#FFDDD2] hover:bg-[#FFF5F0] text-[#FF6B35]"}
+                    ${photoUploading ? "opacity-50 cursor-not-allowed" : ""}`}
+                >
+                  {photoUploading ? (
+                    <Loader2 size={16} className="animate-spin" />
+                  ) : displayPhoto ? (
+                    <Trash2 size={16} />
+                  ) : (
+                    <Camera size={16} />
+                  )}
+                </button>
               </div>
 
               <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoChange} />
@@ -701,10 +747,8 @@ function ProfileContent() {
               </p>
             </div>
           </div>
-          <a
-            href="https://mail.google.com/mail/?view=cm&fs=1&to=notification.moodify@gmail.com&su=MoodiFy%20Feedback"
-            target="_blank"
-            rel="noopener noreferrer"
+          <button
+            onClick={() => setFeedbackOpen(true)}
             className="flex-shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#FF6B35] hover:bg-[#e85d2a] text-white text-xs font-semibold transition-all hover:scale-105 shadow-sm shadow-[#FF6B35]/20"
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
@@ -712,9 +756,45 @@ function ProfileContent() {
               <polyline points="22,6 12,13 2,6" />
             </svg>
             Email Us
-          </a>
+          </button>
         </div>
       </motion.section>
+
+      {/* ── Feedback Modal ── */}
+      <AnimatePresence>
+        {feedbackOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className={`w-full max-w-xl overflow-hidden rounded-2xl shadow-2xl border ${isDark ? "bg-[#111111] border-[#333333]" : "bg-white border-[#E5E5E5]"}`}
+            >
+              <div className="p-6">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className={`flex h-10 w-10 items-center justify-center rounded-full ${isDark ? "bg-[#1a1a1a]" : "bg-[#FFF5F0]"}`}>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 text-[#FF6B35]">
+                      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                    </svg>
+                  </div>
+                  <h2 className={`text-xl font-bold ${text}`}>Send Feedback</h2>
+                </div>
+                
+                <p className={`text-sm mb-4 ${muted}`}>
+                  We&apos;d love to hear your thoughts! Report a bug, suggest a feature, or just say hi.
+                </p>
+
+                <ContactForm 
+                  defaultEmail={user?.email || ""} 
+                  defaultName={user?.displayName || user?.email?.split("@")[0] || ""}
+                  onCancel={() => setFeedbackOpen(false)}
+                  onSuccess={() => setFeedbackOpen(false)}
+                />
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* ── Delete Confirm Modal ── */}
       <AnimatePresence>

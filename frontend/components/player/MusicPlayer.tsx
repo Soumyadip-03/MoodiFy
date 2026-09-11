@@ -3,17 +3,20 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import {
   Play, Pause, SkipBack, SkipForward, Volume2, VolumeX,
-  Shuffle, Repeat, Heart, Disc3, ListOrdered, ExternalLink,
+  Shuffle, Repeat, Heart, Disc3, ListOrdered, ExternalLink, ChevronDown
 } from "lucide-react";
 import { usePlayer } from "@/context/PlayerContext";
 import { useArtistAlbum } from "@/context/ArtistAlbumContext";
 import { useSpotifyPlayer } from "@/hooks/useSpotifyPlayer";
 import { useTheme } from "@/context/ThemeContext";
+import { motion, AnimatePresence } from "framer-motion";
+import { MarqueeText } from "@/components/ui/MarqueeText";
 
 function fmt(sec: number) {
   const s = Math.floor(sec);
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 }
+
 
 export default function MusicPlayer() {
   const { theme } = useTheme();
@@ -35,6 +38,7 @@ export default function MusicPlayer() {
   const [muted, setMuted] = useState(false);
   const lastVolumeRef = useRef(0.7);
 
+  const [isExpanded, setIsExpanded] = useState(false);
   // ── Guards ──
   const notifiedTrackRef = useRef<string | null>(null);
   const autoSkipTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -155,6 +159,34 @@ export default function MusicPlayer() {
   // Write into togglePlayRef so home page can call it
   togglePlayRef.current = handleTogglePlay;
 
+  // ── Media Session API ──
+  useEffect(() => {
+    if ("mediaSession" in navigator) {
+      if (activeTrack) {
+        navigator.mediaSession.metadata = new MediaMetadata({
+          title: activeTrack.title,
+          artist: activeTrack.artist,
+          album: activeTrack.album || "",
+          artwork: [
+            { src: activeTrack.albumArt, sizes: "512x512", type: "image/jpeg" }
+          ]
+        });
+      } else {
+        navigator.mediaSession.metadata = null;
+      }
+
+      navigator.mediaSession.setActionHandler("play", () => {
+        sdkToggle();
+      });
+      navigator.mediaSession.setActionHandler("pause", () => {
+        sdkToggle();
+      });
+      navigator.mediaSession.setActionHandler("previoustrack", () => handlePrev());
+      navigator.mediaSession.setActionHandler("nexttrack", () => handleNextRef.current());
+    }
+  }, [activeTrack, sdkToggle, handlePrev]);
+
+
   // ── Seek ──
   const handleSeek = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const val = Number(e.target.value);
@@ -193,7 +225,21 @@ export default function MusicPlayer() {
 
   return (
     <>
-      <div className={`flex-shrink-0 mx-2 md:mx-4 mb-2 md:mb-3 h-[64px] md:h-[80px] rounded-2xl border flex items-center px-3 md:px-4 gap-2 md:gap-3 transition-colors duration-300 ${bg}`}>
+      <style>{`
+        @keyframes scroll-marquee {
+          0% { transform: translateX(0); }
+          100% { transform: translateX(calc(-50% - 16px)); }
+        }
+        .animate-scroll-marquee {
+          animation: scroll-marquee linear infinite;
+        }
+        .mask-fade-edges {
+          mask-image: linear-gradient(to right, transparent, black 10px, black calc(100% - 10px), transparent);
+          -webkit-mask-image: -webkit-linear-gradient(left, transparent, black 10px, black calc(100% - 10px), transparent);
+        }
+      `}</style>
+      {/* ── Desktop / Mini Mobile Player ── */}
+      <div className={`relative flex-shrink-0 mx-2 md:mx-4 mb-2 md:mb-3 h-[64px] md:h-[80px] rounded-2xl border flex items-center px-3 md:px-4 gap-2 md:gap-3 transition-colors duration-300 ${bg}`}>
         {!activeTrack ? (
           /* ── Placeholder ── */
           <div className="flex-1 flex items-center justify-center gap-3">
@@ -205,24 +251,35 @@ export default function MusicPlayer() {
         ) : (
           <>
             {/* ── LEFT: Album art + title + artist ── */}
-            <div className="flex items-center gap-2 md:gap-3 flex-1 md:flex-none md:w-[220px] min-w-0">
+            <div 
+              className="flex items-center gap-2 md:gap-3 flex-1 md:flex-none md:w-[220px] min-w-0 md:cursor-default cursor-pointer"
+              onClick={() => setIsExpanded(true)}
+            >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={activeTrack.albumArt}
                 alt={activeTrack.title}
                 className="w-10 h-10 md:w-12 md:h-12 rounded-xl object-cover flex-shrink-0"
               />
-              <div className="min-w-0 flex-1">
-                <p className={`text-xs md:text-sm font-semibold truncate ${textMain}`}>{activeTrack.title}</p>
-                <p className={`text-[10px] md:text-xs truncate ${textMuted}`}>{activeTrack.artist}</p>
+              <div className="min-w-0 flex-1 overflow-hidden">
+                <MarqueeText text={activeTrack.title} className={`text-xs md:text-sm font-semibold ${textMain}`} />
+                <MarqueeText text={activeTrack.artist} className={`text-[10px] md:text-xs ${textMuted}`} />
               </div>
-              {/* Like button */}
-              <button onClick={() => toggleLike(activeTrack)} className="flex-shrink-0 p-1 md:hidden">
-                <Heart
-                  size={15}
-                  className={isLiked ? "fill-[#F06292] text-[#F06292]" : textMuted}
-                />
-              </button>
+              {/* Like/Queue button (mobile only here) */}
+              <div className="flex-shrink-0 p-1 md:hidden">
+                {albumSource ? (
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); openAlbum(albumSource.id); }} 
+                    className={`${textMuted} hover:text-[#FF6B35] transition-colors`}
+                  >
+                    <ListOrdered size={16} />
+                  </button>
+                ) : (
+                  <button onClick={(e) => { e.stopPropagation(); toggleLike(activeTrack); }}>
+                    <Heart size={15} className={isLiked ? "fill-[#F06292] text-[#F06292]" : textMuted} />
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* ── CENTRE: Controls + seek ── */}
@@ -369,9 +426,200 @@ export default function MusicPlayer() {
                 </span>
               </div>
             </div>
+
+            {/* Mobile Mini Player Progress Bar */}
+            <div className="md:hidden absolute bottom-0 left-0 right-0 h-1 rounded-b-2xl overflow-hidden bg-transparent">
+              <div className={`absolute inset-0 ${trackBg}`} />
+              <div
+                className="absolute left-0 top-0 h-full transition-all duration-300 ease-linear"
+                style={{
+                  width: displayDuration > 0 ? `${(displayPosition / displayDuration) * 100}%` : "0%",
+                  background: trackFill,
+                }}
+              />
+            </div>
           </>
         )}
       </div>
+
+      {/* ── Full Screen Mobile Player ── */}
+      <AnimatePresence>
+        {isExpanded && activeTrack && (
+          <div className="md:hidden fixed inset-0 z-[10000] flex flex-col justify-end">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/60 backdrop-blur-md"
+              onClick={() => setIsExpanded(false)}
+            />
+            <motion.div
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 25, stiffness: 200 }}
+              className={`relative w-full h-[95vh] rounded-t-3xl overflow-hidden shadow-2xl flex flex-col ${
+                isDark ? "bg-[#111111]" : "bg-white"
+              }`}
+            >
+              <div className="flex items-center justify-between p-4">
+                <button 
+                  onClick={() => setIsExpanded(false)} 
+                  className={`p-2 rounded-full ${isDark ? "bg-[#222] text-white" : "bg-[#F5F5F5] text-black"}`}
+                >
+                  <ChevronDown size={24} />
+                </button>
+                <span className={`text-sm font-bold ${textMain}`}>Now Playing</span>
+                
+                {/* Top Right Actions */}
+                <div className="flex items-center gap-1">
+                  <button onClick={(e) => { e.stopPropagation(); toggleLike(activeTrack); }} className={`w-10 h-10 flex items-center justify-center rounded-full transition-colors ${isDark ? "bg-[#222] hover:bg-[#333] text-white" : "bg-[#F5F5F5] hover:bg-[#E5E5E5] text-black"}`}>
+                    <Heart size={20} className={isLiked ? "fill-[#F06292] text-[#F06292]" : textMuted} />
+                  </button>
+                  
+                  {!albumSource && activeTrack?.albumId && (
+                    <button
+                      onClick={() => { setIsExpanded(false); openAlbum(activeTrack.albumId!); }}
+                      className={`w-10 h-10 flex items-center justify-center rounded-full transition-colors ${
+                        isDark ? "bg-[#222] hover:bg-[#333] text-white" : "bg-[#F5F5F5] hover:bg-[#E5E5E5] text-black"
+                      }`}
+                      title="Go to Album"
+                    >
+                      <Disc3 size={20} />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex-1 flex flex-col px-6 pb-6 lg:pb-12 pt-2 overflow-y-auto justify-between">
+                {/* Large Album Art */}
+                <div className="w-full aspect-square rounded-2xl overflow-hidden shadow-2xl flex-shrink-0">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={activeTrack.albumArt}
+                    alt={activeTrack.title}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+
+                {/* Info & Like/Queue */}
+                <div className="flex items-center justify-between mt-4 sm:mt-6 mb-4 sm:mb-6">
+                  <div className="min-w-0 flex-1 pr-4 overflow-hidden">
+                    <MarqueeText text={activeTrack.title} className={`text-2xl font-bold ${textMain}`} />
+                    <MarqueeText text={activeTrack.artist} className={`text-lg ${textMuted}`} />
+                  </div>
+                  {albumSource && (
+                    <button 
+                      onClick={() => { setIsExpanded(false); openAlbum(albumSource.id); }} 
+                      className={`flex-shrink-0 p-2 ${textMuted} md:hover:text-[#FF6B35] transition-colors`}
+                    >
+                      <ListOrdered size={28} />
+                    </button>
+                  )}
+                </div>
+
+                {/* Mobile Seek Bar */}
+                <div className="flex flex-col gap-2 mb-4 sm:mb-6">
+                  <div className="relative w-full h-2 group">
+                    <div className={`absolute inset-0 rounded-full ${trackBg}`} />
+                    <div
+                      className="absolute left-0 top-0 h-full rounded-full transition-all duration-300 ease-linear"
+                      style={{
+                        width: displayDuration > 0 ? `${(displayPosition / displayDuration) * 100}%` : "0%",
+                        background: trackFill,
+                      }}
+                    />
+                    <div
+                      className="absolute top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-[#FF6B35] shadow-md pointer-events-none transition-all duration-300 ease-linear"
+                      style={{ left: displayDuration > 0 ? `calc(${(displayPosition / displayDuration) * 100}% - 8px)` : "-8px" }}
+                    />
+                    <input
+                      type="range" min={0} max={displayDuration || 0} step={0.5}
+                      value={displayPosition}
+                      onChange={handleSeek}
+                      className="absolute inset-0 w-full opacity-0 cursor-pointer h-full"
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className={`text-xs ${textMuted}`}>{fmt(displayPosition)}</span>
+                    <span className={`text-xs ${textMuted}`}>{fmt(displayDuration)}</span>
+                  </div>
+                </div>
+
+                {/* Volume Bar */}
+                <div className="flex items-center gap-3 mb-4 sm:mb-6 px-2">
+                  <button onClick={handleMuteToggle} className={`${textMuted} hover:${textMain} transition-colors`}>
+                    {muted || volume === 0 ? <VolumeX size={20} /> : <Volume2 size={20} />}
+                  </button>
+                  <div className="relative flex-1 h-1.5 group">
+                    <div className={`absolute inset-0 rounded-full ${trackBg}`} />
+                    <div
+                      className="absolute left-0 top-0 h-full rounded-full"
+                      style={{ width: `${(muted ? 0 : volume) * 100}%`, background: trackFill }}
+                    />
+                    <div
+                      className="absolute top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-[#FF6B35] shadow-md pointer-events-none transition-all duration-150"
+                      style={{ left: `calc(${(muted ? 0 : volume) * 100}% - 8px)` }}
+                    />
+                    <input
+                      type="range" min={0} max={1} step={0.02}
+                      value={muted ? 0 : volume}
+                      onChange={handleVolume}
+                      className="absolute inset-0 w-full opacity-0 cursor-pointer h-full"
+                    />
+                  </div>
+                  <span className={`text-xs w-9 text-right tabular-nums ${textMuted}`}>
+                    {Math.round((muted ? 0 : volume) * 100)}%
+                  </span>
+                </div>
+
+                {/* Playback Controls */}
+                <div className="flex items-center justify-between px-2">
+                  <button
+                    onClick={toggleShuffle}
+                    className={`transition-colors p-2 ${shuffle ? "text-[#FF6B35]" : `${textMuted} md:hover:text-[#FF6B35]`}`}
+                  >
+                    <Shuffle size={24} />
+                  </button>
+                  <button
+                    onClick={handlePrev}
+                    disabled={!hasPrev}
+                    className={`transition-colors p-2 ${hasPrev ? `${textMuted} hover:${textMain}` : "opacity-30 cursor-not-allowed"}`}
+                  >
+                    <SkipBack size={32} />
+                  </button>
+                  <button
+                    onClick={handleTogglePlay}
+                    className="w-20 h-20 rounded-full bg-[#FF6B35] flex items-center justify-center transition-colors shadow-xl shadow-[#FF6B35]/20 active:scale-95"
+                  >
+                    {isPlaying
+                      ? <Pause size={32} className="text-white" />
+                      : <Play size={32} className="text-white ml-1.5" />
+                    }
+                  </button>
+                  <button
+                    onClick={handleNext}
+                    disabled={!hasNext}
+                    className={`transition-colors p-2 ${hasNext ? `${textMuted} hover:${textMain}` : "opacity-30 cursor-not-allowed"}`}
+                  >
+                    <SkipForward size={32} />
+                  </button>
+                  <button
+                    onClick={cycleRepeat}
+                    className={`relative transition-colors p-2 ${repeat !== "off" ? "text-[#FF6B35]" : `${textMuted} md:hover:text-[#FF6B35]`}`}
+                  >
+                    <Repeat size={24} />
+                    {repeat === "one" && (
+                      <span className="absolute top-1 right-1 text-[10px] font-bold text-[#FF6B35] leading-none">1</span>
+                    )}
+                  </button>
+                </div>
+                
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </>
   );
 }
