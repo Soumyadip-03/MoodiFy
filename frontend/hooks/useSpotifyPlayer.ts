@@ -156,7 +156,19 @@ export function useSpotifyPlayer(): UseSpotifyPlayerReturn {
       window.onSpotifyWebPlaybackSDKReady = init;
     }
 
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        if (playerRef.current) {
+          playerRef.current.connect();
+        } else if (window.Spotify) {
+          init();
+        }
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
     return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
       playerRef.current?.disconnect();
       playerRef.current = null;
     };

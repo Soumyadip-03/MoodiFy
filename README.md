@@ -11,7 +11,7 @@
 - 🎭 **Real-time Mood Detection** — Powered by HSEmotion AI, delivering 82-88% accuracy for instantaneous emotional mapping.
 - ❤️ **Gesture Recognition** — Integrated MediaPipe Hands functionality allows users to trigger specific moods (like "Romantic") via intuitive hand gestures.
 - 🎵 **Deep Spotify Integration** — A robust OAuth 2.0 flow securely connects to your Spotify account for personalized music recommendations, playback control, and custom playlist generation.
-- 📧 **Admin Notification System** — Built-in email broadcast system with beautifully crafted, dynamic HTML templates to keep users updated on new features and announcements.
+- 📧 **Admin Notification System** — Built-in email broadcast system with beautifully crafted, dynamic HTML templates to keep users updated on new features, announcements, and account security.
 - 🎨 **Sophisticated UI/UX** — A meticulously designed, fully responsive frontend featuring smooth animations, a floating music player, and adaptive dark/light themes.
 - 📊 **User Analytics Dashboard** — A comprehensive profile suite to track your mood history, listening statistics, liked tracks, and personalized "mood buckets".
 - 🔒 **Enterprise-Grade Security** — Fully protected routes, robust session management, and secure authentication powered by Firebase (Google + Email/Password).

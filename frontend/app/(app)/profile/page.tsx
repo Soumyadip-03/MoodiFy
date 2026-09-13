@@ -370,7 +370,7 @@ function ProfileContent() {
             className={`rounded-2xl border p-6 flex flex-col items-center gap-4 transition-colors ${card}`}
           >
               {/* Avatar */}
-              <div className="relative group">
+              <div className="relative">
                 <motion.div
                   initial={{ scale: 0.85, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
@@ -385,46 +385,38 @@ function ProfileContent() {
                     : <span className="text-[#FF6B35]">{initials}</span>
                   }
                 </motion.div>
-                
-                {/* Static Badge for Edit/Remove */}
-                <button
-                  disabled={photoUploading}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (displayPhoto) {
-                      handleRemovePhoto(e);
-                    } else {
-                      fileInputRef.current?.click();
-                    }
-                  }}
-                  className={`absolute bottom-0 right-0 p-2.5 rounded-full shadow-lg border transition-transform active:scale-95 z-10 flex items-center justify-center
-                    ${isDark ? "bg-[#1a1a1a] border-[#333] hover:bg-[#2a2a2a] text-[#FF6B35]" : "bg-white border-[#FFDDD2] hover:bg-[#FFF5F0] text-[#FF6B35]"}
-                    ${photoUploading ? "opacity-50 cursor-not-allowed" : ""}`}
-                >
-                  {photoUploading ? (
-                    <Loader2 size={16} className="animate-spin" />
-                  ) : displayPhoto ? (
-                    <Trash2 size={16} />
-                  ) : (
-                    <Camera size={16} />
-                  )}
-                </button>
               </div>
 
               <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoChange} />
 
               <div className="flex flex-col items-center gap-1">
-                <motion.button
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={photoUploading}
-                  whileTap={{ scale: 0.95 }}
-                  className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors
-                    ${isDark ? "bg-[#1a1a1a] hover:bg-[#222] text-[#aaa] border border-[#2a2a2a]" : "bg-[#FFF5F0] hover:bg-[#FFDDD2] text-[#7A6055] border border-[#FFDDD2]"}
-                    disabled:opacity-50 disabled:cursor-not-allowed`}
-                >
-                  <Camera size={12} />
-                  {photoUploading ? "Uploading…" : "Change Photo"}
-                </motion.button>
+                <div className="flex items-center gap-2">
+                  <motion.button
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={photoUploading}
+                    whileTap={{ scale: 0.95 }}
+                    className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors
+                      ${isDark ? "bg-[#1a1a1a] hover:bg-[#222] text-[#aaa] border border-[#2a2a2a]" : "bg-[#FFF5F0] hover:bg-[#FFDDD2] text-[#7A6055] border border-[#FFDDD2]"}
+                      disabled:opacity-50 disabled:cursor-not-allowed`}
+                  >
+                    {photoUploading ? <Loader2 size={12} className="animate-spin" /> : <Camera size={12} />}
+                    {photoUploading ? "Uploading…" : "Change Photo"}
+                  </motion.button>
+                  
+                  {displayPhoto && (
+                    <motion.button
+                      onClick={handleRemovePhoto}
+                      disabled={photoUploading}
+                      whileTap={{ scale: 0.95 }}
+                      className={`flex items-center justify-center p-1.5 rounded-lg transition-colors
+                        ${isDark ? "bg-[#1a1a1a] hover:bg-red-950/30 text-red-500 border border-[#2a2a2a] hover:border-red-900/50" : "bg-[#FFF5F0] hover:bg-red-50 text-red-500 border border-[#FFDDD2] hover:border-red-200"}
+                        disabled:opacity-50 disabled:cursor-not-allowed`}
+                      title="Remove Photo"
+                    >
+                      <Trash2 size={14} />
+                    </motion.button>
+                  )}
+                </div>
                 <AnimatePresence>
                   {photoError && (
                     <motion.p

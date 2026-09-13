@@ -64,8 +64,21 @@ def health_check():
 
 @app.get("/")
 def root():
-    return {
-        "status": "Moodify API running",
-        "version": "v1.1.0-refresh-fix",
-        "timestamp": "2026-09-04T19:10:00Z"
-    }
+    """Root endpoint with Google verification meta tag"""
+    from fastapi.responses import HTMLResponse
+    html_content = """
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta name="google-site-verification" content="P1GfYCC_K9trEKd4Ib7y1zlqItSHR5jPLa2-rhkO4Dw" />
+        <title>Moodify API</title>
+    </head>
+    <body>
+        <h1>Moodify API</h1>
+        <p>Status: Running</p>
+        <p>Version: v1.1.0-refresh-fix</p>
+        <p>Timestamp: 2026-09-04T19:10:00Z</p>
+    </body>
+    </html>
+    """
+    return HTMLResponse(content=html_content)

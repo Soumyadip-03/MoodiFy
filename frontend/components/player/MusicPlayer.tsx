@@ -164,8 +164,8 @@ export default function MusicPlayer() {
     if ("mediaSession" in navigator) {
       if (activeTrack) {
         navigator.mediaSession.metadata = new MediaMetadata({
-          title: activeTrack.title,
-          artist: activeTrack.artist,
+          title: "MoodiFy",
+          artist: activeTrack.title,
           album: activeTrack.album || "",
           artwork: [
             { src: activeTrack.albumArt, sizes: "512x512", type: "image/jpeg" }
@@ -183,6 +183,10 @@ export default function MusicPlayer() {
       });
       navigator.mediaSession.setActionHandler("previoustrack", () => handlePrev());
       navigator.mediaSession.setActionHandler("nexttrack", () => handleNextRef.current());
+      navigator.mediaSession.setActionHandler("stop", () => {
+        sdkToggle(); // Pause playback
+        navigator.mediaSession.metadata = null; // Clear widget
+      });
     }
   }, [activeTrack, sdkToggle, handlePrev]);
 
